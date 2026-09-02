@@ -22,9 +22,9 @@
   <a href="https://github.com/n30nex/CartoLite-Server/releases/latest">Latest release</a>
 </p>
 
-![CartoLite Server showing a live synthetic MeshCore topology over a dark vector map](docs/assets/cartolite-overview.webp)
+![CartoLite Server showing active MeshCore nodes and routes across the Great Lakes](docs/assets/cartolite-overview.webp)
 
-<p align="center"><sub>Real CartoLite interface shown with synthetic demonstration traffic. No production network data is included.</sub></p>
+<p align="center"><sub>Live topology across the Great Lakes, with routes coloured by packet type.</sub></p>
 
 ## See your mesh move
 
