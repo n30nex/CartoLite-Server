@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="CartoLite Server live MeshCore map">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="45%" r="65%">
+      <stop offset="0" stop-color="#123d43"/>
+      <stop offset="1" stop-color="#03070b"/>
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="12"/></filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <g opacity=".24" stroke="#45dfc3" stroke-width="3">
+    <path d="M90 420 265 270 425 338 610 180 770 315 1095 145"/>
+    <path d="M160 155 360 250 545 120 735 225 920 190 1110 360"/>
+  </g>
+  <g filter="url(#blur)" fill="#45dfc3" opacity=".5">
+    <circle cx="265" cy="270" r="24"/><circle cx="610" cy="180" r="28"/><circle cx="920" cy="190" r="24"/>
+  </g>
+  <g fill="#eaffff">
+    <circle cx="90" cy="420" r="8"/><circle cx="265" cy="270" r="10"/><circle cx="425" cy="338" r="8"/>
+    <circle cx="610" cy="180" r="11"/><circle cx="770" cy="315" r="9"/><circle cx="1095" cy="145" r="10"/>
+  </g>
+  <text x="90" y="505" fill="#effdff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="76" font-weight="700">CartoLite</text>
+  <text x="94" y="560" fill="#9fc7cc" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="29">Self-hosted live MeshCore RF traffic · privacy safe</text>
+</svg>

@@ -1,0 +1,27 @@
+{
+  "name": "cartolite-server-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "maplibre-gl": "5.19.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/geojson": "7946.0.16",
+    "jsdom": "25.0.1",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b151b" />
+    <meta name="description" content="A self-hosted, privacy-safe live MeshCore traffic map." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CartoLite Server" />
+    <meta property="og:description" content="A self-hosted, privacy-safe live view of high-confidence MeshCore RF traffic." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <title>CartoLite Server</title>
+  </head>
+  <body>
+    <main id="app" aria-label="CartoLite live map">
+      <div id="map" aria-label="Live MeshCore route map"></div>
+      <div id="map-grade" class="map-grade" aria-hidden="true"></div>
+      <canvas id="packet-canvas" aria-hidden="true"></canvas>
+      <section id="topbar" class="topbar glass" aria-label="CartoLite navigation and live status">
+        <button id="about-button" class="brand" type="button" aria-haspopup="dialog" title="About CartoLite">
+          <span class="brand-mark" aria-hidden="true"></span><span>CartoLite</span>
+        </button>
+        <div id="status" class="status" data-state="loading" role="status">
+          <span class="status-dot" aria-hidden="true"></span><span id="status-text">Starting…</span>
+          <span id="traffic-meter" class="traffic-meter" data-level="0" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i>
+          </span>
+        </div>
+      </section>
+      <section class="controls glass" aria-label="Map controls">
+        <button id="follow-button" class="control-button" type="button" aria-pressed="false" title="Follow live packets">
+          <span aria-hidden="true">◎</span><span>Live Follow</span>
+        </button>
+        <div id="layers-disclosure" class="layers-disclosure" open>
+          <button id="layers-summary" class="control-button" type="button" aria-label="Layers" aria-expanded="false" aria-controls="layers-panel" title="Map layers" hidden style="display: none">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m4 7 8-4 8 4-8 4z"></path><path d="m4 12 8 4 8-4M4 17l8 4 8-4"></path>
+            </svg>
+            <span>Layers</span>
+          </button>
+          <div id="layers-panel" class="layers-panel glass">
+            <div id="find-control" class="find-control">
+              <button id="find-button" class="control-button" type="button" aria-label="Find a node" aria-expanded="false" aria-controls="find-panel" title="Find a node">
+                <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 4 4"></path>
+                </svg>
+                <span>Find</span>
+              </button>
+              <section id="find-panel" class="find-panel glass" aria-label="Find a node" hidden>
+                <label for="node-search">Find a node</label>
+                <input id="node-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search public labels" aria-controls="node-search-results" />
+                <div id="node-search-results" class="node-search-results" role="listbox" aria-live="polite"></div>
+              </section>
+            </div>
+            <button id="routes-button" class="control-button" type="button" aria-label="Routes" aria-pressed="false" title="Show routes">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="6" cy="19" r="3"></circle>
+                <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
+                <circle cx="18" cy="5" r="3"></circle>
+              </svg>
+              <span>Routes</span>
+            </button>
+            <button id="heatmap-button" class="control-button selected" type="button" aria-label="Heatmap" aria-pressed="true" title="Hide heatmap">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="2.5"></circle>
+                <circle cx="12" cy="12" r="6"></circle>
+                <path d="M6.3 4.5A9.5 9.5 0 0 1 21.5 12M17.7 19.5A9.5 9.5 0 0 1 2.5 12"></path>
+              </svg>
+              <span>Heatmap</span>
+            </button>
+            <button id="clusters-button" class="control-button selected" type="button" aria-label="Clusters" aria-pressed="true" title="Hide clusters">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="7" cy="8" r="3"></circle><circle cx="16.5" cy="7" r="2.5"></circle><circle cx="12" cy="16" r="3.5"></circle>
+              </svg>
+              <span>Clusters</span>
+            </button>
+            <button id="hillshade-button" class="control-button" type="button" aria-label="Topography" aria-pressed="false" title="Show topography">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m3 18 6-9 3 4 3-7 6 12z"></path><path d="M6 18h12"></path>
+              </svg>
+              <span>Topo</span>
+            </button>
+            <button id="terrain-button" class="control-button" type="button" aria-label="3D terrain" aria-pressed="false" title="Enable 3D terrain">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m4 15 5-7 3 4 3-6 5 9"></path><path d="m4 15 8 5 8-5"></path>
+              </svg>
+              <span>3D</span>
+            </button>
+            <label class="route-window" for="route-window">
+              <span>Routes</span>
+              <select id="route-window" aria-label="Route age window">
+                <option value="auto">Auto · 15m</option>
+                <option value="15m">15m</option>
+                <option value="1h">1h</option>
+                <option value="6h">6h</option>
+                <option value="24h">24h</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="sound-control">
+          <button id="sound-button" class="control-button" type="button" aria-label="Sound" aria-pressed="false" aria-expanded="false" aria-controls="sound-panel" title="Sound off">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 10v4h3l4 3V7l-4 3z"></path>
+              <path d="M15 9.5a4 4 0 0 1 0 5M17.5 7a7.5 7.5 0 0 1 0 10"></path>
+            </svg>
+            <span class="sound-button-label">Sound</span><span id="sound-state" class="sound-state">Off</span>
+          </button>
+          <section id="sound-panel" class="sound-panel glass" aria-label="Sound settings" hidden>
+            <header><strong>Sound</strong><span id="sound-panel-state" aria-live="polite">Off</span></header>
+            <button id="sound-toggle" class="sound-toggle" type="button">Turn sound on</button>
+            <label class="scene-control" for="sound-scene">
+              <span>Scene</span>
+              <select id="sound-scene">
+                <option value="aurora">Aurora</option>
+                <option value="wood">Wood</option>
+                <option value="chimes">Chimes</option>
+              </select>
+            </label>
+            <label class="volume-control" for="sound-volume">
+              <span>Volume</span><output id="sound-volume-output" for="sound-volume">80%</output>
+              <input id="sound-volume" type="range" min="0" max="100" step="1" value="80" />
+            </label>
+            <p><span id="sound-activity" class="sound-activity" aria-hidden="true"></span>Visible live hops only</p>
+          </section>
+        </div>
+        <button id="reset-button" class="control-button icon-button" type="button" title="Reset map view" aria-label="Reset map view">⌂</button>
+      </section>
+      <section id="legend" class="legend glass" aria-label="Map legend" data-collapsed="true" data-focused="false">
+        <button id="legend-toggle" class="legend-toggle" type="button" aria-label="Show map legend" aria-controls="legend-items" aria-expanded="false">
+          <span class="legend-toggle-mark" aria-hidden="true">i</span>
+        </button>
+        <div id="legend-items" class="legend-items">
+          <span><i class="node repeater"></i>Repeater</span>
+          <span><i class="node companion"></i>Companion</span>
+          <span><i class="node room"></i>Room</span>
+        </div>
+        <div id="focus-chip" class="focus-chip" role="status" aria-live="polite" aria-atomic="true" hidden>
+          <i aria-hidden="true"></i><span id="focus-text"></span>
+        </div>
+      </section>
+      <section id="route-legend" class="route-legend glass" aria-label="Route colors show the latest packet type" hidden></section>
+      <div id="tooltip" class="tooltip glass" role="tooltip" hidden></div>
+      <section id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected node details" hidden></section>
+      <div id="fatal" class="fatal glass" role="alert" hidden></div>
+      <dialog id="about-dialog" class="about-dialog glass" aria-labelledby="about-title">
+        <button id="about-close" class="about-close" type="button" aria-label="Close CartoLite information">×</button>
+        <h1 id="about-title">CartoLite</h1>
+        <p>A self-hosted, privacy-safe view of high-confidence MeshCore RF traffic worldwide.</p>
+        <dl>
+          <div><dt>Map</dt><dd>Clusters and packet-coloured heat summarize activity. Clusters can be disabled at every zoom, while optional topography and 3D terrain add geographic context.</dd></div>
+          <div><dt>Colours</dt><dd>Route and packet colours show the latest sanitized packet kind, never message content.</dd></div>
+          <div><dt>Sound</dt><dd>Opt in to hear every visible live hop in Aurora, Wood, or Chimes. Volume, scene, and your choice stay only in this browser; remembered sound always waits for a tap before resuming.</dd></div>
+          <div><dt>Find</dt><dd>Search public node labels locally, then inspect active neighbours without sending or saving your query.</dd></div>
+          <div><dt>Server</dt><dd>This instance reads one operator-configured MQTT feed and publishes only a sanitized live topology.</dd></div>
+          <div><dt>Privacy</dt><dd>No public keys, packet payloads, message text, raw paths, or visitor analytics are published.</dd></div>
+          <div><dt>Updated</dt><dd id="last-update">Waiting for live state…</dd></div>
+        </dl>
+      </dialog>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

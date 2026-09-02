@@ -1,0 +1,12 @@
+{"topic":"meshcore/AU_NSW/1100000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Sydney Repeater","role":"repeater","latitude":-33.8688,"longitude":151.2093}}
+{"topic":"meshcore/GB_LON/2200000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic London Repeater","role":"repeater","latitude":51.5074,"longitude":-0.1278}}
+{"topic":"meshcore/SG/AA00000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Singapore Central","role":"repeater","latitude":1.3521,"longitude":103.8198}}
+{"topic":"meshcore/SG/BB00000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Singapore East","role":"repeater","latitude":1.3404,"longitude":103.9496}}
+{"topic":"meshcore/SG/CC00000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Singapore Observer","role":"observer","latitude":1.3521,"longitude":103.8198}}
+{"topic":"meshcore/ZA_WC/3300000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Cape Town Repeater","role":"repeater","latitude":-33.9249,"longitude":18.4241}}
+{"topic":"meshcore/JP_KANTO/DD00000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Tokyo Repeater","role":"repeater","latitude":35.6895,"longitude":139.6917}}
+{"topic":"meshcore/JP_KANTO/EE00000000000000000000000000000000000000000000000000000000000000/status","payload":{"name":"Synthetic Tokyo Room","role":"room_server","latitude":35.6762,"longitude":139.6503}}
+{"topic":"meshcore/SG/CC00000000000000000000000000000000000000000000000000000000000000/packets","payload":{"origin":"Synthetic Singapore Observer","raw":"0901AA00AA48656C6C6F","rssi":-72,"snr":7.4}}
+{"topic":"meshcore/SG/CC00000000000000000000000000000000000000000000000000000000000000/packets","payload":{"origin":"Synthetic Singapore Observer","raw":"0901BB00BB48656C6C6F","rssi":-76,"snr":5.9}}
+{"topic":"meshcore/JP_KANTO/EE00000000000000000000000000000000000000000000000000000000000000/packets","payload":{"origin":"Synthetic Tokyo Room","raw":"0901DD00DD48656C6C6F","rssi":-69,"snr":8.2}}
+{"topic":"meshcore/JP_KANTO/EE00000000000000000000000000000000000000000000000000000000000000/packets","payload":{"origin":"Synthetic Tokyo Room","raw":"0901EE00EE48656C6C6F","rssi":-71,"snr":6.8}}

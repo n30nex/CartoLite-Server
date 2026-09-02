@@ -1,0 +1,56 @@
+name: cartolite-server
+
+services:
+  cartolite:
+    image: ${CARTOLITE_IMAGE:-cartolite-server:local}
+    build:
+      context: .
+      args:
+        APP_VERSION: ${CARTOLITE_VERSION:-dev}
+        GIT_SHA: ${CARTOLITE_GIT_SHA:-local}
+        BUILD_TIME: ${CARTOLITE_BUILD_TIME:-unknown}
+      secrets:
+        - carto_basemap_api_key
+    restart: unless-stopped
+    ports:
+      - "${CARTOLITE_BIND_ADDR:-127.0.0.1}:${CARTOLITE_PORT:-8080}:8080"
+    environment:
+      HTTP_ADDR: :8080
+      MQTT_ENABLED: "true"
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:?Set MQTT_BROKER_URL}
+      MQTT_TOPIC: ${MQTT_TOPIC:-meshcore/#}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-cartolite-server}
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+      REGION_ALLOWLIST: ${REGION_ALLOWLIST:-}
+      MQTT_INGEST_QUEUE_SIZE: ${MQTT_INGEST_QUEUE_SIZE:-4096}
+      STATE_PATH: ${STATE_PATH:-/data/state-v1.json}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - cartolite-data:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 128
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "/cartolite", "healthcheck", "http://127.0.0.1:8080/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  cartolite-data:
+
+secrets:
+  carto_basemap_api_key:
+    file: ${CARTO_BASEMAP_API_KEY_FILE:-./.secrets/carto-basemap-api-key}

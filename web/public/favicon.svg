@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CartoLite">
+  <rect width="64" height="64" rx="14" fill="#03070b"/>
+  <path d="M12 43 25 29l10 7 17-18" fill="none" stroke="#45dfc3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12" cy="43" r="5" fill="#53a7e8"/>
+  <circle cx="25" cy="29" r="5" fill="#45c27f"/>
+  <circle cx="35" cy="36" r="5" fill="#ab76dc"/>
+  <circle cx="52" cy="18" r="5" fill="#f2bf4f"/>
+</svg>

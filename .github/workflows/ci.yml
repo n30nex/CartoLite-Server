@@ -1,0 +1,141 @@
+name: CI
+
+# Manual-only while the maintainer's hosted-runner minutes are unavailable.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Go test, vet, and race
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - working-directory: backend
+        run: go mod verify
+      - working-directory: backend
+        run: go test ./...
+      - working-directory: backend
+        run: go vet ./...
+      - working-directory: backend
+        run: go test -race ./...
+
+  frontend:
+    name: Frontend test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - working-directory: web
+        run: npm ci
+      - working-directory: web
+        run: npm test
+      - working-directory: web
+        run: npm run build
+      - run: node scripts/check-frontend-budget.mjs web/dist
+
+  container:
+    name: Container integration, browser, privacy, and scan
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - working-directory: web
+        run: |
+          npm ci
+          npm exec playwright install --with-deps chromium
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Require and verify CARTO vector authorization
+        env:
+          CARTO_BASEMAP_API_KEY: ${{ secrets.CARTO_BASEMAP_API_KEY }}
+        run: |
+          test -n "$CARTO_BASEMAP_API_KEY"
+          node scripts/check-carto-vector.mjs
+      - name: Build hardened image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: cartolite-server:ci
+          build-args: |
+            APP_VERSION=ci
+            GIT_SHA=${{ github.sha }}
+            BUILD_TIME=unknown
+          secrets: |
+            carto_basemap_api_key=${{ secrets.CARTO_BASEMAP_API_KEY }}
+      - run: |
+          bash scripts/check-image-size.sh cartolite-server:ci
+          test "$(docker image inspect cartolite-server:ci --format '{{.Config.User}}')" = "65532:65532"
+          test "$(docker image inspect cartolite-server:ci --format '{{.Architecture}}')" = "amd64"
+      - name: Start synthetic MQTT and server
+        run: |
+          docker network create cartolite-server-ci
+          docker volume create cartolite-server-ci-data
+          docker run -d --name cartolite-server-mqtt --network cartolite-server-ci \
+            --mount type=bind,source="$PWD/testdata/mosquitto.conf",target=/mosquitto/config/mosquitto.conf,readonly \
+            eclipse-mosquitto:2.0.22
+          docker run -d --name cartolite-server --network cartolite-server-ci \
+            -p 127.0.0.1:39476:8080 --read-only --cap-drop ALL \
+            --security-opt no-new-privileges:true --memory 256m \
+            --mount source=cartolite-server-ci-data,target=/data \
+            -e MQTT_BROKER_URL=tcp://cartolite-server-mqtt:1883 \
+            -e MQTT_TOPIC=meshcore/# -e MQTT_CLIENT_ID=cartolite-server-ci \
+            cartolite-server:ci
+          for _ in $(seq 1 90); do
+            curl --fail --silent http://127.0.0.1:39476/readyz >/dev/null && exit 0
+            sleep 1
+          done
+          docker logs cartolite-server
+          exit 1
+      - run: |
+          bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
+          bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
+          bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
+      - working-directory: web
+        env:
+          CARTOLITE_BASE_URL: http://127.0.0.1:39476
+        run: npm run test:e2e
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: cartolite-server:ci
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - if: always()
+        run: |
+          docker rm -f cartolite-server cartolite-server-mqtt >/dev/null 2>&1 || true
+          docker network rm cartolite-server-ci >/dev/null 2>&1 || true
+
+  required:
+    name: CI / Required
+    if: always()
+    needs: [backend, frontend, container]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          BACKEND: ${{ needs.backend.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          CONTAINER: ${{ needs.container.result }}
+        run: test "$BACKEND" = success -a "$FRONTEND" = success -a "$CONTAINER" = success

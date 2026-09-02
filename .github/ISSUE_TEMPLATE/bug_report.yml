@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a reproducible CartoLite problem using synthetic data
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include live packet captures, keys, credentials, broker details, checkpoints, or message text. Use the synthetic fixture.
+  - type: input
+    id: version
+    attributes:
+      label: Version or image digest
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed and expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Synthetic reproduction
+    validations:
+      required: true

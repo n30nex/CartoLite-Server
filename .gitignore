@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Build and test output
+backend/cartolite
+backend/coverage.out
+web/dist/
+web/node_modules/
+web/playwright-report/
+web/test-results/
+artifacts/
+.secrets/
+
+# Runtime state is never source material
+data/
+*.db
+*.db-shm
+*.db-wal
+state-v1.json*
