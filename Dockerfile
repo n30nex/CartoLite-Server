@@ -10,7 +10,7 @@ COPY web/ ./
 RUN --mount=type=secret,id=carto_basemap_api_key,required=false \
     VITE_CARTO_BASEMAP_API_KEY="$(cat /run/secrets/carto_basemap_api_key 2>/dev/null || true)" npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.25.13-bookworm AS go-build
+FROM --platform=$BUILDPLATFORM golang:1.27.0-bookworm AS go-build
 ARG APP_VERSION=dev
 ARG GIT_SHA=unknown
 ARG BUILD_TIME=unknown
