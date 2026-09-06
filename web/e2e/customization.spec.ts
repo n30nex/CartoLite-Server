@@ -95,9 +95,23 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
     await page.mouse.move(1000, 450);
     await page.mouse.down();
     await page.mouse.move(1100, 460, { steps: 4 });
-    await page.mouse.up();
     await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'paused');
+    await page.mouse.up();
   }
+  await page.locator('#find-button').click();
+  await page.locator('#node-search').fill('Summit');
+  await page.locator('.node-search-result').first().click();
+  await page.locator('#follow-button').click();
+  await emit(page, 5, 'Text');
+  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
+  await expect(page.locator('.node-inspector')).toBeHidden();
+  // A new neighbour is a feed update, not a manual selection or a pause request.
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('fixture-packet', { detail: {
+    seq: 6, id: 'fixture-new-neighbour', at: Date.now(), mode: 'route', payloadType: 'Advert',
+    segments: [{ routeId: 'new-neighbour', fromId: 'summit', toId: 'meadow' }],
+  } })));
+  await expect(page.locator('#map')).toHaveAttribute('data-neighbor-route-count', '3');
+  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
   await page.locator('#follow-close').click();
   await expect(page.locator('#follow-card')).toBeHidden();
 });
@@ -108,6 +122,7 @@ async function fixture(page: Page): Promise<void> {
     { id: 'valley', label: 'Valley Fixture', lng: -80.4, lat: 43.5 },
     { id: 'summit', label: 'Summit Fixture', lng: -80.2, lat: 43.65 },
     { id: 'ridge', label: 'Ridge Fixture', lng: -80.0, lat: 43.55 },
+    { id: 'meadow', label: 'Meadow Fixture', lng: -80.3, lat: 43.65 },
   ].map((node) => ({ ...node, role: 'repeater' as const, observer: false, lastSeen: now }));
   const state: StateV2 = {
     schemaVersion: 2, bootId: 'customization-fixture', seq: 0, serverTime: now,

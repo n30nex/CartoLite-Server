@@ -218,7 +218,7 @@ async function start(): Promise<void> {
       required<HTMLElement>('node-inspector-sheet'),
       {
       appearance: uiPreferences,
-      onFocusChange(focus) { updateFocusChrome(focus); if (focus) pauseLiveFollow(); },
+      onFocusChange: updateFocusChrome,
       onRouteWindowChange(label) {
         const option = routeWindow.querySelector<HTMLOptionElement>('option[value="auto"]');
         if (option) option.textContent = label;
@@ -313,6 +313,7 @@ async function start(): Promise<void> {
         const button = document.getElementById(id);
         if (button && uiPreferences[key] !== DEFAULT_UI_PREFERENCES[key]) button.click();
       }
+      if (legendExpanded) legendToggle.click();
       persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, relief: 0.75, routeWindow: 'auto' });
       routeWindow.value = 'auto';
       liveMap.setRouteWindow('auto');
@@ -457,7 +458,7 @@ async function start(): Promise<void> {
     followPause.addEventListener('click', () => setLiveFollow(followPaused, !followPaused));
     required<HTMLButtonElement>('follow-close').addEventListener('click', () => setLiveFollow(false));
 
-    liveMap.map.on('dragstart', () => { if (liveFollow) setLiveFollow(false, true); });
+    for (const gesture of ['dragstart', 'click'] as const) liveMap.map.on(gesture, () => { if (liveFollow) setLiveFollow(false, true); });
     for (const type of ['zoomstart', 'rotatestart', 'pitchstart'] as const) {
       liveMap.map.on(type, (event) => {
         if (event.originalEvent && liveFollow) setLiveFollow(false, true);

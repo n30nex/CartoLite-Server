@@ -694,3 +694,5 @@ button { font: inherit; }
   #layers-panel { max-height: calc(100dvh - 86px - env(safe-area-inset-top)); }
   :root[data-view-class="mobile"] #layers-panel, :root[data-view-class="mobile"] .find-panel { top: max(62px, calc(env(safe-area-inset-top) + 54px)); }
 }
+
+.director-enabled :is(.node-inspector-sheet, .node-inspector-popup) { visibility: hidden; pointer-events: none; }
