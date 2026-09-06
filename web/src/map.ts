@@ -13,6 +13,8 @@ import type {
 import { colorWithAlpha as alphaColor } from './trafficVisuals';
 import { cartoVectorRequestURL, cartoVectorStyle } from './basemap';
 import { longitudeDelta } from './worldGeometry';
+import { DEFAULT_UI_PREFERENCES, type UiPreferences } from './preferences';
+import { FOLLOW_DWELL_MS, followEndpoints } from './liveFollow';
 import {
   buildNodeInspectorModel,
   createNodeInspectorContent,
@@ -38,7 +40,7 @@ export const DEFAULT_CENTER: [number, number] = [0, 20];
 export const DEFAULT_ZOOM = 1.4;
 export const DETAIL_ZOOM = 8.4;
 export const LIVE_FOLLOW_SAFE_RATIO = 0.6;
-export const LIVE_FOLLOW_MIN_INTERVAL_MS = 5_000;
+export const LIVE_FOLLOW_MIN_INTERVAL_MS = FOLLOW_DWELL_MS;
 export const ACTIVE_NODE_WINDOW_MS = 24 * 60 * 60_000;
 
 export function mapPixelRatio(devicePixelRatio: number, lowPower: boolean): number {
@@ -57,11 +59,10 @@ const NODE_CLUSTER_SOURCE_ID = 'node-clusters';
 const TERRAIN_SOURCE_ID = 'mapterhorn-dem';
 const HILLSHADE_SOURCE_ID = 'mapterhorn-hillshade-dem';
 const TERRAIN_TILEJSON_URL = 'https://tiles.mapterhorn.com/tilejson.json';
-const ROUTE_TRUNK_SOURCE_ID = 'route-trunks';
 const ROUTE_DETAIL_SOURCE_ID = 'route-details';
 const ROUTE_TERRAIN_LAYER_ID = 'route-terrain';
 const ROUTE_FOCUS_SOURCE_ID = 'route-focus';
-const ROUTE_TRUNK_WINDOW_STATE_ID = 'cartolite-trunk-window';
+const FOLLOW_SOURCE_ID = 'live-follow-activity';
 export const HEATMAP_LAYER_IDS = PACKET_KINDS.map((kind) => `activity-heat-${kind.toLowerCase()}`);
 export const HEATMAP_LAYER_ID = HEATMAP_LAYER_IDS[0]!;
 export const HILLSHADE_LAYER_ID = 'terrain-hillshade';
@@ -123,6 +124,7 @@ export interface LiveMapFocus {
 }
 
 export interface LiveMapOptions {
+  appearance?: UiPreferences;
   onFocusChange?: (focus: LiveMapFocus | null) => void;
   onRouteRepresentationChange?: (representation: RouteRepresentation) => void;
   onRouteWindowChange?: (label: string) => void;
@@ -163,9 +165,7 @@ export class LiveMap {
   private lastRouteHydrationAt = 0;
   private routeSourceRevision = 0;
   private routeClock = 0;
-  private appliedRouteWindowMS = 0;
   private routeCollections?: RouteSourceCollections;
-  private routeTrunkFeatures = new Map<string, Feature<LineString>>();
   private routeDetailFeatures = new Map<string, Feature<LineString>>();
   private dirtyRouteIDs = new Set<string>();
   private rebuildAllRoutes = true;
@@ -194,10 +194,15 @@ export class LiveMap {
   private nodeInspectorPopupAnchor?: 'left' | 'right';
   private suppressPopupClose = false;
   private lastFollowMoveAt = 0;
+  private followZoom = DEFAULT_ZOOM;
+  private followedPacket?: PacketView;
+  private appearance: UiPreferences = { ...DEFAULT_UI_PREFERENCES };
   private directorTimer?: number;
   private readonly reducedMotion = prefersReducedMotion();
   private freshnessTimer: number;
   private renderEpoch = 0;
+  private renderingScheduled = false;
+  private renderingSources = new Set<string>();
   private layersReady = false;
 
   constructor(
@@ -206,6 +211,7 @@ export class LiveMap {
     private readonly inspectorSheet: HTMLElement,
     private readonly options: LiveMapOptions
   ) {
+    this.appearance = { ...DEFAULT_UI_PREFERENCES, ...options.appearance };
     const lowPower = window.matchMedia('(max-width: 620px), (pointer: coarse)').matches;
     this.container.dataset.renderState = 'loading';
     this.container.dataset.routesVisible = 'true';
@@ -225,7 +231,7 @@ export class LiveMap {
     this.container.dataset.exactRoutesReady = 'false';
     this.map = new maplibregl.Map({
       container: this.container,
-      style: cartoVectorStyle(),
+      style: cartoVectorStyle(undefined, this.appearance.basemap),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       minZoom: 1,
@@ -346,8 +352,7 @@ export class LiveMap {
 
   private hydrateRouteSource(now = Date.now()): void {
     const detailSource = this.map.getSource(ROUTE_DETAIL_SOURCE_ID) as GeoJSONSource | undefined;
-    const trunkSource = this.map.getSource(ROUTE_TRUNK_SOURCE_ID) as GeoJSONSource | undefined;
-    if (!detailSource || !trunkSource) return;
+    if (!detailSource) return;
     if (this.routeHydrationTimer !== undefined) {
       window.clearTimeout(this.routeHydrationTimer);
       this.routeHydrationTimer = undefined;
@@ -367,8 +372,7 @@ export class LiveMap {
     this.markRendering();
 
     const active = (): boolean => hydrationEpoch === this.routeHydrationEpoch
-      && Boolean(this.map.getSource(ROUTE_DETAIL_SOURCE_ID))
-      && Boolean(this.map.getSource(ROUTE_TRUNK_SOURCE_ID));
+      && Boolean(this.map.getSource(ROUTE_DETAIL_SOURCE_ID));
     const fail = (error: unknown): void => {
       if (!active()) return;
       this.routeHydrating = false;
@@ -407,25 +411,16 @@ export class LiveMap {
       this.container.dataset.trunkRepresentationsLoaded = '';
       this.container.dataset.routeBuildMaxSliceMs = collections.maxSliceMS.toFixed(1);
       const sourceStarted = performance.now();
-      const trunkChanged = this.updateRouteSource(
-        ROUTE_TRUNK_SOURCE_ID,
-        trunkSource,
-        this.routeTrunkFeatures,
-        []
-      );
       this.historicalRouteLayer.setRoutes(collections.individual.features);
       this.updateTerrainRoutes(true);
-      const detailChanged = true;
       this.routeDetailFeatures.clear();
       for (const feature of collections.individual.features) {
         if (feature.id !== undefined) this.routeDetailFeatures.set(String(feature.id), feature);
       }
       this.container.dataset.renderedRouteSegments = String(collections.individual.features.length);
       this.container.dataset.routeSourceDispatchMs = (performance.now() - sourceStarted).toFixed(1);
-      if (trunkChanged || detailChanged) {
-        this.routeSourceRevision += 1;
-        this.container.dataset.routeSourceRevision = String(this.routeSourceRevision);
-      }
+      this.routeSourceRevision += 1;
+      this.container.dataset.routeSourceRevision = String(this.routeSourceRevision);
       this.applyRouteTimeState(now, this.routeClock === 0);
     })
       .then(finish)
@@ -455,7 +450,7 @@ export class LiveMap {
 
   private scheduleRouteHydration(): void {
     if (this.routeHydrationTimer !== undefined || this.routeHydrating || !this.routeDataDirty) return;
-    if (!this.map.getSource(ROUTE_DETAIL_SOURCE_ID) || !this.map.getSource(ROUTE_TRUNK_SOURCE_ID)) return;
+    if (!this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) return;
     const delay = routeHydrationDelay(this.lastRouteHydrationAt, performance.now());
     this.routeHydrationTimer = window.setTimeout(() => {
       this.routeHydrationTimer = undefined;
@@ -557,48 +552,6 @@ export class LiveMap {
     return true;
   }
 
-  private updateRouteSource(
-    sourceID: string,
-    source: GeoJSONSource,
-    previous: Map<string, Feature<LineString>>,
-    features: readonly Feature<LineString>[]
-  ): boolean {
-    const next = new Map<string, Feature<LineString>>();
-    const diff: GeoJSONSourceDiff = {};
-    for (const feature of features) {
-      if (feature.id === undefined) continue;
-      const id = String(feature.id);
-      next.set(id, feature);
-      const old = previous.get(id);
-      if (!old) {
-        (diff.add ??= []).push(feature);
-        continue;
-      }
-      if (sameLineFeature(old, feature)) continue;
-      (diff.update ??= []).push({
-        id,
-        newGeometry: feature.geometry,
-        addOrUpdateProperties: Object.entries(feature.properties ?? {}).map(([key, value]) => ({ key, value }))
-      });
-    }
-    for (const id of previous.keys()) {
-      if (!next.has(id)) (diff.remove ??= []).push(id);
-    }
-    if (!diff.add?.length && !diff.update?.length && !diff.remove?.length) return false;
-    try {
-      if (previous.size === 0) {
-        source.setData({ type: 'FeatureCollection', features: [...next.values()] });
-      } else {
-        source.updateData(diff);
-      }
-      previous.clear();
-      for (const [id, feature] of next) previous.set(id, feature);
-      return true;
-    } catch (error: unknown) {
-      throw new Error(`${sourceID} update failed`, { cause: error });
-    }
-  }
-
   reset(center: [number, number] = DEFAULT_CENTER, zoom = DEFAULT_ZOOM): void {
     this.lastFollowMoveAt = 0;
     const orientation = this.cameraOrientation();
@@ -666,23 +619,91 @@ export class LiveMap {
     this.directorTimer = window.setTimeout(() => {
       this.directorTimer = undefined;
       this.container.dataset.cameraMode = 'idle';
-    }, 900);
+    }, 1500);
     if (endpoints.length === 1) {
       const center: [number, number] = [endpoints[0]!.lng, endpoints[0]!.lat];
       if (this.reducedMotion) this.map.jumpTo({ center });
-      else this.map.easeTo({ center, duration: 620, essential: false, easeId: 'cartolite-live-follow' });
+      else this.map.easeTo({ center, duration: 1200, essential: false, easeId: 'cartolite-live-follow' });
       return true;
     }
     const bounds = new maplibregl.LngLatBounds();
-    for (const endpoint of endpoints) bounds.extend([endpoint.lng, endpoint.lat]);
+    const anchor = endpoints[0]!.lng;
+    for (const endpoint of endpoints) bounds.extend([anchor + longitudeDelta(anchor, endpoint.lng), endpoint.lat]);
     const horizontal = container.clientWidth <= 620 ? 56 : 104;
-    this.map.fitBounds(bounds, {
-      padding: { top: 86, right: horizontal, bottom: 72, left: horizontal },
-      maxZoom: this.map.getZoom(),
-      duration: this.reducedMotion ? 0 : 720,
-      essential: false,
+    const camera = this.map.cameraForBounds(bounds, {
+      padding: { top: 96, right: horizontal, bottom: Math.min(230, viewport.height * 0.32), left: horizontal },
+      bearing: this.map.getBearing(),
+      maxZoom: this.followZoom,
     });
+    if (!camera) return false;
+    this.map.easeTo({ ...camera, duration: this.reducedMotion ? 0 : 1400, essential: false, easeId: 'cartolite-live-follow' });
     return true;
+  }
+
+  beginFollow(): void {
+    this.lastFollowMoveAt = 0;
+    this.followZoom = Math.min(10, this.map.getZoom());
+  }
+
+  followPriority(packet: PacketView): number {
+    const bounds = this.map.getBounds();
+    return followEndpoints(packet).filter((point) => bounds.contains([point.lng, point.lat])).length;
+  }
+
+  showFollowPacket(packet?: PacketView): void {
+    this.followedPacket = packet;
+    const source = this.map.getSource(FOLLOW_SOURCE_ID) as GeoJSONSource | undefined;
+    if (!source) return;
+    const features: Feature<LineString | Point>[] = [];
+    if (packet) {
+      const color = payloadColor(packet.payloadType);
+      if (packet.mode === 'route') for (const hop of packet.segments) {
+        features.push({ type: 'Feature', properties: { color }, geometry: { type: 'LineString', coordinates: [
+          [hop.from.lng, hop.from.lat], [hop.from.lng + longitudeDelta(hop.from.lng, hop.to.lng), hop.to.lat],
+        ] } });
+      }
+      for (const point of followEndpoints(packet)) features.push({
+        type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: [point.lng, point.lat] },
+      });
+    }
+    source.setData({ type: 'FeatureCollection', features });
+  }
+
+  setAppearance(preferences: UiPreferences, force = false): void {
+    const previous = this.appearance;
+    this.appearance = { ...preferences };
+    this.container.dataset.basemapStyle = preferences.basemap;
+    this.container.dataset.nodeLabels = String(preferences.nodeLabels);
+    this.container.dataset.mapLabels = String(preferences.mapLabels);
+    this.container.dataset.roadsVisible = String(preferences.roads);
+    this.container.dataset.routeOpacity = String(preferences.routeOpacity);
+    if (!this.layersReady) return;
+    if (force || previous.basemap !== preferences.basemap) {
+      for (const layer of cartoVectorStyle(undefined, preferences.basemap).layers) {
+        if (!this.map.getLayer(layer.id) || !('paint' in layer)) continue;
+        for (const [property, value] of Object.entries(layer.paint ?? {})) this.map.setPaintProperty(layer.id, property, value);
+      }
+      const light = preferences.basemap !== 'dark';
+      this.historicalRouteLayer.setLightBackground(light);
+      this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-color', light ? '#27464c' : '#c8d9df');
+      this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-halo-color', light ? '#f4f6ee' : '#07121a');
+    }
+    if (force || previous.basemap !== preferences.basemap || previous.mapLabels !== preferences.mapLabels || previous.roads !== preferences.roads) {
+      for (const layer of cartoVectorStyle().layers) {
+        const enabled = layer.type === 'symbol' ? preferences.mapLabels : layer.id.endsWith('-roads') ? preferences.roads : true;
+        this.map.setLayoutProperty(layer.id, 'visibility', enabled ? 'visible' : 'none');
+      }
+    }
+    this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'visibility', preferences.nodeLabels ? 'visible' : 'none');
+    this.historicalRouteLayer.setOpacity(preferences.routeOpacity);
+    this.map.setPaintProperty(ROUTE_TERRAIN_LAYER_ID, 'line-opacity', ['*', ['get', 'opacity'], preferences.routeOpacity]);
+    if (this.map.getLayer(HILLSHADE_LAYER_ID)) {
+      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', preferences.relief);
+      const light = preferences.basemap !== 'dark';
+      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', light ? 'rgba(47, 64, 61, 0.55)' : 'rgba(2, 9, 18, 0.86)');
+      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', light ? 'rgba(255, 255, 244, 0.6)' : 'rgba(177, 211, 175, 0.64)');
+    }
+    this.markRendering();
   }
 
   shouldFollow(packet: PacketView): boolean {
@@ -721,12 +742,6 @@ export class LiveMap {
     const needsHydration = visible && this.routeDataDirty && Boolean(detailSource);
     this.updateTerrainRoutes(true);
     const maxAge = this.effectiveRouteAgeMS();
-    if (visible && detailSource) {
-      const suffix = routeWindowSuffix(maxAge);
-      if (this.map.getGlobalState()[ROUTE_TRUNK_WINDOW_STATE_ID] !== suffix) {
-        this.map.setGlobalStateProperty(ROUTE_TRUNK_WINDOW_STATE_ID, suffix);
-      }
-    }
     const visualApplied = detailSource
       ? applyRouteVisibilityForZoom(this.map, visible, maxAge, this.map.getZoom())
       : false;
@@ -797,7 +812,7 @@ export class LiveMap {
       this.container.dataset.routeWindowApplyMs = (performance.now() - started).toFixed(1);
       return;
     }
-    const trunkChanged = this.applyRouteTimeState();
+    this.applyRouteTimeState();
     if (this.selectedNodeID) {
       this.updateFocusData();
       this.applyFocusState(false);
@@ -805,7 +820,7 @@ export class LiveMap {
     if (this.hoveredRouteID && !this.isSelectedRouteInspectable(this.hoveredRouteID)) this.clearRouteInspection();
     this.emitRouteWindowChange();
     this.container.dataset.routeWindowApplyMs = (performance.now() - started).toFixed(1);
-    this.markRendering(trunkChanged ? [ROUTE_TRUNK_SOURCE_ID] : undefined);
+    this.markRendering();
   }
 
   destroy(): void {
@@ -849,9 +864,9 @@ export class LiveMap {
           'hillshade-method': 'multidirectional',
           'hillshade-illumination-direction': [270, 315, 0, 45],
           'hillshade-illumination-altitude': [35, 35, 35, 35],
-          'hillshade-exaggeration': 0.75,
-          'hillshade-shadow-color': 'rgba(2, 9, 18, 0.86)',
-          'hillshade-highlight-color': 'rgba(177, 211, 175, 0.64)',
+          'hillshade-exaggeration': this.appearance.relief,
+          'hillshade-shadow-color': this.appearance.basemap === 'dark' ? 'rgba(2, 9, 18, 0.86)' : 'rgba(47, 64, 61, 0.55)',
+          'hillshade-highlight-color': this.appearance.basemap === 'dark' ? 'rgba(177, 211, 175, 0.64)' : 'rgba(255, 255, 244, 0.6)',
           'hillshade-accent-color': 'rgba(47, 86, 75, 0.54)'
         }
       }, before);
@@ -916,13 +931,13 @@ export class LiveMap {
       if (visibilityApplied) this.markRendering();
       return;
     }
-    const trunkChanged = this.applyRouteTimeState();
+    this.applyRouteTimeState();
     if (this.selectedNodeID) {
       this.updateFocusData();
       this.applyFocusState(false);
     }
     this.emitRouteWindowChange();
-    this.markRendering(trunkChanged ? [ROUTE_TRUNK_SOURCE_ID] : undefined);
+    this.markRendering();
   };
 
   private refreshRouteClock(): void {
@@ -954,42 +969,14 @@ export class LiveMap {
     if (!this.routeHydrating && this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) this.hydrateRouteSource(now);
   }
 
-  private applyRouteTimeState(now = Date.now(), refreshClock = false): boolean {
+  private applyRouteTimeState(now = Date.now(), refreshClock = false): void {
     const maxAge = this.effectiveRouteAgeMS();
-    const trunkSource = this.map.getSource(ROUTE_TRUNK_SOURCE_ID) as GeoJSONSource | undefined;
-    let trunkChanged = false;
-    if (trunkSource) {
-      if (refreshClock || this.routeClock === 0) {
-        this.routeClock = now;
-      }
-      if (this.appliedRouteWindowMS !== maxAge) {
-        this.appliedRouteWindowMS = maxAge;
-        if (this.routesVisible) {
-          const suffix = routeWindowSuffix(maxAge);
-          if (this.map.getGlobalState()[ROUTE_TRUNK_WINDOW_STATE_ID] !== suffix) {
-            this.map.setGlobalStateProperty(ROUTE_TRUNK_WINDOW_STATE_ID, suffix);
-            trunkChanged = true;
-          }
-        }
-      }
-      this.historicalRouteLayer.setMaximumBand(routeWindowBand(maxAge));
-    }
-    this.updateRouteWindowDiagnostics(this.routeClock || now, maxAge);
+    if (refreshClock || this.routeClock === 0) this.routeClock = now;
+    this.historicalRouteLayer.setMaximumBand(routeWindowBand(maxAge));
+    this.container.dataset.eligibleRoutes = String(countEligibleRoutes(this.routesByID.values(), this.nodesByID, this.routeClock, maxAge));
+    // Compatibility diagnostics: history consists only of exact segments.
+    for (const key of ['nationalRouteTrunks', 'regionalRouteTrunks', 'nationalRoutesRepresented', 'regionalRoutesRepresented']) this.container.dataset[key] = '0';
     this.updateTerrainRoutes();
-    return trunkChanged;
-  }
-
-  private updateRouteWindowDiagnostics(now: number, maxAge: number): void {
-    const eligible = countEligibleRoutes(this.routesByID.values(), this.nodesByID, now, maxAge);
-    this.container.dataset.eligibleRoutes = String(eligible);
-    const collections = this.routeCollections;
-    if (!collections) return;
-    const national = routeWindowSummary(collections.national.features, maxAge);
-    const regional = routeWindowSummary(collections.regional.features, maxAge);
-    this.container.dataset.nationalRouteTrunks = String(national.trunks);
-    this.container.dataset.regionalRouteTrunks = String(regional.trunks);
-    this.container.dataset.nationalRoutesRepresented = String(national.routes);
-    this.container.dataset.regionalRoutesRepresented = String(regional.routes);
   }
 
   private emitRouteWindowChange(): void {
@@ -1022,10 +1009,8 @@ export class LiveMap {
         'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.78, 7, 0.68, 10, 0.46, 14, 0.22, 16, 0.12]
       }
     }));
-    this.map.addSource(ROUTE_TRUNK_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 8 });
     this.map.addSource(ROUTE_DETAIL_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
     this.map.addSource(ROUTE_FOCUS_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
-    this.map.setGlobalStateProperty(ROUTE_TRUNK_WINDOW_STATE_ID, '24h');
     this.applyRouteTimeState(Date.now(), true);
     const exactVisibility = this.routesVisible ? 'visible' : 'none';
     this.historicalRouteLayer.setVisible(this.routesVisible && !this.terrain3D);
@@ -1045,9 +1030,9 @@ export class LiveMap {
       layout: { 'line-cap': 'round', 'line-join': 'round', visibility: exactVisibility },
       paint: {
         'line-color': routeColorExpression(),
-        'line-width': ['interpolate', ['linear'], ['zoom'], 6.5, ['*', ['get', 'glowWidth'], 1.5], 10, ['*', ['get', 'glowWidth'], 2.1], 14, ['*', ['get', 'glowWidth'], 2.4]],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 3, 1.5, 6.5, ['*', ['get', 'glowWidth'], 0.75], 10, ['*', ['get', 'glowWidth'], 1.5], 14, ['*', ['get', 'glowWidth'], 2.4]],
         'line-opacity': ['*', ['get', 'opacity'], 0.78],
-        'line-blur': ['interpolate', ['linear'], ['zoom'], 6.5, 3.2, 12, 4.8]
+        'line-blur': ['interpolate', ['linear'], ['zoom'], 3, 0.2, 6.5, 0.6, 12, 2.5]
       }
     });
     this.map.addLayer({
@@ -1071,7 +1056,7 @@ export class LiveMap {
         'line-color': routeColorExpression(),
         'line-width': ['interpolate', ['linear'], ['zoom'], 4, 4, 8, ['*', ['get', 'glowWidth'], 1.8], 14, ['*', ['get', 'glowWidth'], 2.15]],
         'line-opacity': 0.62,
-        'line-blur': 4.2
+        'line-blur': ['interpolate', ['linear'], ['zoom'], 3, 0.2, 7, 0.8, 12, 2.5]
       }
     });
     this.map.addLayer({
@@ -1332,21 +1317,39 @@ export class LiveMap {
       this.map.on('mouseleave', layer, () => { this.map.getCanvas().style.cursor = ''; });
     }
     this.map.on('mouseenter', ROUTE_HIT_LAYER_ID, () => { this.map.getCanvas().style.cursor = 'pointer'; });
+    this.map.addSource(FOLLOW_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES });
+    this.map.addLayer({
+      id: 'live-follow-line', type: 'line', source: FOLLOW_SOURCE_ID,
+      filter: ['==', ['geometry-type'], 'LineString'],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.1, 12, 2.3], 'line-opacity': 0.9 },
+    });
+    this.map.addLayer({
+      id: 'live-follow-nodes', type: 'circle', source: FOLLOW_SOURCE_ID,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: { 'circle-color': ['get', 'color'], 'circle-radius': 4, 'circle-stroke-color': '#19363b', 'circle-stroke-width': 1.5 },
+    });
     this.layersReady = true;
+    this.setAppearance(this.appearance, true);
+    this.showFollowPacket(this.followedPacket);
     if (this.terrain3D) this.setTerrain3D(true);
     this.render(this.lastState, { reset: true }, true);
   }
 
   private markRendering(sourceIDs?: readonly string[]): void {
-    const epoch = ++this.renderEpoch;
-    const sourceEpoch = this.routeHydrationEpoch;
-    let settledFrames = 0;
     this.container.dataset.renderState = 'rendering';
+    for (const sourceID of sourceIDs ?? []) this.renderingSources.add(sourceID);
+    // One readiness loop survives new packets; a busy feed must not keep
+    // cancelling the two-frame settle check or queue duplicate frame callbacks.
+    if (this.renderingScheduled) return;
+    this.renderingScheduled = true;
+    const epoch = ++this.renderEpoch;
+    let settledFrames = 0;
     // Basemap tiles and live packets can keep MapLibre's global loaded/idle
     // state false indefinitely. Gate readiness on CartoLite's own sources.
     const settle = (): void => {
-      if (epoch !== this.renderEpoch || sourceEpoch !== this.routeHydrationEpoch) return;
-      const sourcesSettled = !sourceIDs?.length || sourceIDs.every((sourceID) => (
+      if (epoch !== this.renderEpoch) return;
+      const sourcesSettled = [...this.renderingSources].every((sourceID) => (
         Boolean(this.map.getSource(sourceID)) && this.map.isSourceLoaded(sourceID)
       ));
       const awaitingVisibleRoutes = this.routesVisible
@@ -1361,6 +1364,8 @@ export class LiveMap {
         window.requestAnimationFrame(settle);
         return;
       }
+      this.renderingSources.clear();
+      this.renderingScheduled = false;
       this.container.dataset.renderState = 'idle';
     };
     window.requestAnimationFrame(settle);
@@ -1729,6 +1734,8 @@ export class LiveMap {
       }
       if (this.map.getLayer(ROUTE_WEBGL_LAYER_ID)) this.map.removeLayer(ROUTE_WEBGL_LAYER_ID);
       const layer = new HistoricalRouteLayer();
+      layer.setOpacity(this.appearance.routeOpacity);
+      layer.setLightBackground(this.appearance.basemap !== 'dark');
       layer.setRoutes([...this.routeDetailFeatures.values()]);
       layer.setVisible(this.routesVisible && !this.terrain3D);
       layer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));
@@ -2343,8 +2350,6 @@ interface RouteTrunkAccumulator {
 
 interface RouteSourceCollections {
   individual: FeatureCollection<LineString>;
-  national: FeatureCollection<LineString>;
-  regional: FeatureCollection<LineString>;
   maxSliceMS: number;
 }
 
@@ -2381,8 +2386,6 @@ async function buildRouteSourceCollections(
   if (!active()) return undefined;
   return {
     individual: { type: 'FeatureCollection', features: exact },
-    national: EMPTY_LINES,
-    regional: EMPTY_LINES,
     maxSliceMS
   };
 }
@@ -2564,22 +2567,6 @@ export function routeTrunkFeaturesForWindow(
   });
 }
 
-function routeWindowSummary(
-  features: readonly Feature<LineString>[],
-  maxAge: number
-): { trunks: number; routes: number } {
-  const suffix = ROUTE_WINDOW_BUCKETS.find((bucket) => bucket.ms === maxAge)?.suffix ?? '24h';
-  let trunks = 0;
-  let routes = 0;
-  for (const feature of features) {
-    const count = Number(feature.properties?.[`routeCount${suffix}`] ?? 0);
-    if (count <= 0) continue;
-    trunks += 1;
-    routes += count;
-  }
-  return { trunks, routes };
-}
-
 function countEligibleRoutes(
   routes: Iterable<RouteV2>,
   nodes: ReadonlyMap<string, NodeV2>,
@@ -2594,20 +2581,6 @@ function countEligibleRoutes(
     if (from && to && validEndpoint(from) && validEndpoint(to)) count += 1;
   }
   return count;
-}
-
-function sameLineFeature(left: Feature<LineString>, right: Feature<LineString>): boolean {
-  if (left.geometry.type !== right.geometry.type) return false;
-  if (JSON.stringify(left.geometry.coordinates) !== JSON.stringify(right.geometry.coordinates)) return false;
-  const leftProperties = left.properties ?? {};
-  const rightProperties = right.properties ?? {};
-  const leftKeys = Object.keys(leftProperties);
-  const rightKeys = Object.keys(rightProperties);
-  if (leftKeys.length !== rightKeys.length) return false;
-  for (const key of rightKeys) {
-    if (leftProperties[key] !== rightProperties[key]) return false;
-  }
-  return true;
 }
 
 function routeTrafficBaseline(routes: readonly RouteV2[], now: number): number {

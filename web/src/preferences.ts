@@ -5,6 +5,8 @@ export interface SavedView {
 
 export type ViewClass = 'desktop' | 'mobile';
 export type SavedRouteWindow = 'auto' | '15m' | '1h' | '6h' | '24h';
+export type BasemapStyle = 'dark' | 'light' | 'streets';
+export type InterfaceTheme = 'map' | 'dark' | 'light';
 
 export interface UiPreferences {
   routes: boolean;
@@ -14,6 +16,14 @@ export interface UiPreferences {
   terrain3D: boolean;
   routeWindow: SavedRouteWindow;
   legendExpanded: boolean;
+  basemap: BasemapStyle;
+  theme: InterfaceTheme;
+  mapLabels: boolean;
+  nodeLabels: boolean;
+  roads: boolean;
+  livePackets: boolean;
+  routeOpacity: number;
+  relief: number;
 }
 
 const VIEW_STORAGE_PREFIX = 'cartolite-server:view:v1';
@@ -25,7 +35,15 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   hillshade: false,
   terrain3D: false,
   routeWindow: 'auto',
-  legendExpanded: false
+  legendExpanded: false,
+  basemap: 'dark',
+  theme: 'map',
+  mapLabels: true,
+  nodeLabels: true,
+  roads: true,
+  livePackets: true,
+  routeOpacity: 0.8,
+  relief: 0.75
 };
 
 export function viewClass(
@@ -79,7 +97,15 @@ export function loadUiPreferences(storage: Storage): UiPreferences {
       routeWindow,
       legendExpanded: typeof value.legendExpanded === 'boolean'
         ? value.legendExpanded
-        : DEFAULT_UI_PREFERENCES.legendExpanded
+        : DEFAULT_UI_PREFERENCES.legendExpanded,
+      basemap: value.basemap === 'light' || value.basemap === 'streets' ? value.basemap : 'dark',
+      theme: value.theme === 'dark' || value.theme === 'light' ? value.theme : 'map',
+      mapLabels: typeof value.mapLabels === 'boolean' ? value.mapLabels : true,
+      nodeLabels: typeof value.nodeLabels === 'boolean' ? value.nodeLabels : true,
+      roads: typeof value.roads === 'boolean' ? value.roads : true,
+      livePackets: typeof value.livePackets === 'boolean' ? value.livePackets : true,
+      routeOpacity: savedAmount(value.routeOpacity, 0.8, 0.2),
+      relief: savedAmount(value.relief, 0.75, 0)
     };
   } catch {
     return { ...DEFAULT_UI_PREFERENCES };
@@ -96,4 +122,8 @@ export function saveUiPreferences(storage: Storage, preferences: UiPreferences):
 
 function isSavedRouteWindow(value: unknown): value is SavedRouteWindow {
   return value === 'auto' || value === '15m' || value === '1h' || value === '6h' || value === '24h';
+}
+
+function savedAmount(value: unknown, fallback: number, minimum: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(minimum, Math.min(1, value)) : fallback;
 }

@@ -26,6 +26,7 @@ import {
   isRouteInspectable,
   isPointInSafeArea,
   labelSortKey,
+  LiveMap,
   LIVE_FOLLOW_MIN_INTERVAL_MS,
   mapPixelRatio,
   mapGlyphLabel,
@@ -618,7 +619,7 @@ describe('visual hierarchy and soft follow', () => {
     expect(isPointInSafeArea({ x: 0, y: 0 }, { width: 0, height: 0 })).toBe(false);
   });
 
-  it('holds each live-follow view for five seconds', () => {
+  it('holds each live-follow view for ten seconds', () => {
     expect(canMoveLiveFollow(0, 100)).toBe(true);
     expect(canMoveLiveFollow(10_000, 10_000 + LIVE_FOLLOW_MIN_INTERVAL_MS - 1)).toBe(false);
     expect(canMoveLiveFollow(10_000, 10_000 + LIVE_FOLLOW_MIN_INTERVAL_MS)).toBe(true);
@@ -746,3 +747,32 @@ function heatWeight(collection: ReturnType<typeof activityHeatCollection>, id: s
   if (!feature) throw new Error(`missing heat feature ${id}`);
   return Number(feature.properties?.weight);
 }
+
+
+describe('render readiness under continuous traffic', () => {
+  it('coalesces updates while still waiting for requested sources and two frames', () => {
+    const frames: FrameRequestCallback[] = [];
+    const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frames.push(callback); return frames.length; });
+    const view = Object.create(LiveMap.prototype);
+    let sourceLoaded = false;
+    Object.assign(view, {
+      container: document.createElement('div'), renderEpoch: 0, renderingScheduled: false,
+      renderingSources: new Set<string>(), routesVisible: false,
+      map: { getSource: () => ({}), isSourceLoaded: () => sourceLoaded },
+    });
+    try {
+      view.markRendering(['regions']);
+      for (let index = 0; index < 20; index++) view.markRendering();
+      expect(frames).toHaveLength(1);
+      frames.shift()!(0);
+      expect(view.container.dataset.renderState).toBe('rendering');
+      sourceLoaded = true;
+      frames.shift()!(16);
+      view.markRendering();
+      expect(frames).toHaveLength(1);
+      frames.shift()!(32);
+      expect(view.container.dataset.renderState).toBe('idle');
+      expect(view.renderingScheduled).toBe(false);
+    } finally { request.mockRestore(); }
+  });
+});

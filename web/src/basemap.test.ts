@@ -16,6 +16,16 @@ describe('CARTO vector basemap', () => {
     expect(serialized).not.toContain('dark_all');
   });
 
+  it('changes map colours while preserving vector sources and layer identity', () => {
+    const night = cartoVectorStyle('test key', 'dark');
+    for (const name of ['light', 'streets'] as const) {
+      const style = cartoVectorStyle('test key', name);
+      expect(style.sources).toEqual(night.sources);
+      expect(style.layers.map((layer) => layer.id)).toEqual(night.layers.map((layer) => layer.id));
+      expect(style.layers[0]).not.toEqual(night.layers[0]);
+    }
+  });
+
   it('adds the browser-visible project key to CARTO PBF requests only once', () => {
     const tile = 'https://tiles-a.basemaps.cartocdn.com/vectortiles/carto.streets/v1/4/3/5.mvt';
     expect(cartoVectorRequestURL(tile, 'test key')).toBe(`${tile}?key=test+key`);

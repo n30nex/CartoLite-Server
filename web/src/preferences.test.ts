@@ -52,6 +52,7 @@ describe('viewport preferences', () => {
 
   it('remembers privacy-safe layer, route-window, and legend settings', () => {
     const preferences = {
+      ...DEFAULT_UI_PREFERENCES,
       routes: true,
       heatmap: false,
       clusters: false,
@@ -65,7 +66,7 @@ describe('viewport preferences', () => {
   });
 
   it('uses safe defaults for malformed UI preferences', () => {
-    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ routes: 'yes', routeWindow: 'forever' }));
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify({ routes: 'yes', routeWindow: 'forever', basemap: 'external-url', theme: 'unknown', relief: 'high' }));
     expect(loadUiPreferences(localStorage)).toEqual(DEFAULT_UI_PREFERENCES);
   });
 });
