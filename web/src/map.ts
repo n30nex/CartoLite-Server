@@ -8,8 +8,6 @@ import type {
   Feature,
   FeatureCollection,
   LineString,
-  MultiPolygon,
-  Polygon,
   Point
 } from 'geojson';
 import { colorWithAlpha as alphaColor } from './trafficVisuals';
@@ -53,7 +51,6 @@ export type RouteRepresentation = 'national-trunks' | 'regional-trunks' | 'indiv
 
 const EMPTY_POINTS: FeatureCollection<Point> = { type: 'FeatureCollection', features: [] };
 const EMPTY_LINES: FeatureCollection<LineString> = { type: 'FeatureCollection', features: [] };
-const EMPTY_REGIONS: FeatureCollection<Polygon | MultiPolygon> = { type: 'FeatureCollection', features: [] };
 const ACTIVITY_HEAT_SOURCE_ID = 'activity-heat-source';
 const NODE_SOURCE_ID = 'nodes';
 const NODE_CLUSTER_SOURCE_ID = 'node-clusters';
@@ -819,7 +816,6 @@ export class LiveMap {
     if (this.routeHydrationTimer !== undefined) window.clearTimeout(this.routeHydrationTimer);
     if (this.directorTimer !== undefined) window.clearTimeout(this.directorTimer);
     if (this.clusterFlashTimer !== undefined) window.clearTimeout(this.clusterFlashTimer);
-    this.regionMapPending = undefined;
     this.closeInspector(false);
     document.removeEventListener('keydown', this.handleKeyDown);
     this.map.off('zoom', this.updateRouteRepresentation);
