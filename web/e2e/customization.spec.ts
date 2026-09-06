@@ -79,6 +79,7 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   await page.clock.fastForward(1000);
   await expect(page.locator('#follow-detail')).toHaveText('Advert · 2 confirmed hops');
   await expect(page.locator('#follow-countdown')).toHaveText('10s');
+  await page.clock.runFor(80);
   await page.screenshot({ path: testInfo.outputPath('live-follow-card.png') });
   await page.locator('#follow-pause').click();
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'paused');
@@ -88,6 +89,8 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   await page.locator('#follow-pause').click();
   await emit(page, 4, 'Trace');
   await expect(page.locator('#follow-detail')).toHaveText('Trace · 2 confirmed hops');
+  // Native map gestures need their animation callbacks after the timed assertions.
+  await page.clock.resume();
   if (testInfo.project.name === 'desktop') {
     await page.mouse.move(1000, 450);
     await page.mouse.down();

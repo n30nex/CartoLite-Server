@@ -637,6 +637,8 @@ button { font: inherit; }
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  background: var(--panel-solid);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
   border-radius: 12px;
 }
 #layers-panel[hidden], .follow-card[hidden] { display: none; }
@@ -660,6 +662,7 @@ button { font: inherit; }
 #layers-panel .reset-appearance { min-height: 44px; justify-content: center; border: 1px solid var(--panel-border); border-radius: 8px; }
 .find-panel { left: auto; right: 0; }
 .follow-card { position: absolute; z-index: 6; left: max(12px, env(safe-area-inset-left)); bottom: max(70px, calc(env(safe-area-inset-bottom) + 64px)); width: min(320px, calc(100vw - 24px)); border-radius: 12px; overflow: hidden; }
+.follow-card { background: var(--panel-solid); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .follow-card header { display: flex; align-items: center; min-height: 44px; padding-left: 13px; }
 .follow-badge { flex: 1; color: var(--muted); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.08em; }
 .follow-card header .control-button { min-height: 44px; padding-inline: 10px; border: 0; font-size: 11px; }
@@ -680,7 +683,7 @@ button { font: inherit; }
 }
 :root[data-theme="light"] :is(.control-button, .brand, .netgraph-link, .legend, .status, .sound-panel header span, .sound-panel p, .node-search-result span, .focus-chip) { color: var(--ink); }
 :root[data-theme="light"] :is(.find-panel input, .node-inspector, .maplibregl-popup-content, .node-inspector-sheet, .about-dialog) { color: var(--ink); background: var(--panel-solid); }
-:root[data-theme="light"] :is(.node-inspector h2, .node-inspector dt, .node-inspector dd, .about-dialog h1, .about-dialog p, .about-dialog dd, .about-dialog dt) { color: var(--ink); }
+:root[data-theme="light"] :is(.node-inspector header strong, .node-inspector header span, .node-inspector h3, .node-inspector dt, .node-inspector dd, .about-dialog h1, .about-dialog p, .about-dialog dd, .about-dialog dt) { color: var(--ink); }
 :root[data-basemap="light"] .map-grade, :root[data-basemap="streets"] .map-grade { opacity: 0; }
 :root:not([data-basemap="dark"]) #packet-canvas { filter: brightness(0.72) saturate(1.2); }
 :root[data-view-class="mobile"] .controls { backdrop-filter: none; -webkit-backdrop-filter: none; }

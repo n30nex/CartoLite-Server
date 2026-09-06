@@ -1726,6 +1726,8 @@ export class LiveMap {
       }
       if (this.map.getLayer(ROUTE_WEBGL_LAYER_ID)) this.map.removeLayer(ROUTE_WEBGL_LAYER_ID);
       const layer = new HistoricalRouteLayer();
+      layer.setOpacity(this.appearance.routeOpacity);
+      layer.setLightBackground(this.appearance.basemap !== 'dark');
       layer.setRoutes([...this.routeDetailFeatures.values()]);
       layer.setVisible(this.routesVisible && !this.terrain3D);
       layer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));

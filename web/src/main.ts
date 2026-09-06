@@ -208,7 +208,7 @@ async function start(): Promise<void> {
   let store: LiveStore | undefined;
   let feed: LiveFeed | undefined;
   let followTimer: number | undefined;
-  let pauseFollowForVisibility = (): void => {};
+  let pauseLiveFollow = (): void => {};
   try {
     // Construct MapLibre before the state request so the basemap can paint while
     // the initial snapshot is in flight.
@@ -218,7 +218,7 @@ async function start(): Promise<void> {
       required<HTMLElement>('node-inspector-sheet'),
       {
       appearance: uiPreferences,
-      onFocusChange(focus) { updateFocusChrome(focus); if (focus) pauseFollowForVisibility(); },
+      onFocusChange(focus) { updateFocusChrome(focus); if (focus) pauseLiveFollow(); },
       onRouteWindowChange(label) {
         const option = routeWindow.querySelector<HTMLOptionElement>('option[value="auto"]');
         if (option) option.textContent = label;
@@ -332,7 +332,7 @@ async function start(): Promise<void> {
       metrics: mapElement,
       search: (query) => liveMap.findNodes(query),
       select(nodeID) {
-        pauseFollowForVisibility();
+        pauseLiveFollow();
         liveMap.selectNodeByID(nodeID, true);
         closeFindPanel();
         if (activeViewClass === 'mobile') setLayersOpen(false);
@@ -347,6 +347,7 @@ async function start(): Promise<void> {
       findPanel.hidden = !opening;
       findButton.setAttribute('aria-expanded', String(opening));
       if (!opening) return;
+      pauseLiveFollow();
       closeSoundPanel();
       setLayersOpen(false);
       renderNodeSearch();
@@ -358,7 +359,7 @@ async function start(): Promise<void> {
       sonifier?.setPaused(document.hidden || !uiPreferences.livePackets);
       if (document.hidden) {
         wasHidden = true;
-        pauseFollowForVisibility();
+        pauseLiveFollow();
         releaseScreenAwake();
         return;
       }
@@ -452,7 +453,7 @@ async function start(): Promise<void> {
       }
     };
     setLiveFollow(false);
-    pauseFollowForVisibility = () => { if (liveFollow) setLiveFollow(false, true); };
+    pauseLiveFollow = () => { if (liveFollow) setLiveFollow(false, true); };
     followPause.addEventListener('click', () => setLiveFollow(followPaused, !followPaused));
     required<HTMLButtonElement>('follow-close').addEventListener('click', () => setLiveFollow(false));
 

@@ -46,5 +46,6 @@ export function followSummary(packet: PacketView): { title: string; detail: stri
   const first = packet.segments[0]?.from.label || 'Node';
   const last = packet.segments.at(-1)?.to.label || 'Node';
   const hops = packet.segments.length;
-  return { title: `${first} → ${last}`, detail: `${kind} · ${hops} confirmed ${hops === 1 ? 'hop' : 'hops'}` };
+  const connected = packet.segments.every((hop, index) => index === 0 || packet.segments[index - 1]!.to.id === hop.from.id);
+  return { title: connected ? `${first} → ${last}` : `${first} · ${hops} observed links`, detail: `${kind} · ${hops} confirmed ${hops === 1 ? 'hop' : 'hops'}` };
 }

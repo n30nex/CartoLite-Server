@@ -36,4 +36,14 @@ describe('Live Follow pacing', () => {
     expect(summary.detail).toBe('Advert · heard here');
     expect(Object.keys(summary)).toEqual(['title', 'detail']);
   });
+
+  it('does not describe disconnected confirmed segments as one continuous route', () => {
+    const point = (id: string) => ({ id, label: id.toUpperCase(), lng: -80, lat: 44 });
+    const summary = followSummary({ id: 'fragmented', seq: 1, at: 1000, payloadType: 'Text', mode: 'route', segments: [
+      { routeId: 'ab', from: point('a'), to: point('b') },
+      { routeId: 'cd', from: point('c'), to: point('d') },
+    ] });
+    expect(summary.title).toBe('A · 2 observed links');
+    expect(summary.detail).toBe('Text · 2 confirmed hops');
+  });
 });
