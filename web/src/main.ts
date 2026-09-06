@@ -6,11 +6,14 @@ import {
   LIVE_FOLLOW_MIN_INTERVAL_MS,
   LiveMap,
   type LiveMapFocus,
-  type RouteRepresentation,
   type RouteWindow
 } from './map';
 import { PacketAnimator, potentialLongHaulPacket } from './packetAnimator';
+import { FollowQueue, followSummary } from './liveFollow';
 import {
+  DEFAULT_UI_PREFERENCES,
+  type BasemapStyle,
+  type InterfaceTheme,
   loadSavedView,
   loadUiPreferences,
   saveUiPreferences,
@@ -66,6 +69,17 @@ const aboutButton = required<HTMLButtonElement>('about-button');
 const aboutDialog = required<HTMLDialogElement>('about-dialog');
 const aboutClose = required<HTMLButtonElement>('about-close');
 const lastUpdate = required<HTMLElement>('last-update');
+const basemapStyle = required<HTMLSelectElement>('basemap-style');
+const interfaceTheme = required<HTMLSelectElement>('interface-theme');
+const routeOpacity = required<HTMLInputElement>('route-opacity');
+const terrainRelief = required<HTMLInputElement>('terrain-relief');
+const followCard = required<HTMLElement>('follow-card');
+const followTitle = required<HTMLElement>('follow-title');
+const followDetail = required<HTMLElement>('follow-detail');
+const followState = required<HTMLElement>('follow-state');
+const followCountdown = required<HTMLOutputElement>('follow-countdown');
+const followProgress = required<HTMLProgressElement>('follow-progress');
+const followPause = required<HTMLButtonElement>('follow-pause');
 
 let uiPreferences: UiPreferences = loadUiPreferences(localStorage);
 let legendExpanded = uiPreferences.legendExpanded;
@@ -138,13 +152,12 @@ function releaseScreenAwake(): void {
 function setLayersOpen(open: boolean): void {
   layersDisclosure.toggleAttribute('open', open);
   layersSummary.setAttribute('aria-expanded', String(open));
-  layersPanel.hidden = activeViewClass === 'mobile' && !open;
+  layersPanel.hidden = !open;
 }
 
 document.documentElement.dataset.viewClass = activeViewClass;
-setLayersOpen(activeViewClass === 'desktop');
-layersSummary.hidden = activeViewClass === 'desktop';
-layersSummary.style.display = activeViewClass === 'desktop' ? 'none' : '';
+setLayersOpen(false);
+applyAppearanceChrome();
 
 legendToggle.addEventListener('click', () => {
   legendExpanded = !legendExpanded;
@@ -158,7 +171,7 @@ legend.dataset.collapsed = String(!legendExpanded);
 legendToggle.setAttribute('aria-expanded', String(legendExpanded));
 legendToggle.setAttribute('aria-label', legendExpanded ? 'Hide map legend' : 'Show map legend');
 
-renderRouteLegend(routeLegend, 'individual-routes');
+renderRouteLegend(routeLegend);
 aboutButton.addEventListener('click', () => aboutDialog.showModal());
 aboutClose.addEventListener('click', () => aboutDialog.close());
 aboutDialog.addEventListener('click', (event) => {
@@ -167,7 +180,7 @@ aboutDialog.addEventListener('click', (event) => {
 layersSummary.addEventListener('click', () => {
   const opening = !layersDisclosure.hasAttribute('open');
   setLayersOpen(opening);
-  if (opening) closeSoundPanel();
+  if (opening) { closeSoundPanel(); closeFindPanel(); }
 });
 document.addEventListener('pointerdown', (event) => {
   void requestScreenAwake();
@@ -175,14 +188,15 @@ document.addEventListener('pointerdown', (event) => {
   if (!(target instanceof Node)) return;
   if (!soundControl.contains(target)) closeSoundPanel();
   if (!findControl.contains(target)) closeFindPanel();
-  if (activeViewClass === 'mobile' && !layersDisclosure.contains(target)) setLayersOpen(false);
+  if (!layersDisclosure.contains(target)) setLayersOpen(false);
 });
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   closeSoundPanel();
   closeFindPanel();
-  if (activeViewClass === 'mobile') setLayersOpen(false);
+  if (layersDisclosure.hasAttribute('open')) { setLayersOpen(false); layersSummary.focus(); }
 });
+required<HTMLButtonElement>('layers-close').addEventListener('click', () => { setLayersOpen(false); layersSummary.focus(); });
 
 void requestScreenAwake();
 void start();
@@ -194,6 +208,7 @@ async function start(): Promise<void> {
   let store: LiveStore | undefined;
   let feed: LiveFeed | undefined;
   let followTimer: number | undefined;
+  let pauseFollowForVisibility = (): void => {};
   try {
     // Construct MapLibre before the state request so the basemap can paint while
     // the initial snapshot is in flight.
@@ -202,10 +217,8 @@ async function start(): Promise<void> {
       required<HTMLElement>('tooltip'),
       required<HTMLElement>('node-inspector-sheet'),
       {
-      onFocusChange: updateFocusChrome,
-      onRouteRepresentationChange(representation) {
-        renderRouteLegend(routeLegend, representation);
-      },
+      appearance: uiPreferences,
+      onFocusChange(focus) { updateFocusChrome(focus); if (focus) pauseFollowForVisibility(); },
       onRouteWindowChange(label) {
         const option = routeWindow.querySelector<HTMLOptionElement>('option[value="auto"]');
         if (option) option.textContent = label;
@@ -256,6 +269,56 @@ async function start(): Promise<void> {
       liveMap.setTerrain3D(visible);
       persistUiPreference({ terrain3D: visible });
     });
+    const applyAppearance = (): void => {
+      applyAppearanceChrome();
+      liveMap.setAppearance(uiPreferences);
+      liveAnimator.setPaused(document.hidden || !uiPreferences.livePackets);
+      routeSonifier.setPaused(document.hidden || !uiPreferences.livePackets);
+      packetCanvas.hidden = !uiPreferences.livePackets;
+      packetCanvas.dataset.enabled = String(uiPreferences.livePackets);
+    };
+    const extraLayers = [
+      ['map-labels-button', 'mapLabels', 'place labels'],
+      ['node-labels-button', 'nodeLabels', 'node labels'],
+      ['roads-button', 'roads', 'roads'],
+      ['live-packets-button', 'livePackets', 'live packets'],
+    ] as const;
+    for (const [id, key, label] of extraLayers) wireLayerToggle(required<HTMLButtonElement>(id), uiPreferences[key], label, (visible) => {
+      persistUiPreference({ [key]: visible });
+      applyAppearance();
+    });
+    basemapStyle.addEventListener('change', () => {
+      persistUiPreference({ basemap: basemapStyle.value as BasemapStyle });
+      applyAppearance();
+    });
+    interfaceTheme.addEventListener('change', () => {
+      persistUiPreference({ theme: interfaceTheme.value as InterfaceTheme });
+      applyAppearance();
+    });
+    routeOpacity.addEventListener('input', () => {
+      persistUiPreference({ routeOpacity: Number(routeOpacity.value) / 100 });
+      applyAppearance();
+    });
+    terrainRelief.addEventListener('input', () => {
+      persistUiPreference({ relief: Number(terrainRelief.value) / 100 });
+      applyAppearance();
+    });
+    required<HTMLButtonElement>('reset-appearance').addEventListener('click', () => {
+      const toggles = [
+        ['terrain-button', 'terrain3D'], ['hillshade-button', 'hillshade'], ['routes-button', 'routes'],
+        ['heatmap-button', 'heatmap'], ['clusters-button', 'clusters'],
+        ...extraLayers.map(([id, key]) => [id, key] as const),
+      ] as const;
+      for (const [id, key] of toggles) {
+        const button = document.getElementById(id);
+        if (button && uiPreferences[key] !== DEFAULT_UI_PREFERENCES[key]) button.click();
+      }
+      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, relief: 0.75, routeWindow: 'auto' });
+      routeWindow.value = 'auto';
+      liveMap.setRouteWindow('auto');
+      applyAppearance();
+    });
+    applyAppearance();
     routeWindow.value = uiPreferences.routeWindow;
     liveMap.setRouteWindow(uiPreferences.routeWindow);
     routeWindow.addEventListener('change', () => {
@@ -269,6 +332,7 @@ async function start(): Promise<void> {
       metrics: mapElement,
       search: (query) => liveMap.findNodes(query),
       select(nodeID) {
+        pauseFollowForVisibility();
         liveMap.selectNodeByID(nodeID, true);
         closeFindPanel();
         if (activeViewClass === 'mobile') setLayersOpen(false);
@@ -284,15 +348,17 @@ async function start(): Promise<void> {
       findButton.setAttribute('aria-expanded', String(opening));
       if (!opening) return;
       closeSoundPanel();
+      setLayersOpen(false);
       renderNodeSearch();
       window.requestAnimationFrame(() => nodeSearch.focus());
     });
     let wasHidden = document.hidden;
     document.addEventListener('visibilitychange', () => {
-      animator?.setPaused(document.hidden);
-      sonifier?.setPaused(document.hidden);
+      animator?.setPaused(document.hidden || !uiPreferences.livePackets);
+      sonifier?.setPaused(document.hidden || !uiPreferences.livePackets);
       if (document.hidden) {
         wasHidden = true;
+        pauseFollowForVisibility();
         releaseScreenAwake();
         return;
       }
@@ -313,7 +379,7 @@ async function start(): Promise<void> {
     });
     window.addEventListener('beforeunload', () => {
       if (trafficWakeTimer !== undefined) window.clearTimeout(trafficWakeTimer);
-      if (followTimer !== undefined) window.clearTimeout(followTimer);
+      if (followTimer !== undefined) window.clearInterval(followTimer);
       feed?.stop();
       store?.destroy();
       animator?.destroy();
@@ -327,51 +393,73 @@ async function start(): Promise<void> {
     store = liveStore;
     let streamConnected = false;
     let liveFollow = false;
-    let pendingFollow: PacketView | undefined;
-    let lastFollowMoveAt = Number.NEGATIVE_INFINITY;
-
+    let followPaused = false;
+    const followQueue = new FollowQueue();
     mapElement.dataset.followDwellMs = String(LIVE_FOLLOW_MIN_INTERVAL_MS);
 
-    const clearFollowQueue = (): void => {
-      pendingFollow = undefined;
-      if (followTimer !== undefined) window.clearTimeout(followTimer);
-      followTimer = undefined;
-    };
-
-    const moveToPendingActivity = (): void => {
-      followTimer = undefined;
-      if (!liveFollow || !pendingFollow) return;
-      const packet = pendingFollow;
-      pendingFollow = undefined;
-      if (!liveMap.shouldFollow(packet)) return;
-      if (liveMap.follow(packet)) lastFollowMoveAt = Date.now();
+    const tickFollow = (): void => {
+      if (!liveFollow || document.hidden) return;
+      const now = Date.now();
+      const packet = followQueue.take(now);
+      if (packet && liveMap.shouldFollow(packet)) {
+        const summary = followSummary(packet);
+        followTitle.textContent = summary.title;
+        followDetail.textContent = summary.detail;
+        followCard.dataset.packetAt = String(packet.at);
+        followCard.dataset.packetKind = normalizePacketKind(packet.payloadType);
+        liveMap.showFollowPacket(packet);
+        liveMap.follow(packet);
+      }
+      const remaining = followQueue.remaining(now);
+      followCountdown.value = remaining > 0 ? `${remaining}s` : '';
+      followProgress.value = remaining;
+      followState.textContent = remaining > 0 ? 'Next activity in' : 'Waiting for new activity';
     };
 
     const queueLiveFollow = (packet: PacketView): void => {
       if (!liveFollow || !liveMap.shouldFollow(packet)) return;
-      pendingFollow = packet;
-      if (followTimer !== undefined) return;
-      const remaining = Math.max(0, lastFollowMoveAt + LIVE_FOLLOW_MIN_INTERVAL_MS - Date.now());
-      if (remaining === 0) moveToPendingActivity();
-      else followTimer = window.setTimeout(moveToPendingActivity, remaining);
+      followQueue.offer(packet, liveMap.followPriority(packet), Date.now());
+      tickFollow();
     };
 
-    const setLiveFollow = (enabled: boolean): void => {
-      clearFollowQueue();
+    const setLiveFollow = (enabled: boolean, paused = false): void => {
+      const wasEnabled = liveFollow;
+      followQueue.clear();
+      if (followTimer !== undefined) window.clearInterval(followTimer);
+      followTimer = undefined;
       liveFollow = enabled;
-      if (enabled) lastFollowMoveAt = Number.NEGATIVE_INFINITY;
+      followPaused = paused;
       followButton.setAttribute('aria-pressed', String(enabled));
       followButton.classList.toggle('selected', enabled);
       followButton.dataset.mode = enabled ? 'director' : 'manual';
       appElement.classList.toggle('director-enabled', enabled);
       followButton.title = enabled ? 'Stop following live packets' : 'Follow live packets';
+      followCard.hidden = !enabled && !paused;
+      followPause.textContent = paused ? 'Resume' : 'Pause';
+      followCard.dataset.state = enabled ? 'following' : paused ? 'paused' : 'off';
+      followCountdown.value = '';
+      followProgress.value = 0;
+      if (enabled) {
+        liveMap.beginFollow();
+        followTitle.textContent = 'Waiting for activity';
+        followDetail.textContent = 'Nearby activity is shown first';
+        followState.textContent = 'Waiting for a live packet';
+        followTimer = window.setInterval(tickFollow, 250);
+      } else {
+        liveMap.showFollowPacket();
+        if (wasEnabled && !paused) liveMap.map.stop();
+        followState.textContent = 'Paused · explore the map freely';
+      }
     };
     setLiveFollow(false);
+    pauseFollowForVisibility = () => { if (liveFollow) setLiveFollow(false, true); };
+    followPause.addEventListener('click', () => setLiveFollow(followPaused, !followPaused));
+    required<HTMLButtonElement>('follow-close').addEventListener('click', () => setLiveFollow(false));
 
-    liveMap.map.on('dragstart', () => setLiveFollow(false));
+    liveMap.map.on('dragstart', () => { if (liveFollow) setLiveFollow(false, true); });
     for (const type of ['zoomstart', 'rotatestart', 'pitchstart'] as const) {
       liveMap.map.on(type, (event) => {
-        if (event.originalEvent) setLiveFollow(false);
+        if (event.originalEvent && liveFollow) setLiveFollow(false, true);
       });
     }
 
@@ -407,9 +495,8 @@ async function start(): Promise<void> {
         if (next === activeViewClass) return;
         activeViewClass = next;
         document.documentElement.dataset.viewClass = next;
-        setLayersOpen(next === 'desktop');
-        layersSummary.hidden = next === 'desktop';
-        layersSummary.style.display = next === 'desktop' ? 'none' : '';
+        setLayersOpen(false);
+        if (liveFollow) setLiveFollow(false, true);
         const restored = loadSavedView(localStorage, next);
         if (restored) {
           mapElement.dataset.viewSource = liveMap.restore(restored.center, restored.zoom, liveStore.snapshot.nodes)
@@ -435,7 +522,7 @@ async function start(): Promise<void> {
         lastUpdate.textContent = formatUpdate(event.at);
         if (!packet) return;
         liveAnimator.add(packet, { longHaul: potentialLongHaulPacket(packet) });
-        const scheduled = routeSonifier.play(packet);
+        const scheduled = uiPreferences.livePackets ? routeSonifier.play(packet) : 0;
         if (scheduled > 0) pulseSoundChrome(scheduled);
         pulseTrafficChrome(packet.payloadType);
         queueLiveFollow(packet);
@@ -462,7 +549,7 @@ async function start(): Promise<void> {
       const opening = soundPanel.hidden;
       soundPanel.hidden = !opening;
       soundButton.setAttribute('aria-expanded', String(opening));
-      if (opening && activeViewClass === 'mobile') setLayersOpen(false);
+      if (opening) { setLayersOpen(false); closeFindPanel(); }
     });
     soundToggle.addEventListener('click', async () => {
       const enabled = await routeSonifier.setEnabled(routeSonifier.status() !== 'on');
@@ -485,7 +572,6 @@ async function start(): Promise<void> {
     });
     lastUpdate.textContent = formatUpdate(initial.serverTime);
   } catch (error) {
-    console.error('CartoLite startup failed:', error);
     feed?.stop();
     store?.destroy();
     animator?.destroy();
@@ -594,6 +680,18 @@ function required<T extends HTMLElement>(id: string): T {
   return element as T;
 }
 
+function applyAppearanceChrome(): void {
+  const theme = uiPreferences.theme === 'map' ? (uiPreferences.basemap === 'dark' ? 'dark' : 'light') : uiPreferences.theme;
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.basemap = uiPreferences.basemap;
+  basemapStyle.value = uiPreferences.basemap;
+  interfaceTheme.value = uiPreferences.theme;
+  routeOpacity.value = String(Math.round(uiPreferences.routeOpacity * 100));
+  terrainRelief.value = String(Math.round(uiPreferences.relief * 100));
+  required<HTMLOutputElement>('route-opacity-output').value = `${routeOpacity.value}%`;
+  required<HTMLOutputElement>('terrain-relief-output').value = `${terrainRelief.value}%`;
+}
+
 function persistUiPreference(update: Partial<UiPreferences>): void {
   uiPreferences = { ...uiPreferences, ...update };
   saveUiPreferences(localStorage, uiPreferences);
@@ -620,35 +718,8 @@ function wireLayerToggle(
   });
 }
 
-function renderRouteLegend(container: HTMLElement, representation: RouteRepresentation): void {
+function renderRouteLegend(container: HTMLElement): void {
   container.replaceChildren();
-  if (representation !== 'individual-routes') {
-    container.setAttribute('aria-label', 'Grouped route colors show connection density');
-    for (const item of [
-      { color: '#63bcb2', label: 'Grouped routes', shortLabel: 'Grouped' },
-      { color: '#d1b36b', label: 'Dense traffic', shortLabel: 'Dense' }
-    ]) {
-      const entry = document.createElement('span');
-      entry.className = 'route-legend-item';
-      entry.setAttribute('aria-label', item.label);
-      entry.title = item.label;
-
-      const swatch = document.createElement('i');
-      swatch.className = 'route-legend-swatch';
-      swatch.setAttribute('aria-hidden', 'true');
-      swatch.style.setProperty('--route-color', item.color);
-
-      const label = document.createElement('span');
-      label.className = 'route-legend-label';
-      label.setAttribute('aria-hidden', 'true');
-      label.dataset.short = item.shortLabel;
-      label.textContent = item.label;
-
-      entry.append(swatch, label);
-      container.append(entry);
-    }
-    return;
-  }
   container.setAttribute('aria-label', 'Route colors show the latest packet type');
   for (const item of ROUTE_LEGEND_ITEMS) {
     const entry = document.createElement('span');

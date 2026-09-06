@@ -1,13 +1,15 @@
 import type { StyleSpecification } from 'maplibre-gl';
+import type { BasemapStyle } from './preferences';
 
 const CARTO_VECTOR_TILEJSON = 'https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/tiles.json';
 const CARTO_GLYPHS = 'https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf';
 const CARTO_BASEMAP_API_KEY = import.meta.env.VITE_CARTO_BASEMAP_API_KEY?.trim() ?? '';
 
-export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecification {
+export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapStyle = 'dark'): StyleSpecification {
+  const color = (value: string): string => BASEMAP_COLORS[style][value] ?? value;
   return {
     version: 8,
-    name: 'CartoLite Observatory',
+    name: `CartoLite ${style}`,
     glyphs: withKey(CARTO_GLYPHS, apiKey),
     sources: {
       carto: {
@@ -20,7 +22,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
       {
         id: 'basemap-background',
         type: 'background',
-        paint: { 'background-color': '#0b151b' }
+        paint: { 'background-color': color('#0b151b') }
       },
       {
         id: 'basemap-landcover',
@@ -30,9 +32,9 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         paint: {
           'fill-color': [
             'match', ['get', 'class'],
-            'wood', '#142720',
-            'grass', '#16271f',
-            '#111d20'
+            'wood', color('#142720'),
+            'grass', color('#16271f'),
+            color('#111d20')
           ],
           'fill-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.62, 10, 0.78]
         }
@@ -46,10 +48,10 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         paint: {
           'fill-color': [
             'match', ['get', 'class'],
-            'residential', '#18242a',
-            'cemetery', '#172820',
-            'stadium', '#1b2a22',
-            '#142126'
+            'residential', color('#18242a'),
+            'cemetery', color('#172820'),
+            'stadium', color('#1b2a22'),
+            color('#142126')
           ],
           'fill-opacity': 0.62
         }
@@ -59,7 +61,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         type: 'fill',
         source: 'carto',
         'source-layer': 'water',
-        paint: { 'fill-color': '#071f2b', 'fill-opacity': 0.98 }
+        paint: { 'fill-color': color('#071f2b'), 'fill-opacity': 0.98 }
       },
       {
         id: 'basemap-waterway',
@@ -69,7 +71,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         minzoom: 7,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#245061',
+          'line-color': color('#245061'),
           'line-width': ['interpolate', ['linear'], ['zoom'], 7, 0.35, 13, 1.15],
           'line-opacity': 0.72
         }
@@ -82,7 +84,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         filter: ['all', ['==', ['get', 'admin_level'], 2], ['==', ['get', 'maritime'], 0]],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#708792',
+          'line-color': color('#708792'),
           'line-width': ['interpolate', ['linear'], ['zoom'], 3, 0.7, 9, 1.4],
           'line-opacity': 0.72
         }
@@ -96,7 +98,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         filter: ['all', ['==', ['get', 'admin_level'], 4], ['==', ['get', 'maritime'], 0]],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#4b626c',
+          'line-color': color('#4b626c'),
           'line-width': ['interpolate', ['linear'], ['zoom'], 3.5, 0.42, 10, 0.92],
           'line-opacity': 0.76,
           'line-dasharray': [2, 1.5]
@@ -111,7 +113,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary']]],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#34444b',
+          'line-color': color('#34444b'),
           'line-width': [
             'interpolate', ['linear'], ['zoom'],
             4, ['match', ['get', 'class'], ['motorway', 'trunk'], 0.52, 0.24],
@@ -130,7 +132,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
         filter: ['in', ['get', 'class'], ['literal', ['minor', 'service']]],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#2a383e',
+          'line-color': color('#2a383e'),
           'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.3, 16, 1.05],
           'line-opacity': 0.62
         }
@@ -153,8 +155,8 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
           'text-allow-overlap': false
         },
         paint: {
-          'text-color': '#628b9b',
-          'text-halo-color': '#08161d',
+          'text-color': color('#628b9b'),
+          'text-halo-color': color('#08161d'),
           'text-halo-width': 1.2,
           'text-opacity': 0.84
         }
@@ -178,8 +180,8 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
           'text-allow-overlap': false
         },
         paint: {
-          'text-color': '#93a5ad',
-          'text-halo-color': '#0b151b',
+          'text-color': color('#93a5ad'),
+          'text-halo-color': color('#0b151b'),
           'text-halo-width': 1.4,
           'text-opacity': 0.78
         }
@@ -203,8 +205,8 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
           'text-allow-overlap': false
         },
         paint: {
-          'text-color': '#899ca5',
-          'text-halo-color': '#0b151b',
+          'text-color': color('#899ca5'),
+          'text-halo-color': color('#0b151b'),
           'text-halo-width': 1.25,
           'text-opacity': 0.76
         }
@@ -232,8 +234,8 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
           'text-allow-overlap': false
         },
         paint: {
-          'text-color': '#c1d0d6',
-          'text-halo-color': '#0b151b',
+          'text-color': color('#c1d0d6'),
+          'text-halo-color': color('#0b151b'),
           'text-halo-width': 1.45,
           'text-halo-blur': 0.25,
           'text-opacity': 0.94
@@ -257,8 +259,8 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY): StyleSpecifica
           'text-allow-overlap': false
         },
         paint: {
-          'text-color': '#a9bbc3',
-          'text-halo-color': '#0b151b',
+          'text-color': color('#a9bbc3'),
+          'text-halo-color': color('#0b151b'),
           'text-halo-width': 1.3,
           'text-halo-blur': 0.2,
           'text-opacity': 0.9
@@ -285,3 +287,23 @@ function withKey(url: string, apiKey: string): string {
   const key = apiKey.trim();
   return key ? `${url}?key=${encodeURIComponent(key)}` : url;
 }
+
+// The same vector source and layer IDs stay alive through a style change.
+// Colours are local; changing appearance never reloads the live map or feed.
+const BASEMAP_COLORS: Record<BasemapStyle, Record<string, string>> = {
+  dark: {},
+  light: {
+    '#0b151b': '#eef1ee', '#142720': '#d7e2d5', '#16271f': '#e0e8db', '#111d20': '#e6eae1',
+    '#18242a': '#e0e2de', '#172820': '#d2dfd0', '#1b2a22': '#dae2d4', '#142126': '#e7e9e3',
+    '#071f2b': '#b9d6df', '#245061': '#8cb8c6', '#708792': '#7a8e91', '#4b626c': '#97aaa9',
+    '#34444b': '#a3b0ae', '#2a383e': '#bfc9c4', '#628b9b': '#477283', '#08161d': '#dbe9eb',
+    '#93a5ad': '#405e66', '#899ca5': '#536a70', '#c1d0d6': '#263e48', '#a9bbc3': '#45606a',
+  },
+  streets: {
+    '#0b151b': '#f0eadb', '#142720': '#c0d6aa', '#16271f': '#d3dfb7', '#111d20': '#e2e5c7',
+    '#18242a': '#e6ddcc', '#172820': '#becfae', '#1b2a22': '#c7d2b1', '#142126': '#e7e0ce',
+    '#071f2b': '#a4cddd', '#245061': '#7cb5cc', '#708792': '#9a8d76', '#4b626c': '#ad9c82',
+    '#34444b': '#bf9d6a', '#2a383e': '#c9bca4', '#628b9b': '#3e7287', '#08161d': '#e8efe8',
+    '#93a5ad': '#5b574c', '#899ca5': '#746853', '#c1d0d6': '#3d443c', '#a9bbc3': '#62644f',
+  },
+};

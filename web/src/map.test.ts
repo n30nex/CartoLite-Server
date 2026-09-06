@@ -618,7 +618,7 @@ describe('visual hierarchy and soft follow', () => {
     expect(isPointInSafeArea({ x: 0, y: 0 }, { width: 0, height: 0 })).toBe(false);
   });
 
-  it('holds each live-follow view for five seconds', () => {
+  it('holds each live-follow view for ten seconds', () => {
     expect(canMoveLiveFollow(0, 100)).toBe(true);
     expect(canMoveLiveFollow(10_000, 10_000 + LIVE_FOLLOW_MIN_INTERVAL_MS - 1)).toBe(false);
     expect(canMoveLiveFollow(10_000, 10_000 + LIVE_FOLLOW_MIN_INTERVAL_MS)).toBe(true);

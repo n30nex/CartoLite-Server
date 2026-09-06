@@ -1,3 +1,4 @@
+import { openMapOptions } from './mapControls';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { DESTINATION_BLOOM_MS, routeDuration } from '../src/packetAnimator';
 import { NEIGHBOR_ROUTE_RECENT_MS } from '../src/routeFocus';
@@ -60,15 +61,19 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
     await expect(routeWindow).toBeHidden();
     await layersSummary.click();
   } else {
-    await expect(layersSummary).toBeHidden();
+    await expect(layersSummary).toBeVisible();
+    await expect(page.locator('#layers-panel')).toBeHidden();
   }
+  await openMapOptions(page);
   await expect(routeWindow).toBeVisible();
   await expect(routeWindow).toHaveValue('auto');
   const autoRouteWindow = routeWindow.locator('option[value="auto"]');
   await expect(autoRouteWindow).toHaveText(/^Auto · (?:15m|1h|6h|24h)$/);
+  await openMapOptions(page);
   await routeWindow.selectOption('15m');
   await expect(routeWindow).toHaveValue('15m');
   await expect(autoRouteWindow).toHaveText(/^Auto · (?:15m|1h|6h|24h)$/);
+  await openMapOptions(page);
   await routeWindow.selectOption('auto');
   await expect(routeWindow).toHaveValue('auto');
   const aboutDialog = page.locator('#about-dialog');
@@ -115,11 +120,13 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
     await expect(page.locator('#legend-items')).toBeVisible();
   }
   const routesButton = page.locator('#routes-button');
+  await openMapOptions(page);
   await expect(routesButton).toBeVisible();
   await expect(routesButton).toHaveAttribute('aria-pressed', 'false');
   await expect(routesButton).toHaveAttribute('title', 'Show routes');
   await expect(page.locator('#map')).toHaveAttribute('data-routes-visible', 'false');
   const heatmapButton = page.locator('#heatmap-button');
+  await openMapOptions(page);
   await expect(heatmapButton).toBeVisible();
   await expect(heatmapButton).toHaveAttribute('aria-label', 'Heatmap');
   await expect(heatmapButton).toHaveAttribute('aria-pressed', 'true');
@@ -129,21 +136,26 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   const hillshadeButton = page.locator('#hillshade-button');
   const terrainButton = page.locator('#terrain-button');
   await expect(clustersButton).toHaveAttribute('aria-pressed', 'true');
+  await openMapOptions(page);
   await clustersButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-clusters-visible', 'false');
   await expect(clustersButton).toHaveAttribute('title', 'Show clusters');
+  await openMapOptions(page);
   await clustersButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-clusters-visible', 'true');
   await expect(hillshadeButton).toHaveAttribute('aria-pressed', 'false');
+  await openMapOptions(page);
   await hillshadeButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-hillshade-visible', 'true');
   await expect(page.locator('#map')).toHaveAttribute('data-terrain-ready', 'true');
   await expect.poll(() => terrainResponses.tileJSON, { message: 'terrain TileJSON should load' }).toBeGreaterThan(0);
   await expect.poll(() => terrainResponses.dem, { message: 'terrain elevation tiles should load' }).toBeGreaterThan(0);
   await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('Mapterhorn');
+  await openMapOptions(page);
   await terrainButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-terrain3d', 'true');
   await expect(page.locator('#map')).toHaveAttribute('data-camera-pitch', '52');
+  await openMapOptions(page);
   await terrainButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-terrain3d', 'false');
   await expect(page.locator('#map')).toHaveAttribute('data-camera-pitch', '0');
@@ -189,6 +201,7 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   await expect(soundPanel).toBeHidden();
   if (mobile) await openLayers(page);
 
+  await openMapOptions(page);
   await routesButton.click();
   await expect(routesButton).toHaveAttribute('aria-pressed', 'true');
   await expect(routeLegend).toBeVisible();
@@ -198,6 +211,7 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   await expect(page.locator('#map')).toHaveAttribute('data-trunk-representations-loaded', '');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state', 'idle');
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await routesButton.click();
   await expect(routesButton).toHaveAttribute('aria-pressed', 'false');
   await expect(routesButton).toHaveAttribute('title', 'Show routes');
@@ -207,20 +221,24 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   await expect(heatmapButton).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#map')).toHaveAttribute('data-heatmap-visible', 'true');
   await expect.poll(() => canvasHasPixels(page.locator('#packet-canvas')), { message: 'packet animation canvas should receive a live frame while routes are hidden', timeout: 15_000 }).toBe(true);
+  await openMapOptions(page);
   await heatmapButton.click();
   await expect(heatmapButton).toHaveAttribute('aria-pressed', 'false');
   await expect(heatmapButton).toHaveAttribute('title', 'Show heatmap');
   await expect(page.locator('#map')).toHaveAttribute('data-heatmap-visible', 'false');
   await expect(routesButton).toHaveAttribute('aria-pressed', 'false');
+  await openMapOptions(page);
   await routesButton.click();
   await expect(routesButton).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#map')).toHaveAttribute('data-routes-visible', 'true');
 
+  await openMapOptions(page);
   await heatmapButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-heatmap-visible', 'true');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state', 'idle');
   await page.screenshot({ path: testInfo.outputPath('cartolite-overlays.png'), fullPage: true });
   await expect(routesButton).toHaveAttribute('aria-pressed', 'true');
+  await openMapOptions(page);
   await heatmapButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-heatmap-visible', 'false');
   expect(mapStyleErrors, 'route styling should remain MapLibre-valid after data and layer visibility changes').toEqual([]);
@@ -240,12 +258,14 @@ test('keeps the map primary with reduced motion and releases live follow on drag
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.locator('#map')).toBeVisible();
-  await expect(page.locator('#map')).toHaveAttribute('data-follow-dwell-ms', '5000');
+  await expect(page.locator('#map')).toHaveAttribute('data-follow-dwell-ms', '10000');
   await expect(page.locator('#packet-canvas')).toHaveAttribute('data-motion-mode', 'static');
   await expect(page.locator('#follow-button')).toBeVisible();
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await expect(page.locator('#routes-button')).toBeVisible();
   await expect(page.locator('#routes-button')).toHaveAttribute('aria-pressed', 'false');
+  await openMapOptions(page);
   await page.locator('#routes-button').click();
   await expect(page.locator('#routes-button')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#reset-button')).toBeVisible();
@@ -445,6 +465,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await expect(map).toHaveAttribute('data-render-state', 'idle');
   const routesButton = page.locator('#routes-button');
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await routesButton.click();
   await expect(map).toHaveAttribute('data-routes-visible', 'true');
   if (mobile) await closeLayers(page);
@@ -468,6 +489,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await expect(focusChip).toBeVisible();
   await expect(focusChip).toContainText('Alpha · 1 neighbor');
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await page.locator('#route-window').selectOption('24h');
   if (mobile) await closeLayers(page);
   await expect(map).toHaveAttribute('data-neighbor-route-count', '2');
@@ -497,6 +519,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   }
 
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await routesButton.click();
   await expect(map).toHaveAttribute('data-routes-visible', 'false');
   await expect(map).toHaveAttribute('data-selected-node-id', 'a');
@@ -507,6 +530,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await expect(page.locator('#legend')).toHaveAttribute('data-focused', 'true');
 
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await routesButton.click();
   await expect(map).toHaveAttribute('data-routes-visible', 'true');
   await expect(map).toHaveAttribute('data-render-state', 'idle');
@@ -516,9 +540,11 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await expect(tooltip).toHaveAttribute('data-kind', 'route');
   await expect(tooltip).toContainText('Alpha ↔ Charlie');
   if (mobile) await openLayers(page);
+  await openMapOptions(page);
   await page.locator('#route-window').selectOption('15m');
   await expect(map).toHaveAttribute('data-hovered-route-id', '');
   await expect(tooltip).toBeHidden();
+  await openMapOptions(page);
   await page.locator('#route-window').selectOption('24h');
   if (mobile) await closeLayers(page);
 

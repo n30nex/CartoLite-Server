@@ -1,3 +1,4 @@
+import { openMapOptions } from './mapControls';
 import { expect, test, type Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
 import type { StateV2 } from '../src/types';
@@ -25,11 +26,14 @@ test('3D enables Topo and projects live and reduced-motion traffic over syntheti
   await emitPacket(page);
   await expect(packets).toHaveAttribute('data-projection-mode', 'flat');
   await expect(packets).toHaveAttribute('data-projection-samples', '2');
+  await openMapOptions(page);
   await page.locator('#hillshade-button').click();
   await expect.poll(() => tiles.count, { timeout: 15_000 }).toBeGreaterThan(0);
   await expect(map).toHaveAttribute('data-render-state', 'idle', { timeout: 15_000 });
   await page.screenshot({ path: testInfo.outputPath('synthetic-relief-topo.png') });
+  await openMapOptions(page);
   await page.locator('#hillshade-button').click();
+  await openMapOptions(page);
   await page.locator('#terrain-button').click();
   await expect(page.locator('#hillshade-button')).toHaveAttribute('aria-pressed', 'true');
   await expect(map).toHaveAttribute('data-terrain3d', 'true');
@@ -70,6 +74,7 @@ test('3D enables Topo and projects live and reduced-motion traffic over syntheti
   await testInfo.attach('static-pixels', { body: JSON.stringify(pixels), contentType: 'application/json' });
   expect(pixels.painted, JSON.stringify(beforeRead)).toBeGreaterThan(0);
   await page.screenshot({ path: testInfo.outputPath('synthetic-relief-rotated-static.png') });
+  await openMapOptions(page);
   await page.locator('#terrain-button').click();
   await expect(map).toHaveAttribute('data-terrain3d', 'false');
   await expect(map).toHaveAttribute('data-route-surface', 'flat');

@@ -34,17 +34,9 @@
         </div>
       </section>
       <section class="controls glass" aria-label="Map controls">
-        <button id="follow-button" class="control-button" type="button" aria-pressed="false" title="Follow live packets">
+        <button id="follow-button" class="control-button" type="button" aria-label="Live Follow" aria-pressed="false" title="Follow live packets">
           <span aria-hidden="true">◎</span><span>Live Follow</span>
         </button>
-        <div id="layers-disclosure" class="layers-disclosure" open>
-          <button id="layers-summary" class="control-button" type="button" aria-label="Layers" aria-expanded="false" aria-controls="layers-panel" title="Map layers" hidden style="display: none">
-            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m4 7 8-4 8 4-8 4z"></path><path d="m4 12 8 4 8-4M4 17l8 4 8-4"></path>
-            </svg>
-            <span>Layers</span>
-          </button>
-          <div id="layers-panel" class="layers-panel glass">
             <div id="find-control" class="find-control">
               <button id="find-button" class="control-button" type="button" aria-label="Find a node" aria-expanded="false" aria-controls="find-panel" title="Find a node">
                 <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -58,6 +50,19 @@
                 <div id="node-search-results" class="node-search-results" role="listbox" aria-live="polite"></div>
               </section>
             </div>
+        <div id="layers-disclosure" class="layers-disclosure">
+          <button id="layers-summary" class="control-button" type="button" aria-label="Map layers and appearance" aria-expanded="false" aria-controls="layers-panel" title="Map layers and appearance">
+            <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m4 7 8-4 8 4-8 4z"></path><path d="m4 12 8 4 8-4M4 17l8 4 8-4"></path>
+            </svg>
+            <span>Map</span>
+          </button>
+          <div id="layers-panel" class="layers-panel glass" hidden>
+            <header class="map-options-header"><strong>Map options</strong><button id="layers-close" class="control-button icon-button" type="button" aria-label="Close map options">×</button></header>
+            <label class="map-option" for="basemap-style"><span>Map style</span><select id="basemap-style"><option value="dark">Night</option><option value="light">Daylight</option><option value="streets">Streets</option></select></label>
+            <label class="map-option" for="interface-theme"><span>Interface</span><select id="interface-theme"><option value="map">Match map</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+            <div class="map-options-label">Layers</div>
+            <div class="layer-toggles">
             <button id="routes-button" class="control-button" type="button" aria-label="Routes" aria-pressed="false" title="Show routes">
               <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="6" cy="19" r="3"></circle>
@@ -92,8 +97,13 @@
               </svg>
               <span>3D</span>
             </button>
+            <button id="map-labels-button" class="control-button" type="button" aria-label="Place labels" aria-pressed="true"><span>Place labels</span></button>
+            <button id="node-labels-button" class="control-button" type="button" aria-label="Node labels" aria-pressed="true"><span>Node labels</span></button>
+            <button id="roads-button" class="control-button" type="button" aria-label="Roads" aria-pressed="true"><span>Roads</span></button>
+            <button id="live-packets-button" class="control-button" type="button" aria-label="Live packets" aria-pressed="true"><span>Live packets</span></button>
+            </div>
             <label class="route-window" for="route-window">
-              <span>Routes</span>
+              <span>Route age</span>
               <select id="route-window" aria-label="Route age window">
                 <option value="auto">Auto · 15m</option>
                 <option value="15m">15m</option>
@@ -102,6 +112,9 @@
                 <option value="24h">24h</option>
               </select>
             </label>
+            <label class="map-slider" for="route-opacity"><span>Route strength</span><output id="route-opacity-output" for="route-opacity">80%</output><input id="route-opacity" type="range" min="20" max="100" step="5" value="80" /></label>
+            <label class="map-slider" for="terrain-relief"><span>Topo relief</span><output id="terrain-relief-output" for="terrain-relief">75%</output><input id="terrain-relief" type="range" min="0" max="100" step="5" value="75" /></label>
+            <button id="reset-appearance" class="control-button reset-appearance" type="button">Restore display defaults</button>
           </div>
         </div>
         <div class="sound-control">
@@ -133,6 +146,12 @@
         <button id="reset-button" class="control-button icon-button" type="button" title="Reset map view" aria-label="Reset map view">⌂</button>
       </section>
       </div>
+      <section id="follow-card" class="follow-card glass" aria-label="Live Follow activity" hidden>
+        <header><span class="follow-badge">Live Follow</span><button id="follow-pause" class="control-button" type="button">Pause</button><button id="follow-close" class="control-button icon-button" type="button" aria-label="Close Live Follow">×</button></header>
+        <div class="follow-copy" role="status" aria-live="polite" aria-atomic="true"><strong id="follow-title">Waiting for activity</strong><span id="follow-detail">Nearby activity is shown first</span></div>
+        <footer><span id="follow-state">Waiting for a live packet</span><output id="follow-countdown" aria-label="Seconds until next activity"></output></footer>
+        <progress id="follow-progress" max="10" value="0" aria-label="Time remaining on this activity"></progress>
+      </section>
       <section id="legend" class="legend glass" aria-label="Map legend" data-collapsed="true" data-focused="false">
         <button id="legend-toggle" class="legend-toggle" type="button" aria-label="Show map legend" aria-controls="legend-items" aria-expanded="false">
           <span class="legend-toggle-mark" aria-hidden="true">i</span>

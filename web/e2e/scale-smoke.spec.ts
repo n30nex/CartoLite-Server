@@ -1,3 +1,4 @@
+import { openMapOptions } from './mapControls';
 import { expect, test } from '@playwright/test';
 import type { NodeV2, RouteV2, StateV2 } from '../src/types';
 
@@ -45,12 +46,13 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   await installLongTaskObserver(page);
 
   const heatmapButton = page.locator('#heatmap-button');
-  if (testInfo.project.name.startsWith('mobile')) {
-    await page.locator('#layers-summary').click();
+  {
+    await openMapOptions(page);
     await expect(page.locator('#layers-disclosure')).toHaveAttribute('open', '');
   }
   const routeSourceRevision = await map.getAttribute('data-route-source-revision');
   await resetLongTasks(page);
+  await openMapOptions(page);
   await page.locator('#route-window').selectOption('24h');
   await expect.poll(() => map.getAttribute('data-eligible-routes').then(Number), {
     message: 'the 24-hour source must keep every route, with no visual cap'
@@ -76,6 +78,7 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   await expect(page.locator('#map')).toHaveAttribute('data-heatmap-visible', 'true');
   const routesButton = page.locator('#routes-button');
   await resetLongTasks(page);
+  await openMapOptions(page);
   await routesButton.click();
   await expect(routesButton).toHaveAttribute('aria-pressed', 'true');
   await expect(map).toHaveAttribute('data-routes-visible', 'true');
@@ -89,9 +92,11 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
 
   const clustersButton = page.locator('#clusters-button');
   await resetLongTasks(page);
+  await openMapOptions(page);
   await clustersButton.click();
   await expect(map).toHaveAttribute('data-clusters-visible', 'false');
   expect(await maximumLongTask(page), 'showing all individual nodes must keep the software-rendered frame below 750 ms').toBeLessThan(750);
+  await openMapOptions(page);
   await clustersButton.click();
   await expect(map).toHaveAttribute('data-clusters-visible', 'true');
 

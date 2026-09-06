@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-09-06
+
+- Keep secondary controls in one compact Map menu on desktop, tablet and phone. Add saved Night, Daylight and Streets map styles, light/dark interface choices, labels/roads/live-packet toggles and route/Topo strength sliders.
+- Replace the blurry wide-zoom route texture with exact GPU lines at every flat-map zoom. Reduce distant residue and selection glow while retaining terrain-draped routes in 3D.
+- Hold Live Follow activity for ten seconds with a public node/packet card and countdown. Prefer nearby queued traffic, preserve camera orientation, and pause with a Resume action when the user explores or hides the tab.
+- Preserve live sources while changing styles and keep all preferences local to the browser. Add synthetic customization, pacing and responsive regression coverage. See [map customization](docs/map-customization.md).
+
 ## 0.2.0 - 2026-09-05
 
 - Bring the shared map improvements from CartoLite 0.9.1 through 0.11.0 to the worldwide self-hosted distribution.

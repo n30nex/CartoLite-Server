@@ -574,23 +574,25 @@ export class PacketAnimator {
   private drawResidue(context: CanvasRenderingContext2D, item: Residue, now: number): void {
     const style = residueStyle(now - item.addedAt);
     const rangeBoost = item.longHaul ? 1.28 : 1;
+    const detail = Math.max(0.3, Math.min(1, (this.map.getZoom() - 3) / 7));
     const bloomOpacity = this.reducedMotion ? style.life * 0.12 : style.bloomOpacity;
     const coreOpacity = this.reducedMotion ? style.life * 0.34 : style.coreOpacity;
     const bloomWidth = this.reducedMotion ? 5.2 : style.bloomWidth;
     const coreWidth = this.reducedMotion ? 1.8 : style.coreWidth;
     const coreColor = this.reducedMotion ? item.color : blendWithWhite(item.color, style.hot * 0.16);
     traceSurfacePath(context, this.projection.projectSegment(item.segment));
-    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost));
-    context.lineWidth = bloomWidth * rangeBoost;
+    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost * detail));
+    context.lineWidth = bloomWidth * rangeBoost * detail;
     context.stroke();
     context.setLineDash(item.signature === 'echo' ? [6, 5] : []);
     context.strokeStyle = withAlpha(coreColor, Math.min(0.96, coreOpacity * rangeBoost));
-    context.lineWidth = coreWidth * (item.longHaul ? 1.18 : 1);
+    context.lineWidth = Math.max(0.65, coreWidth * detail) * (item.longHaul ? 1.18 : 1);
     context.stroke();
     context.setLineDash([]);
   }
 
   private drawResidueSparkles(now: number): void {
+    if (this.map.getZoom() < 5) return;
     const quality = this.qualityMode();
     const count = quality === 'full' ? 3 : quality === 'balanced' ? 2 : 1;
     const limit = quality === 'full' ? 160 : quality === 'balanced' ? 120 : 96;
