@@ -94,7 +94,7 @@ jobs:
           docker run -d --name cartolite-server-mqtt --network cartolite-server-ci \
             --mount type=bind,source="$PWD/testdata/mosquitto.conf",target=/mosquitto/config/mosquitto.conf,readonly \
             eclipse-mosquitto:2.0.22
-          docker run -d --name cartolite-server --network cartolite-server-ci \
+          docker run -d --name cartolite --network cartolite-server-ci \
             -p 127.0.0.1:39476:8080 --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --memory 256m \
             --mount source=cartolite-server-ci-data,target=/data \
@@ -105,7 +105,7 @@ jobs:
             curl --fail --silent http://127.0.0.1:39476/readyz >/dev/null && exit 0
             sleep 1
           done
-          docker logs cartolite-server
+          docker logs cartolite
           exit 1
       - run: |
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
@@ -153,7 +153,7 @@ jobs:
             web/focused-playwright-report/
       - if: always()
         run: |
-          docker rm -f cartolite-server cartolite-server-mqtt >/dev/null 2>&1 || true
+          docker rm -f cartolite cartolite-server-mqtt >/dev/null 2>&1 || true
           docker network rm cartolite-server-ci >/dev/null 2>&1 || true
 
   required:
