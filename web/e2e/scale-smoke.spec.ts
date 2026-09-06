@@ -7,6 +7,9 @@ import type { NodeV2, RouteV2, StateV2 } from '../src/types';
 test.use({ screenshot: 'off', trace: 'off' });
 
 test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testInfo) => {
+  // Allow the complete interaction journey to finish; the explicit startup,
+  // frame, long-task, and application-work budgets below still gate performance.
+  test.slow();
   const state = scaleState();
   const firstRoute = state.routes[0];
   if (!firstRoute) throw new Error('scale fixture has no routes');

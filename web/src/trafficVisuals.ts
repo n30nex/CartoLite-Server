@@ -78,3 +78,16 @@ function boundedTraffic(traffic: number): number {
   if (!Number.isFinite(traffic)) return 0;
   return Math.max(0, Math.min(ROUTE_TRAFFIC_MAX, traffic));
 }
+export function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function colorWithAlpha(color: string, alpha: number): string {
+  const value = Number.parseInt(color.startsWith('#') ? color.slice(1) : 'ffffff', 16);
+  return `rgba(${(value >> 16) & 255},${(value >> 8) & 255},${value & 255},${Math.max(0, Math.min(1, alpha))})`;
+}

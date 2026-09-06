@@ -4,6 +4,7 @@ import type {
   Map as MapLibreMap,
 } from 'maplibre-gl';
 import type { Feature, LineString } from 'geojson';
+import { splitWorldRoute } from './worldGeometry';
 
 export const ROUTE_WEBGL_LAYER_ID = 'route-exact-webgl';
 const FLOATS_PER_VERTEX = 7;
@@ -172,23 +173,24 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
 }
 
 export function historicalRouteVertices(routes: readonly Feature<LineString>[]): Float32Array {
-  const values = new Float32Array(routes.length * 2 * FLOATS_PER_VERTEX);
+  const values = new Float32Array(routes.length * 4 * FLOATS_PER_VERTEX);
   let offset = 0;
   for (const route of routes) {
     const from = route.geometry.coordinates[0];
     const to = route.geometry.coordinates[route.geometry.coordinates.length - 1];
     if (!from || !to) continue;
-    const first = mercator(Number(from[0]), Number(from[1]));
-    const last = mercator(Number(to[0]), Number(to[1]));
     const properties = route.properties ?? {};
     const color = parseColor(String(properties.color ?? '#73d9cf'));
     const alpha = clamp(Number(properties.opacity ?? 0.4), 0.04, 1);
     const band = clamp(Number(properties.windowBand ?? 3), 0, 3);
-    for (const position of [first, last]) {
-      values.set([
-        position[0], position[1], color[0], color[1], color[2], alpha, band,
-      ], offset);
-      offset += FLOATS_PER_VERTEX;
+    for (const pair of splitWorldRoute([Number(from[0]), Number(from[1])], [Number(to[0]), Number(to[1])])) {
+      for (const point of pair) {
+        const position = mercator(point[0], point[1]);
+        values.set([
+          position[0], position[1], color[0], color[1], color[2], alpha, band,
+        ], offset);
+        offset += FLOATS_PER_VERTEX;
+      }
     }
   }
   return offset === values.length ? values : values.slice(0, offset);
@@ -222,10 +224,12 @@ function historicalRouteTexture(
       group = { path: new Path2D(), color, alpha, width };
       paths.set(key, group);
     }
-    const first = texturePoint(Number(from[0]), Number(from[1]), northwest, southeast);
-    const last = texturePoint(Number(to[0]), Number(to[1]), northwest, southeast);
-    group.path.moveTo(first[0], first[1]);
-    group.path.lineTo(last[0], last[1]);
+    for (const pair of splitWorldRoute([Number(from[0]), Number(from[1])], [Number(to[0]), Number(to[1])])) {
+      const first = texturePoint(pair[0][0], pair[0][1], northwest, southeast);
+      const last = texturePoint(pair[1][0], pair[1][1], northwest, southeast);
+      group.path.moveTo(first[0], first[1]);
+      group.path.lineTo(last[0], last[1]);
+    }
   }
   context.lineCap = 'round';
   context.lineJoin = 'round';

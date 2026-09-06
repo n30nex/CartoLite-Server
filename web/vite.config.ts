@@ -12,7 +12,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 500,
     rolldownOptions: {
       input: {
-        main: inputPath('index.html')
+        main: inputPath('index.html'),
+        netgraph: inputPath('netgraph/index.html')
       }
     }
   },

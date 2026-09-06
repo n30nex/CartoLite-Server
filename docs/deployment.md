@@ -38,3 +38,7 @@ Use a TLS reverse proxy and forward to the loopback port. Do not expose `.env`, 
 `/healthz` reports liveness. `/readyz` requires a healthy checkpoint, connected and subscribed MQTT client, healthy queue, and zero drops. Normal RF silence is ready.
 
 Before an upgrade, copy the checkpoint and record the current image ID. Build the new source revision, recreate only the `cartolite` service, and verify health, readiness, schema v2 privacy, SSE traffic, vector resources, desktop/mobile layout, and container hardening. Roll back to the recorded image and checkpoint if any gate fails.
+
+## Upgrade to 0.2.0
+
+Use the v0.2.0 source tag and the updated example version setting. Rebuild with your own existing BuildKit basemap secret, retain the MQTT and optional region configuration, and preserve the checkpoint and previous image before recreating the service. Both the map and /netgraph/ use the same public API v2 feed. Verify 3D enables Topo, world locations remain available, and Netgraph groups nodes by global grid squares.

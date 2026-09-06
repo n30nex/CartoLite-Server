@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#071319" />
+    <meta name="description" content="A self-hosted, privacy-safe worldwide MeshCore topology view." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CartoLite Server · Netgraph" />
+    <meta property="og:description" content="Watch your worldwide MeshCore topology carry packets, with synchronized musical hops." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>CartoLite Server · Netgraph</title>
+  </head>
+  <body>
+    <main id="netgraph-app" class="netgraph-app" aria-label="CartoLite live topology" data-loading="true">
+      <section id="netgraph-stage" class="netgraph-stage" aria-label="Interactive live MeshCore topology" tabindex="0" data-render-state="loading">
+        <canvas id="graph-canvas" aria-hidden="true"></canvas>
+        <canvas id="packet-canvas" aria-hidden="true"></canvas>
+        <div class="graph-grade" aria-hidden="true"></div>
+      </section>
+
+      <header id="topbar" class="topbar glass" aria-label="CartoLite navigation and live status">
+        <a class="brand" href="/" aria-label="Return to CartoLite map"><span class="brand-mark" aria-hidden="true"></span><span>CartoLite</span></a>
+        <span class="view-title"><span aria-hidden="true">⌘</span><span>Netgraph</span></span>
+        <div id="status" class="status" data-state="loading" role="status">
+          <span class="status-dot" aria-hidden="true"></span><span id="status-text">Starting…</span>
+          <span id="traffic-meter" class="traffic-meter" data-level="0" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+      </header>
+
+      <section class="controls glass" aria-label="Netgraph controls">
+        <div id="find-control" class="popover-control">
+          <button id="find-button" class="control-button" type="button" aria-expanded="false" aria-controls="find-panel" title="Find a connected node">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 4 4"></path></svg><span>Find</span>
+          </button>
+          <section id="find-panel" class="find-panel glass" aria-label="Find a node" hidden>
+            <label for="node-search">Find a connected node</label>
+            <input id="node-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search public labels" aria-controls="node-search-results" />
+            <div id="node-search-results" class="node-search-results" role="listbox" aria-live="polite"></div>
+          </section>
+        </div>
+        <label class="route-window" for="route-window"><span>Links</span>
+          <select id="route-window" aria-label="Route age window">
+            <option value="15m" selected>15 min</option>
+            <option value="1h">1 hour</option>
+            <option value="6h">6 hours</option>
+            <option value="24h">24 hours</option>
+          </select>
+        </label>
+        <div id="sound-control" class="popover-control">
+          <button id="sound-button" class="control-button" type="button" aria-expanded="false" aria-controls="sound-panel" aria-pressed="false" title="Sound settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 4V6L8 10zM16 9a4 4 0 0 1 0 6M18.7 6.5a7.5 7.5 0 0 1 0 11"></path></svg><span>Sound</span><small id="sound-state">Off</small>
+          </button>
+          <section id="sound-panel" class="sound-panel glass" aria-label="Sound settings" data-sound-state="off" hidden>
+            <header><strong>Musical traffic</strong><span id="sound-panel-state">Off</span></header>
+            <button id="sound-toggle" class="sound-toggle" type="button">Turn sound on</button>
+            <label class="scene-control" for="sound-scene"><span>Scene</span>
+              <select id="sound-scene"><option value="aurora">Aurora</option><option value="wood">Wood</option><option value="chimes">Chimes</option></select>
+            </label>
+            <label class="volume-control" for="sound-volume"><span>Volume</span><output id="sound-volume-output" for="sound-volume">80%</output>
+              <input id="sound-volume" type="range" min="0" max="100" step="1" value="80" />
+            </label>
+            <p><span id="sound-activity" class="sound-activity" aria-hidden="true"></span>Visible live hops only</p>
+          </section>
+        </div>
+        <button id="reset-button" class="control-button reset-button" type="button" title="Fit the whole topology"><span aria-hidden="true">⌂</span><span>Reset</span></button>
+      </section>
+
+      <section class="zoom-controls glass" aria-label="Zoom controls">
+        <button id="zoom-in-button" class="control-button" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+        <button id="zoom-out-button" class="control-button" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+      </section>
+
+      <aside id="graph-summary" class="graph-summary glass" aria-label="Topology summary">
+        <div><strong id="connected-count">—</strong><span>connected nodes</span></div>
+        <div><strong id="route-count">—</strong><span>visible links</span></div>
+        <div><strong id="area-count">—</strong><span>geo areas</span></div>
+        <div><strong id="component-count">—</strong><span>components</span></div>
+      </aside>
+
+      <aside id="legend" class="legend glass" aria-label="Netgraph legend">
+        <div class="role-legend"><span><i data-role="repeater"></i>Repeater</span><span><i data-role="companion"></i>Companion</span><span><i data-role="room_server"></i>Room</span><span><i data-role="sensor"></i>Sensor</span></div>
+        <div class="packet-legend"><span><i data-kind="Advert"></i>Advert</span><span><i data-kind="Trace"></i>Trace</span><span><i data-kind="Text"></i>Text</span><span><i data-kind="ACK"></i>ACK</span><span><i data-kind="Control"></i>Control</span><span><i data-kind="inter-area"></i>Inter-area</span></div>
+      </aside>
+
+      <div id="tooltip" class="tooltip glass" role="tooltip" hidden></div>
+      <aside id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected node details" hidden></aside>
+      <p id="empty-state" class="empty-state glass" hidden>No connected routes in this time window.</p>
+      <p id="fatal" class="fatal glass" role="alert" hidden>
+        Unable to load Netgraph. Check your connection, then try again.<br />
+        <a class="control-button" href="">Try again</a>
+      </p>
+    </main>
+    <script type="module" src="/src/netgraph/main.ts"></script>
+  </body>
+</html>

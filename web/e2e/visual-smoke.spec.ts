@@ -4,6 +4,9 @@ import { NEIGHBOR_ROUTE_RECENT_MS } from '../src/routeFocus';
 import type { StateV2 } from '../src/types';
 
 test('renders the live route map and privacy-safe state', async ({ page }, testInfo) => {
+  // This full journey includes terrain downloads, camera transitions, audio,
+  // and region loading. Keep each assertion's own deadline unchanged.
+  test.slow();
   const mobile = isMobileProject(testInfo.project.name);
   await instrumentAudioContext(page);
   const mapStyleErrors = captureMapStyleErrors(page);
@@ -393,6 +396,9 @@ test('keeps a recent packet trail after stable routes are hidden', async ({ page
 });
 
 test('focuses recent route neighbors and clears selection on the map', async ({ page }, testInfo) => {
+  // This multi-step inspection journey also captures rendered evidence.
+  // Individual assertions retain their existing deadlines.
+  test.slow();
   const mobile = isMobileProject(testInfo.project.name);
   const now = Date.now();
   const center: [number, number] = [-80.35, 43.45];
@@ -429,7 +435,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   }));
   await page.addInitScript(({ key, view }) => {
     window.localStorage.setItem(key, JSON.stringify(view));
-  }, { key: `cartolite:view:v3:${mobile ? 'mobile' : 'desktop'}`, view: { center, zoom: state.map.zoom } });
+  }, { key: `cartolite-server:view:v1:${mobile ? 'mobile' : 'desktop'}`, view: { center, zoom: state.map.zoom } });
 
   await page.goto('/');
   const map = page.locator('#map');

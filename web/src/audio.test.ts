@@ -82,6 +82,21 @@ describe('route hop sonification', () => {
     expect(notes[2]!.startMS).toBeGreaterThan(notes[1]!.startMS);
   });
 
+  it('uses endpoint-aware projection for non-geographic views', () => {
+    const route = packet([
+      endpoint('hidden-geography-a', 900, 900),
+      endpoint('hidden-geography-b', 950, 950),
+    ]);
+    const graphProjector = {
+      project: () => ({ x: 900, y: 900 }),
+      projectEndpoint: (value: EndpointV2) => value.id.endsWith('-a')
+        ? { x: 20, y: 50 }
+        : { x: 80, y: 50 },
+    };
+
+    expect(routeSoundPlan(route, graphProjector, 100, 100)).toHaveLength(1);
+  });
+
   it('does not sonify observer-only activity because it has no public hops', () => {
     expect(routeSoundPlan({
       seq: 8,
@@ -91,6 +106,16 @@ describe('route hop sonification', () => {
       mode: 'observer',
       observer: endpoint('observer', 50, 50),
     }, projector, 100, 100)).toEqual([]);
+  });
+
+  it('sounds a terrain path crossing the view once without treating its samples as extra hops', () => {
+    const route = packet([endpoint('a', -20, -20), endpoint('b', 120, -20)]);
+    expect(routeSoundPlan(route, projector, 100, 100)).toEqual([]);
+    const terrain = { ...projector, projectSegment: () => [{ x: -20, y: -20 }, { x: 50, y: 50 }, { x: 120, y: -20 }] };
+    const notes = routeSoundPlan(route, terrain, 100, 100);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.pan).toBe(0);
+    expect(notes[0]!.startMS).toBe(0);
   });
 
   it('uses distinct but restrained voices for different packet families', () => {
