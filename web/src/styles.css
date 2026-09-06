@@ -683,7 +683,7 @@ button { font: inherit; }
 }
 :root[data-theme="light"] :is(.control-button, .brand, .netgraph-link, .legend, .status, .sound-panel header span, .sound-panel p, .node-search-result span, .focus-chip) { color: var(--ink); }
 :root[data-theme="light"] :is(.find-panel input, .node-inspector, .maplibregl-popup-content, .node-inspector-sheet, .about-dialog) { color: var(--ink); background: var(--panel-solid); }
-:root[data-theme="light"] :is(.node-inspector header strong, .node-inspector header span, .node-inspector h3, .node-inspector dt, .node-inspector dd, .about-dialog h1, .about-dialog p, .about-dialog dd, .about-dialog dt) { color: var(--ink); }
+:root[data-theme="light"] :is(.tooltip strong, .tooltip span, .node-inspector header strong, .node-inspector header span, .node-inspector h3, .node-inspector dt, .node-inspector dd, .about-dialog h1, .about-dialog p, .about-dialog dd, .about-dialog dt) { color: var(--ink); }
 :root[data-basemap="light"] .map-grade, :root[data-basemap="streets"] .map-grade { opacity: 0; }
 :root:not([data-basemap="dark"]) #packet-canvas { filter: brightness(0.72) saturate(1.2); }
 :root[data-view-class="mobile"] .controls { backdrop-filter: none; -webkit-backdrop-filter: none; }

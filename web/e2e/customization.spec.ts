@@ -112,6 +112,14 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   } })));
   await expect(page.locator('#map')).toHaveAttribute('data-neighbor-route-count', '3');
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 1000)));
+  await page.clock.fastForward(10_000);
+  await page.clock.fastForward(10_000);
+  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
+  await expect(page.locator('#follow-title')).toHaveText('Waiting for activity');
+  await expect(page.locator('#follow-countdown')).toHaveText('');
+  await expect(page.locator('#follow-card')).not.toHaveAttribute('data-packet-at', /.+/);
+  await expect(page.locator('#map')).toHaveAttribute('data-follow-feature-count', '0');
   await page.locator('#follow-close').click();
   await expect(page.locator('#follow-card')).toBeHidden();
 });
