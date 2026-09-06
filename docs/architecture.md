@@ -22,3 +22,7 @@ The checkpoint contains current topology and private resolver material needed af
 The browser treats `/api/state` as authoritative and `/api/events` as a bounded low-latency delta stream. Boot changes, sequence gaps, expired replay cursors, visibility resume, and network restoration trigger one coalesced state refresh and stream replacement.
 
 MapLibre owns stable geography, nodes, heat, and route geometry. The historical route texture covers the complete Web Mercator world at overview zooms; detail zooms use the same exact straight route segments in a compact WebGL line buffer. Canvas owns only transient packet cores, wakes, sparks, handoffs, and 45-second residue. The browser keeps map and sound settings locally.
+
+## Worldwide visual refresh
+
+The map and Netgraph share recovery, keyboard Finder, packet timing, colours and hop audio. Terrain paths use bounded geographic samples with cache invalidation on camera and DEM changes; date-line strokes are split without creating new hops. Netgraph derives Maidenhead groups locally from public coordinates and uses adaptive Canvas2D effects. No country data, database, new service, geocoder, or public schema fields are required. See [the port notes](upstream-refresh-0.2.0.md).

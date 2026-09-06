@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 - 2026-09-05
+
+- Bring the shared map improvements from CartoLite 0.9.1 through 0.11.0 to the worldwide self-hosted distribution.
+- Add a worldwide Netgraph at `/netgraph/`, with stable topology, native touch pan/pinch/zoom, adaptive visual quality, synchronized hop audio, keyboard Finder navigation, node inspection, and selected-node packet emphasis. Group areas by standard Maidenhead grid squares derived from public coordinates, without country lists or external geocoding.
+- Strengthen multidirectional Topo shading. Enabling 3D also enables and remembers Topo; disabling 3D retains Topo. Project packet trails, residue and ground rings through terrain, and drape historical routes in 3D while retaining the fast flat-map renderer.
+- Keep date-line routes on their short geographic path. Split Canvas and historical strokes at the map seam without adding radio hops or musical notes.
+- Improve responsive toolbar layout and recovery from closed streams, stalled state requests, malformed resets and startup failures. Preserve operator configuration, worldwide coordinate acceptance, optional exact region filtering, public API v2, and hardened runtime defaults.
+- Validate synthetic worldwide, terrain, privacy, scale and desktop/mobile scenarios in GitHub Actions. Releases remain source-only; each operator supplies their own basemap key through a BuildKit secret.
+
 ## 0.1.0 - 2026-09-02
 
 - Create the standalone CartoLite Server distribution from CartoLite 0.9.1.

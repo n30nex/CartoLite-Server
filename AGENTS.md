@@ -2,7 +2,7 @@
 
 ## Purpose
 
-CartoLite Server is one small, worldwide MeshCore traffic map: a Go MQTT/HTTP process, a vanilla TypeScript/MapLibre client, transient Canvas animation, and one atomic checkpoint. Keep it suitable for independent self-hosting.
+CartoLite Server is a compact worldwide MeshCore map and Netgraph: a Go MQTT/HTTP process, a vanilla TypeScript/MapLibre client, transient Canvas animation, and one atomic checkpoint. Keep it suitable for independent self-hosting. Netgraph areas use coordinate-derived global grid squares, never country-specific lists.
 
 ## Boundaries
 

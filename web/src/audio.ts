@@ -1,5 +1,7 @@
+import { stableHash } from './trafficVisuals';
+import { surfacePathPoint, type SurfacePoint } from './terrainProjection';
 import { routeDuration, segmentNearViewport, segmentTravelWeights } from './packetAnimator';
-import type { PacketView } from './types';
+import type { EndpointV2, PacketView } from './types';
 import type { PacketKind } from './trafficVisuals';
 
 const MASTER_LEVEL = 0.9;
@@ -190,6 +192,8 @@ export interface HopNote {
 
 export interface ViewportProjector {
   project(coordinates: [number, number]): { x: number; y: number };
+  projectEndpoint?(endpoint: EndpointV2): { x: number; y: number };
+  projectSegment?(segment: { from: EndpointV2; to: EndpointV2; routeId: string }): readonly SurfacePoint[];
 }
 
 export function routeSoundPlan(
@@ -201,10 +205,11 @@ export function routeSoundPlan(
   character: SoundCharacter = 'map',
 ): HopNote[] {
   if (packet.mode !== 'route' || packet.segments.length === 0 || width <= 0 || height <= 0) return [];
-  const projected = packet.segments.map((segment) => ({
-    from: projector.project([segment.from.lng, segment.from.lat]),
-    to: projector.project([segment.to.lng, segment.to.lat]),
-  }));
+  const projectEndpoint = (endpoint: EndpointV2): { x: number; y: number } => (
+    projector.projectEndpoint?.(endpoint) ?? projector.project([endpoint.lng, endpoint.lat])
+  );
+  const projected: Array<readonly SurfacePoint[]> = packet.segments.map((segment) => projector.projectSegment?.(segment)
+    ?? [projectEndpoint(segment.from), projectEndpoint(segment.to)]);
   const weights = segmentTravelWeights(packet.segments);
   const totalDuration = routeDuration(packet.segments);
   const voice = VOICES[packet.payloadType] ?? VOICES.Other;
@@ -218,8 +223,8 @@ export function routeSoundPlan(
     const screen = projected[index]!;
     const startMS = Math.round(elapsed);
     elapsed += totalDuration * weight;
-    if (!segmentIntersectsViewport(screen.from, screen.to, width, height)) return [];
-    const midpointX = (screen.from.x + screen.to.x) / 2;
+    if (!screen.some((point, index) => index > 0 && !point.breakBefore && segmentIntersectsViewport(screen[index - 1]!, point, width, height))) return [];
+    const midpointX = surfacePathPoint(screen, 0.5).x;
     const step = (phraseSeed + stableHash(`${segment.from.id}|${segment.to.id}`) + index * 2) % voice.intervals.length;
     const variation = stableHash(`${packet.id}|${segment.routeId}|${index}|${scene}`) % sceneProfile.harmonics.length;
     const octave = index >= voice.intervals.length ? 12 : 0;
@@ -514,14 +519,6 @@ function audioContextConstructor(): AudioContextConstructor | undefined {
   return window.AudioContext ?? (window as WebKitAudioWindow).webkitAudioContext;
 }
 
-function stableHash(value: string): number {
-  let hash = 2_166_136_261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619);
-  }
-  return hash >>> 0;
-}
 
 function segmentIntersectsViewport(
   from: { x: number; y: number },

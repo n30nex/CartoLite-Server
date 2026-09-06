@@ -9,16 +9,26 @@ import type {
 } from './types';
 
 export async function fetchState(signal?: AbortSignal): Promise<StateV2> {
-  const response = await fetch('/api/state', {
-    cache: 'no-store',
-    credentials: 'same-origin',
-    headers: { Accept: 'application/json' },
-    signal
-  });
-  if (!response.ok) throw new Error(`state request failed (${response.status})`);
-  const body: unknown = await response.json();
-  assertStateV2(body);
-  return body;
+  const controller = new AbortController();
+  const cancel = (): void => controller.abort(signal?.reason);
+  if (signal?.aborted) cancel();
+  else signal?.addEventListener('abort', cancel, { once: true });
+  const timeout = window.setTimeout(() => controller.abort(new Error('Live data request timed out')), 15_000);
+  try {
+    const response = await fetch('/api/state', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`state request failed (${response.status})`);
+    const body: unknown = await response.json();
+    assertStateV2(body);
+    return body;
+  } finally {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener('abort', cancel);
+  }
 }
 
 export interface LiveFeedHandlers {
@@ -66,8 +76,21 @@ export class LiveFeed {
     const source = new EventSource(`/api/events?${cursor.toString()}`, { withCredentials: true });
     this.source = source;
     const current = (): boolean => this.source === source && !this.recovering && !this.stopped;
-    source.onopen = () => { if (current()) this.handlers.onConnection(true); };
-    source.onerror = () => { if (current()) this.handlers.onConnection(false); };
+    source.onopen = () => {
+      if (!current()) return;
+      this.recoveryFailures = 0;
+      this.handlers.onConnection(true);
+    };
+    source.onerror = () => {
+      if (!current()) return;
+      this.handlers.onConnection(false);
+      // Native retries stop after a refused stream (for example an HTTP 503).
+      if (source.readyState === EventSource.CLOSED) {
+        this.closeSource();
+        this.recoveryFailures += 1;
+        this.scheduleRecovery();
+      }
+    };
     source.addEventListener('hello', (event) => { if (current()) this.handleHello(event); });
     source.addEventListener('node', (event) => {
       if (current()) this.handleSequenced<NodeEventV2>(event, this.handlers.onNode);
@@ -106,6 +129,7 @@ export class LiveFeed {
       if (reset.bootId !== this.bootId || reset.seq >= this.seq) void this.requestRecovery();
     } catch (error) {
       this.report(error);
+      void this.requestRecovery();
     }
   }
 
@@ -140,7 +164,6 @@ export class LiveFeed {
         if (this.stopped) return;
         this.bootId = snapshot.bootId;
         this.seq = snapshot.seq;
-        this.recoveryFailures = 0;
         recovered = true;
       })
       .catch((error: unknown) => {

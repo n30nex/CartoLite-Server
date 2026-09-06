@@ -1,6 +1,6 @@
 name: CI
 
-# Manual-only while the maintainer's hosted-runner minutes are unavailable.
+# Maintainer-dispatched validation for the self-hosted source distribution.
 on:
   workflow_dispatch:
 
@@ -94,7 +94,7 @@ jobs:
           docker run -d --name cartolite-server-mqtt --network cartolite-server-ci \
             --mount type=bind,source="$PWD/testdata/mosquitto.conf",target=/mosquitto/config/mosquitto.conf,readonly \
             eclipse-mosquitto:2.0.22
-          docker run -d --name cartolite-server --network cartolite-server-ci \
+          docker run -d --name cartolite --network cartolite-server-ci \
             -p 127.0.0.1:39476:8080 --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --memory 256m \
             --mount source=cartolite-server-ci-data,target=/data \
@@ -105,16 +105,33 @@ jobs:
             curl --fail --silent http://127.0.0.1:39476/readyz >/dev/null && exit 0
             sleep 1
           done
-          docker logs cartolite-server
+          docker logs cartolite
           exit 1
       - run: |
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
-      - working-directory: web
+      - name: Worldwide and terrain regressions
+        working-directory: web
         env:
           CARTOLITE_BASE_URL: http://127.0.0.1:39476
-        run: npm run test:e2e
+          PLAYWRIGHT_HTML_OUTPUT_DIR: focused-playwright-report
+        run: npm run test:e2e -- --grep '@terrain|@world' --output focused-test-results
+      - name: Complete desktop and mobile browser suite
+        working-directory: web
+        env:
+          CARTOLITE_BASE_URL: http://127.0.0.1:39476
+        shell: bash
+        run: |
+          (
+            while true; do
+              FIXTURE_DELAY_SECONDS=0.04 bash ../scripts/publish-fixture.sh cartolite-server-mqtt ../testdata/synthetic-live.ndjson
+              sleep 0.25
+            done
+          ) &
+          publisher_pid=$!
+          trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
+          npm run test:e2e -- --grep-invert '@terrain|@world'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -123,9 +140,20 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+      - name: Preserve browser and integration evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cartolite-server-ci-evidence
+          path: |
+            artifacts/integration/
+            web/test-results/
+            web/playwright-report/
+            web/focused-test-results/
+            web/focused-playwright-report/
       - if: always()
         run: |
-          docker rm -f cartolite-server cartolite-server-mqtt >/dev/null 2>&1 || true
+          docker rm -f cartolite cartolite-server-mqtt >/dev/null 2>&1 || true
           docker network rm cartolite-server-ci >/dev/null 2>&1 || true
 
   required:

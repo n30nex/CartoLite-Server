@@ -1,5 +1,7 @@
+import { stableHash as stableVisualHash, colorWithAlpha as withAlpha } from './trafficVisuals';
 import type maplibregl from 'maplibre-gl';
 import type { EndpointV2, ObserverPacketEventV2, PacketView, RoutePacketView, RouteSegmentView } from './types';
+import { TerrainProjector, surfaceArc, surfacePathPoint, surfaceTrail, traceSurfacePath, type SurfacePoint } from './terrainProjection';
 import {
   normalizePacketKind,
   packetSignature,
@@ -27,6 +29,7 @@ export const LOW_POWER_MAX_RESIDUE = 240;
 export const NODE_WAKE_MS = 6_000;
 export const MAX_NODE_WAKES = 160;
 export const LOW_POWER_MAX_NODE_WAKES = 72;
+export const LONG_HAUL_MIN_KM = 75;
 
 const EARTH_RADIUS_KM = 6371.0088;
 const MIN_SEGMENT_KM = 0.025;
@@ -43,6 +46,7 @@ interface ActiveRoute {
   duration: number;
   weights: number[];
   completedSegments: number;
+  longHaul: boolean;
   staticMotion?: RouteMotion;
   staticOnly?: boolean;
 }
@@ -59,6 +63,11 @@ interface Residue {
   color: string;
   signature: PacketSignature;
   addedAt: number;
+  longHaul: boolean;
+}
+
+export interface PacketAnimationEmphasis {
+  longHaul?: boolean;
 }
 
 interface NodeWake {
@@ -68,33 +77,13 @@ interface NodeWake {
   addedAt: number;
 }
 
-export interface ScreenPoint {
-  x: number;
-  y: number;
-}
-
-interface ProjectedResidue {
-  from: ScreenPoint;
-  control: ScreenPoint;
-  to: ScreenPoint;
-}
-
-export interface QuadraticRoute {
-  from: ScreenPoint;
-  control: ScreenPoint;
-  to: ScreenPoint;
-}
-
-export interface QuadraticSlice {
-  control: ScreenPoint;
-  head: ScreenPoint;
-  tangent: ScreenPoint;
-}
+export type ScreenPoint = SurfacePoint;
 
 export interface PacketTrail {
   tail: ScreenPoint;
   head: ScreenPoint;
   length: number;
+  points?: readonly ScreenPoint[];
 }
 
 export interface RouteMotion {
@@ -134,6 +123,17 @@ export function geographicDistanceKm(from: EndpointV2, to: EndpointV2): number {
   return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(Math.max(0, 1 - haversine)));
 }
 
+export function packetEndpointDistanceKm(packet: PacketView): number {
+  if (packet.mode !== 'route' || packet.segments.length === 0) return 0;
+  const first = packet.segments[0]!;
+  const last = packet.segments[packet.segments.length - 1]!;
+  return geographicDistanceKm(first.from, last.to);
+}
+
+export function potentialLongHaulPacket(packet: PacketView): boolean {
+  return packetEndpointDistanceKm(packet) >= LONG_HAUL_MIN_KM;
+}
+
 export function segmentTravelWeights(segments: readonly RouteSegmentView[]): number[] {
   if (segments.length === 0) return [];
   const distances = segments.map((segment) => {
@@ -158,44 +158,6 @@ export function interpolateScreenPoint(from: ScreenPoint, to: ScreenPoint, progr
   return {
     x: from.x + (to.x - from.x) * amount,
     y: from.y + (to.y - from.y) * amount,
-  };
-}
-
-export function routeCurve(from: ScreenPoint, to: ScreenPoint, seed: string, strength = 1): QuadraticRoute {
-  const deltaX = to.x - from.x;
-  const deltaY = to.y - from.y;
-  const distance = Math.hypot(deltaX, deltaY);
-  const midpoint = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-  if (distance <= 0.01) return { from, control: midpoint, to };
-  const side = stableVisualHash(seed) % 2 === 0 ? 1 : -1;
-  const bend = Math.min(68, distance * 0.16) * clamp(strength);
-  return {
-    from,
-    control: {
-      x: midpoint.x - deltaY / distance * bend * side,
-      y: midpoint.y + deltaX / distance * bend * side,
-    },
-    to,
-  };
-}
-
-export function quadraticPoint(route: QuadraticRoute, progress: number): ScreenPoint {
-  const amount = clamp(progress);
-  const inverse = 1 - amount;
-  return {
-    x: inverse * inverse * route.from.x + 2 * inverse * amount * route.control.x + amount * amount * route.to.x,
-    y: inverse * inverse * route.from.y + 2 * inverse * amount * route.control.y + amount * amount * route.to.y,
-  };
-}
-
-export function quadraticSlice(route: QuadraticRoute, progress: number): QuadraticSlice {
-  const amount = clamp(progress);
-  const first = interpolateScreenPoint(route.from, route.control, amount);
-  const second = interpolateScreenPoint(route.control, route.to, amount);
-  return {
-    control: first,
-    head: interpolateScreenPoint(first, second, amount),
-    tangent: { x: second.x - first.x, y: second.y - first.y },
   };
 }
 
@@ -318,6 +280,7 @@ export function capNewest<T>(items: readonly T[], limit: number): T[] {
 }
 
 export class PacketAnimator {
+  readonly projection: TerrainProjector;
   private readonly context: CanvasRenderingContext2D;
   private readonly residueCanvas: HTMLCanvasElement;
   private readonly residueContext: CanvasRenderingContext2D;
@@ -327,7 +290,6 @@ export class PacketAnimator {
   private activeObservers: ActiveObserver[] = [];
   private residue: Residue[] = [];
   private nodeWakes: NodeWake[] = [];
-  private projectedResidue = new Map<Residue, ProjectedResidue>();
   private frameId = 0;
   private residueTimer?: number;
   private paused = false;
@@ -342,6 +304,7 @@ export class PacketAnimator {
   private appliedQuality?: VisualQuality;
 
   constructor(private readonly map: maplibregl.Map, private readonly canvas: HTMLCanvasElement) {
+    this.projection = new TerrainProjector(map);
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas2D is unavailable');
     this.context = context;
@@ -361,10 +324,12 @@ export class PacketAnimator {
     this.lowPowerQuery.addEventListener('change', this.handleLowPowerChange);
     this.map.on('resize', this.resize);
     this.map.on('move', this.handleMapMove);
+    this.map.on('terrain', this.handleMapMove);
+    this.map.on('sourcedata', this.handleTerrainData);
     this.resize();
   }
 
-  add(packet: PacketView): void {
+  add(packet: PacketView, emphasis: PacketAnimationEmphasis = {}): void {
     if (this.paused || !this.packetNearViewport(packet)) return;
     const color = payloadColor(packet.payloadType);
     const kind = normalizePacketKind(packet.payloadType);
@@ -372,6 +337,7 @@ export class PacketAnimator {
     const started = performance.now();
     this.canvas.dataset.lastPacketKind = kind;
     this.canvas.dataset.lastSignature = signature;
+    this.canvas.dataset.lastPacketRange = emphasis.longHaul ? 'long-haul' : 'standard';
     if (packet.mode === 'route') {
       if (packet.segments.length === 0) return;
       const route: ActiveRoute = {
@@ -382,6 +348,7 @@ export class PacketAnimator {
         duration: routeDuration(packet.segments),
         weights: segmentTravelWeights(packet.segments),
         completedSegments: 0,
+        longHaul: Boolean(emphasis.longHaul),
       };
       if (this.reducedMotion) {
         route.staticOnly = true;
@@ -392,7 +359,7 @@ export class PacketAnimator {
         };
         route.completedSegments = packet.segments.length;
         for (const segment of packet.segments) {
-          this.residue.push({ segment, color, signature, addedAt: started });
+          this.residue.push({ segment, color, signature, addedAt: started, longHaul: route.longHaul });
           this.addNodeWake(segment.to, color, signature, started);
         }
         this.residue = capNewest(this.residue, this.residueLimit());
@@ -418,7 +385,7 @@ export class PacketAnimator {
       this.activeObservers = [];
       this.residue = [];
       this.nodeWakes = [];
-      this.projectedResidue.clear();
+      this.projection.reset();
       this.residueContentDirty = true;
       window.cancelAnimationFrame(this.frameId);
       if (this.residueTimer !== undefined) window.clearTimeout(this.residueTimer);
@@ -437,6 +404,9 @@ export class PacketAnimator {
     this.lowPowerQuery.removeEventListener('change', this.handleLowPowerChange);
     this.map.off('resize', this.resize);
     this.map.off('move', this.handleMapMove);
+    this.map.off('terrain', this.handleMapMove);
+    this.map.off('sourcedata', this.handleTerrainData);
+    this.projection.reset();
   }
 
   private resize(): void {
@@ -446,6 +416,7 @@ export class PacketAnimator {
     const height = Math.max(1, Math.floor(rect.height * dpr));
     this.canvas.dataset.pixelRatio = String(dpr);
     if (this.dpr === dpr && this.canvas.width === width && this.canvas.height === height) return;
+    this.projection.reset();
     this.dpr = dpr;
     this.canvas.width = width;
     this.canvas.height = height;
@@ -487,8 +458,14 @@ export class PacketAnimator {
   };
 
   private handleMapMove = (): void => {
+    this.projection.reset();
     this.residueProjectionDirty = true;
     this.requestFrame();
+  };
+
+  private handleTerrainData = (event: { sourceId?: string }): void => {
+    const source = this.map.getTerrain?.()?.source;
+    if (source && event.sourceId === source) this.handleMapMove();
   };
 
   private requestFrame = (): void => {
@@ -582,7 +559,7 @@ export class PacketAnimator {
       const segment = item.packet.segments[index];
       if (!segment) break;
       const addedAt = item.started + cumulativeWeight(item.weights, index) * item.duration;
-      this.residue.push({ segment, color: item.color, signature: item.signature, addedAt });
+      this.residue.push({ segment, color: item.color, signature: item.signature, addedAt, longHaul: item.longHaul });
       this.addNodeWake(segment.to, item.color, item.signature, addedAt);
       item.completedSegments += 1;
       added = true;
@@ -594,26 +571,21 @@ export class PacketAnimator {
     }
   }
 
-  private drawResidue(context: CanvasRenderingContext2D, item: Residue, projected: ProjectedResidue, now: number): void {
-    const { from, control, to } = projected;
+  private drawResidue(context: CanvasRenderingContext2D, item: Residue, now: number): void {
     const style = residueStyle(now - item.addedAt);
+    const rangeBoost = item.longHaul ? 1.28 : 1;
     const bloomOpacity = this.reducedMotion ? style.life * 0.12 : style.bloomOpacity;
     const coreOpacity = this.reducedMotion ? style.life * 0.34 : style.coreOpacity;
     const bloomWidth = this.reducedMotion ? 5.2 : style.bloomWidth;
     const coreWidth = this.reducedMotion ? 1.8 : style.coreWidth;
     const coreColor = this.reducedMotion ? item.color : blendWithWhite(item.color, style.hot * 0.16);
-    context.beginPath();
-    context.moveTo(from.x, from.y);
-    context.quadraticCurveTo(control.x, control.y, to.x, to.y);
-    context.strokeStyle = withAlpha(item.color, bloomOpacity);
-    context.lineWidth = bloomWidth;
+    traceSurfacePath(context, this.projection.projectSegment(item.segment));
+    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost));
+    context.lineWidth = bloomWidth * rangeBoost;
     context.stroke();
-    context.beginPath();
-    context.moveTo(from.x, from.y);
-    context.quadraticCurveTo(control.x, control.y, to.x, to.y);
     context.setLineDash(item.signature === 'echo' ? [6, 5] : []);
-    context.strokeStyle = withAlpha(coreColor, coreOpacity);
-    context.lineWidth = coreWidth;
+    context.strokeStyle = withAlpha(coreColor, Math.min(0.96, coreOpacity * rangeBoost));
+    context.lineWidth = coreWidth * (item.longHaul ? 1.18 : 1);
     context.stroke();
     context.setLineDash([]);
   }
@@ -623,19 +595,19 @@ export class PacketAnimator {
     const count = quality === 'full' ? 3 : quality === 'balanced' ? 2 : 1;
     const limit = quality === 'full' ? 160 : quality === 'balanced' ? 120 : 96;
     for (const item of this.residue.slice(-limit)) {
-      const projected = this.projectedResidue.get(item);
-      if (!projected) continue;
+      const path = this.projection.projectSegment(item.segment);
       const style = residueStyle(now - item.addedAt);
       if (style.life <= 0.025) continue;
       const age = Math.max(0, now - item.addedAt);
-      for (let index = 0; index < count; index += 1) {
+      const sparkleCount = Math.min(4, count + (item.longHaul ? 1 : 0));
+      for (let index = 0; index < sparkleCount; index += 1) {
         const progress = residueSparkleProgress(item.segment.routeId, age, index);
-        const point = quadraticPoint(projected, progress);
+        const point = surfacePathPoint(path, progress);
         const twinkle = 0.32 + 0.68 * Math.abs(Math.sin(age / 240 + index * 2.1));
         const radius = quality === 'low' ? 0.85 : 0.9 + index * 0.12;
         this.context.fillStyle = withAlpha(item.color, style.life * twinkle * 0.82);
         this.context.beginPath();
-        this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        this.context.arc(point.x, point.y, radius * (point.scale ?? 1), 0, Math.PI * 2);
         this.context.fill();
       }
     }
@@ -649,11 +621,11 @@ export class PacketAnimator {
     context.strokeStyle = withAlpha(item.color, life * (item.signature === 'double' ? 0.6 : 0.38));
     context.lineWidth = item.signature === 'double' ? 1.5 : 1;
     context.beginPath();
-    context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    surfaceArc(context, point, radius);
     context.stroke();
     if (item.signature === 'double' && life > 0.12) {
       context.beginPath();
-      context.arc(point.x, point.y, Math.max(3, radius - 5), 0, Math.PI * 2);
+      surfaceArc(context, point, Math.max(3, radius - 5));
       context.stroke();
     }
   }
@@ -667,31 +639,12 @@ export class PacketAnimator {
       this.qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS,
     )) return;
 
-    if (this.residueProjectionDirty) this.projectedResidue.clear();
-    const live = new Set(this.residue);
-    for (const item of this.projectedResidue.keys()) {
-      if (!live.has(item)) this.projectedResidue.delete(item);
-    }
-    for (const item of this.residue) {
-      if (!this.projectedResidue.has(item)) {
-        const from = this.point(item.segment.from);
-        const to = this.point(item.segment.to);
-        const curve = routeCurve(from, to, `${item.segment.routeId}|${item.signature}`, 0);
-        this.projectedResidue.set(item, {
-          from,
-          control: curve.control,
-          to,
-        });
-      }
-    }
-
     this.clearResidueCanvas();
     this.residueContext.save();
     this.residueContext.globalCompositeOperation = 'source-over';
     this.residueContext.lineCap = 'round';
     for (const item of this.residue) {
-      const projected = this.projectedResidue.get(item);
-      if (projected) this.drawResidue(this.residueContext, item, projected, now);
+      this.drawResidue(this.residueContext, item, now);
     }
     if (this.reducedMotion) {
       for (const item of this.nodeWakes) this.drawNodeWake(this.residueContext, item, now);
@@ -723,22 +676,43 @@ export class PacketAnimator {
     const motion = routeMotion(item.weights, elapsed, item.duration);
     const segment = item.packet.segments[motion.segmentIndex];
     if (segment && elapsed <= item.duration) {
-      const from = this.point(segment.from);
-      const to = this.point(segment.to);
-      const curve = routeCurve(from, to, `${segment.routeId}|${item.signature}`, 0);
-      const slice = quadraticSlice(curve, motion.localProgress);
-      const trail = packetTrail(curve.from, slice.head, quality === 'full' ? 46 : quality === 'balanced' ? 38 : 28);
-      this.drawProgressiveTrail(trail, item.color, quality);
+      const path = this.projection.projectSegment(segment);
+      const head = surfacePathPoint(path, motion.localProgress);
+      const points = surfaceTrail(path, motion.localProgress, (quality === 'full' ? 46 : quality === 'balanced' ? 38 : 28) * (head.scale ?? 1));
+      const trail: PacketTrail = { points, tail: points[0]!, head, length: points.slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index]!.x, point.y - points[index]!.y), 0) };
+      const before = surfacePathPoint(path, Math.max(0, motion.localProgress - 0.01));
+      const after = surfacePathPoint(path, Math.min(1, motion.localProgress + 0.01));
+      let tangent = { x: after.x - before.x, y: after.y - before.y };
+      if (path[0]!.progress !== undefined) {
+        for (let index = 1; index < path.length; index += 1) {
+          const from = path[index - 1]!;
+          const to = path[index]!;
+          if (!to.breakBefore && from.progress! <= motion.localProgress && to.progress! >= motion.localProgress) {
+            tangent = { x: to.x - from.x, y: to.y - from.y };
+            break;
+          }
+        }
+      }
+      this.canvas.dataset.projectionSamples = String(path.length);
+      this.drawProgressiveTrail(trail, item.color, quality, item.longHaul);
       if (quality !== 'low') {
         this.drawTrailSparks(trail, item.color, item.packet.id, elapsed, quality === 'full' ? 3 : 2);
       }
-      this.drawPacketCore(slice.head, item.color, quality);
+      this.drawPacketCore(head, item.color, quality, item.longHaul);
       if (quality !== 'low') {
-        this.drawPacketSignature(slice.head, slice.tangent, item.color, item.signature, elapsed);
+        this.drawPacketSignature(head, tangent, item.color, item.signature, elapsed);
+        if (item.longHaul) this.drawLongHaulMarker(head, tangent, item.color, elapsed);
       }
     }
     const first = item.packet.segments[0];
-    if (first) this.drawBloom(this.point(first.from), item.color, pulseTiming(elapsed, SOURCE_IGNITION_MS), 10, 21, quality === 'low');
+    if (first) this.drawBloom(
+      this.point(first.from),
+      item.color,
+      pulseTiming(elapsed, SOURCE_IGNITION_MS),
+      item.longHaul ? 13 : 10,
+      item.longHaul ? 29 : 21,
+      quality === 'low',
+    );
     for (let index = 0; index < item.packet.segments.length - 1; index += 1) {
       const arrivedAt = cumulativeWeight(item.weights, index) * item.duration;
       const timing = pulseTiming(elapsed - arrivedAt, RELAY_SPARK_MS);
@@ -753,6 +727,7 @@ export class PacketAnimator {
         item.color,
         pulseTiming(elapsed - item.duration, DESTINATION_BLOOM_MS),
         quality === 'low',
+        item.longHaul,
       );
     }
   }
@@ -761,27 +736,24 @@ export class PacketAnimator {
     trail: PacketTrail,
     color: string,
     quality: VisualQuality,
+    longHaul = false,
   ): void {
     if (trail.length <= 0.01) return;
     const glow = this.context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
     glow.addColorStop(0, withAlpha(color, 0));
-    glow.addColorStop(0.42, withAlpha(color, quality === 'low' ? 0.08 : 0.12));
-    glow.addColorStop(1, withAlpha(color, quality === 'low' ? 0.42 : 0.56));
+    glow.addColorStop(0.42, withAlpha(color, quality === 'low' ? 0.08 : longHaul ? 0.18 : 0.12));
+    glow.addColorStop(1, withAlpha(color, quality === 'low' ? (longHaul ? 0.56 : 0.42) : longHaul ? 0.72 : 0.56));
     this.context.strokeStyle = glow;
-    this.context.lineWidth = quality === 'full' ? 7.2 : quality === 'balanced' ? 5.8 : 3.8;
-    this.context.beginPath();
-    this.context.moveTo(trail.tail.x, trail.tail.y);
-    this.context.lineTo(trail.head.x, trail.head.y);
+    const width = quality === 'full' ? 7.2 : quality === 'balanced' ? 5.8 : 3.8;
+    this.context.lineWidth = width * (longHaul ? 1.42 : 1) * (trail.head.scale ?? 1);
+    traceSurfacePath(this.context, trail.points ?? [trail.tail, trail.head]);
     this.context.stroke();
     const core = this.context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
     core.addColorStop(0, withAlpha(color, 0));
-    core.addColorStop(0.58, withAlpha(color, 0.36));
+    core.addColorStop(0.58, withAlpha(color, longHaul ? 0.5 : 0.36));
     core.addColorStop(1, withAlpha(color, 0.98));
     this.context.strokeStyle = core;
-    this.context.lineWidth = quality === 'low' ? 1.3 : 1.65;
-    this.context.beginPath();
-    this.context.moveTo(trail.tail.x, trail.tail.y);
-    this.context.lineTo(trail.head.x, trail.head.y);
+    this.context.lineWidth = (quality === 'low' ? 1.3 : 1.65) * (longHaul ? 1.2 : 1) * (trail.head.scale ?? 1);
     this.context.stroke();
   }
 
@@ -795,7 +767,7 @@ export class PacketAnimator {
     const hash = stableVisualHash(seed);
     for (let index = 0; index < count; index += 1) {
       const progress = 0.25 + index * (0.48 / Math.max(1, count - 1));
-      const point = interpolateScreenPoint(trail.tail, trail.head, progress);
+      const point = surfacePathPoint(trail.points ?? [trail.tail, trail.head], progress);
       const shimmer = 0.32 + 0.48 * Math.abs(Math.sin(elapsed / 180 + (hash % 17) + index * 1.8));
       const radius = 0.65 + ((hash >>> (index * 3)) & 3) * 0.12;
       this.context.fillStyle = withAlpha(color, shimmer);
@@ -811,20 +783,16 @@ export class PacketAnimator {
     for (let index = 0; index < completedSegments; index += 1) {
       const segment = item.packet.segments[index];
       if (!segment) continue;
-      const from = this.point(segment.from);
-      const to = this.point(segment.to);
-      const curve = routeCurve(from, to, `${segment.routeId}|${item.signature}`, 0);
-      this.drawStaticSegment(curve, item.color, opacity, item.signature);
-      visibleEndpoint = to;
+      const path = this.projection.projectSegment(segment);
+      this.drawStaticSegment(path, item.color, opacity, item.signature);
+      visibleEndpoint = path[path.length - 1];
     }
     if (motion && completedSegments < item.packet.segments.length) {
       const segment = item.packet.segments[motion.segmentIndex];
       if (segment) {
-        const from = this.point(segment.from);
-        const curve = routeCurve(from, this.point(segment.to), `${segment.routeId}|${item.signature}`, 0);
-        const slice = quadraticSlice(curve, motion.localProgress);
-        this.drawStaticSegment({ from, control: slice.control, to: slice.head }, item.color, opacity, item.signature);
-        visibleEndpoint = slice.head;
+        const path = surfaceTrail(this.projection.projectSegment(segment), motion.localProgress, Infinity);
+        this.drawStaticSegment(path, item.color, opacity, item.signature);
+        visibleEndpoint = path[path.length - 1];
       }
     }
     const first = item.packet.segments[0];
@@ -839,12 +807,10 @@ export class PacketAnimator {
     if (last) this.endpointGlow(this.point(last.to), item.color, opacity);
   }
 
-  private drawStaticSegment(route: QuadraticRoute, color: string, opacity: number, signature: PacketSignature): void {
+  private drawStaticSegment(points: readonly ScreenPoint[], color: string, opacity: number, signature: PacketSignature): void {
     this.context.strokeStyle = withAlpha(color, opacity * 0.2);
     this.context.lineWidth = 7;
-    this.context.beginPath();
-    this.context.moveTo(route.from.x, route.from.y);
-    this.context.quadraticCurveTo(route.control.x, route.control.y, route.to.x, route.to.y);
+    traceSurfacePath(this.context, points);
     this.context.stroke();
     this.context.strokeStyle = withAlpha(color, opacity * 0.75);
     this.context.lineWidth = 1.8;
@@ -865,7 +831,7 @@ export class PacketAnimator {
     this.context.strokeStyle = withAlpha(item.color, life * 0.95);
     this.context.lineWidth = 1.35;
     this.context.beginPath();
-    this.context.arc(point.x, point.y, observerRadius(age), 0, Math.PI * 2);
+    surfaceArc(this.context, point, observerRadius(age));
     this.context.stroke();
     this.context.fillStyle = withAlpha('#ffffff', life * 0.9);
     this.context.beginPath();
@@ -873,8 +839,9 @@ export class PacketAnimator {
     this.context.fill();
   }
 
-  private drawPacketCore(point: ScreenPoint, color: string, quality: VisualQuality): void {
-    const radius = quality === 'low' ? 4 : 6.5;
+  private drawPacketCore(point: ScreenPoint, color: string, quality: VisualQuality, longHaul = false): void {
+    const scale = point.scale ?? 1;
+    const radius = (quality === 'low' ? 4 : 6.5) * (longHaul ? 1.38 : 1) * scale;
     const glow = this.context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     glow.addColorStop(0, withAlpha(color, 0.86));
     glow.addColorStop(0.35, withAlpha(color, 0.42));
@@ -885,15 +852,41 @@ export class PacketAnimator {
     this.context.fill();
     this.context.fillStyle = color;
     this.context.beginPath();
-    this.context.arc(point.x, point.y, quality === 'low' ? 1.5 : 1.85, 0, Math.PI * 2);
+    this.context.arc(point.x, point.y, (quality === 'low' ? 1.5 : 1.85) * (longHaul ? 1.18 : 1) * scale, 0, Math.PI * 2);
     this.context.fill();
     if (quality !== 'low') {
       this.context.strokeStyle = withAlpha(color, 0.9);
       this.context.lineWidth = 0.85;
       this.context.beginPath();
-      this.context.arc(point.x, point.y, 2.8, 0, Math.PI * 2);
+      this.context.arc(point.x, point.y, (longHaul ? 4.2 : 2.8) * scale, 0, Math.PI * 2);
       this.context.stroke();
     }
+  }
+
+  private drawLongHaulMarker(
+    point: ScreenPoint,
+    tangent: ScreenPoint,
+    color: string,
+    elapsed: number,
+  ): void {
+    const distance = Math.hypot(tangent.x, tangent.y) || 1;
+    const normalX = -tangent.y / distance;
+    const normalY = tangent.x / distance;
+    const x = point.x + normalX * 13;
+    const y = point.y + normalY * 13;
+    const breath = 0.72 + Math.sin(elapsed / 260) * 0.12;
+    this.context.save();
+    this.context.font = '600 8px ui-monospace, SFMono-Regular, Consolas, monospace';
+    this.context.textAlign = 'center';
+    this.context.textBaseline = 'middle';
+    this.context.fillStyle = withAlpha('#031015', 0.82);
+    this.context.fillRect(x - 8, y - 5, 16, 10);
+    this.context.strokeStyle = withAlpha(color, breath);
+    this.context.lineWidth = 0.9;
+    this.context.strokeRect(x - 8, y - 5, 16, 10);
+    this.context.fillStyle = withAlpha(color, Math.min(1, breath + 0.16));
+    this.context.fillText('DX', x, y + 0.5);
+    this.context.restore();
   }
 
   private drawPacketSignature(
@@ -958,7 +951,7 @@ export class PacketAnimator {
       this.context.strokeStyle = withAlpha(color, timing.opacity * 0.58);
       this.context.lineWidth = 1.4;
       this.context.beginPath();
-      this.context.arc(point.x, point.y, radius * 0.62, 0, Math.PI * 2);
+      surfaceArc(this.context, point, radius * 0.62);
       this.context.stroke();
       return;
     }
@@ -968,7 +961,7 @@ export class PacketAnimator {
     gradient.addColorStop(1, withAlpha(color, 0));
     this.context.fillStyle = gradient;
     this.context.beginPath();
-    this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    surfaceArc(this.context, point, radius);
     this.context.fill();
   }
 
@@ -984,7 +977,7 @@ export class PacketAnimator {
     this.context.strokeStyle = withAlpha(color, timing.opacity * 0.78);
     this.context.lineWidth = 1.1;
     this.context.beginPath();
-    this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    surfaceArc(this.context, point, radius);
     this.context.stroke();
     this.context.beginPath();
     this.context.moveTo(point.x + Math.cos(angle) * 3, point.y + Math.sin(angle) * 3);
@@ -997,18 +990,19 @@ export class PacketAnimator {
     color: string,
     timing: { progress: number; opacity: number },
     simple: boolean,
+    longHaul = false,
   ): void {
     if (timing.opacity <= 0) return;
-    const radius = 5 + easeOutCubic(timing.progress) * (simple ? 8 : 14);
+    const radius = 5 + easeOutCubic(timing.progress) * (simple ? (longHaul ? 12 : 8) : longHaul ? 22 : 14);
     this.context.strokeStyle = withAlpha(color, timing.opacity * 0.72);
-    this.context.lineWidth = simple ? 1.2 : 1.5;
+    this.context.lineWidth = simple ? (longHaul ? 1.55 : 1.2) : longHaul ? 1.9 : 1.5;
     this.context.beginPath();
-    this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    surfaceArc(this.context, point, radius);
     this.context.stroke();
     if (simple) return;
     this.context.strokeStyle = withAlpha(color, timing.opacity * 0.28);
     this.context.beginPath();
-    this.context.arc(point.x, point.y, radius * 0.58, 0, Math.PI * 2);
+    surfaceArc(this.context, point, radius * 0.58);
     this.context.stroke();
   }
 
@@ -1019,7 +1013,7 @@ export class PacketAnimator {
     gradient.addColorStop(1, withAlpha(color, 0));
     this.context.fillStyle = gradient;
     this.context.beginPath();
-    this.context.arc(point.x, point.y, 14, 0, Math.PI * 2);
+    surfaceArc(this.context, point, 14);
     this.context.fill();
   }
 
@@ -1052,6 +1046,7 @@ export class PacketAnimator {
     this.canvas.dataset.motionMode = this.reducedMotion ? 'static' : 'animated';
     this.canvas.dataset.powerMode = this.lowPower ? 'low' : 'full';
     this.canvas.dataset.qualityMode = quality;
+    this.canvas.dataset.projectionMode = this.projection.enabled() ? 'terrain' : 'flat';
     this.canvas.dataset.activeRoutes = String(this.activeRoutes.length);
     this.canvas.dataset.nodeWakes = String(this.nodeWakes.length);
     if (qualityChanged) this.resize();
@@ -1077,12 +1072,10 @@ export class PacketAnimator {
       const point = this.point(packet.observer);
       return segmentNearViewport(point, point, width, height);
     }
-    return packet.segments.some((segment) => segmentNearViewport(
-      this.point(segment.from),
-      this.point(segment.to),
-      width,
-      height
-    ));
+    return packet.segments.some((segment) => {
+      const path = this.projection.projectSegment(segment);
+      return path.some((point, index) => index > 0 && !point.breakBefore && segmentNearViewport(path[index - 1]!, point, width, height));
+    });
   }
 
   private clearCanvas(): void {
@@ -1097,8 +1090,8 @@ export class PacketAnimator {
     this.residueContext.clearRect(0, 0, width, height);
   }
 
-  private point(endpoint: EndpointV2): { x: number; y: number } {
-    return this.map.project([endpoint.lng, endpoint.lat]);
+  private point(endpoint: EndpointV2): ScreenPoint {
+    return this.projection.projectEndpoint(endpoint);
   }
 }
 
@@ -1112,14 +1105,6 @@ function degreesToRadians(value: number): number {
   return (value * Math.PI) / 180;
 }
 
-function stableVisualHash(value: string): number {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
 
 function clamp(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -1139,12 +1124,4 @@ function blendWithWhite(color: string, amount: number): string {
       .padStart(2, '0');
   });
   return `#${channels.join('')}`;
-}
-
-function withAlpha(color: string, alpha: number): string {
-  const value = color.startsWith('#') ? color.slice(1) : 'ffffff';
-  const red = Number.parseInt(value.slice(0, 2), 16);
-  const green = Number.parseInt(value.slice(2, 4), 16);
-  const blue = Number.parseInt(value.slice(4, 6), 16);
-  return `rgba(${red},${green},${blue},${clamp(alpha)})`;
 }

@@ -74,6 +74,7 @@ describe('map glyph labels', () => {
   });
 });
 
+
 describe('route layer visibility', () => {
   it('keeps individual routes active at every zoom', () => {
     const layerIDs = [

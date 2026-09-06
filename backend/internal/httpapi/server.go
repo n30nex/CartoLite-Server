@@ -157,6 +157,14 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if r.URL.Path == "/netgraph" {
+		target := "/netgraph/"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+		return
+	}
 	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 	if name == "." || name == "" {
 		name = "index.html"

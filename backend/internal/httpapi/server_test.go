@@ -111,6 +111,28 @@ func TestWebManifestUsesInstallableContentType(t *testing.T) {
 	}
 }
 
+func TestNetgraphPageAndCanonicalURL(t *testing.T) {
+	server := &Server{static: fstest.MapFS{
+		"netgraph/index.html": {Data: []byte("<title>Worldwide Netgraph</title>")},
+	}}
+	handler := server.Handler()
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/netgraph?view=test", nil))
+	if response.Code != http.StatusPermanentRedirect || response.Header().Get("Location") != "/netgraph/?view=test" {
+		t.Fatalf("unexpected Netgraph redirect: %d %q", response.Code, response.Header().Get("Location"))
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/netgraph/", nil))
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-cache" {
+		t.Fatalf("unexpected Netgraph response: %d", response.Code)
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/labs/", nil))
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("unexpected Labs route: %d", response.Code)
+	}
+}
+
 func TestGeoJSONUsesGeographicContentType(t *testing.T) {
 	if contentType := staticContentType("assets/operator-overlay.abc123.geojson"); contentType != "application/geo+json" {
 		t.Fatalf("unexpected region GeoJSON content type: %q", contentType)

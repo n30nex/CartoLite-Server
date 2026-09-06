@@ -9,7 +9,7 @@ import {
   type RouteRepresentation,
   type RouteWindow
 } from './map';
-import { PacketAnimator } from './packetAnimator';
+import { PacketAnimator, potentialLongHaulPacket } from './packetAnimator';
 import {
   loadSavedView,
   loadUiPreferences,
@@ -20,6 +20,7 @@ import {
   type ViewClass
 } from './preferences';
 import { activityLabel, LiveStore } from './state';
+import { wireNodeSearch } from './nodeSearch';
 import { normalizePacketKind, PACKET_KIND_COLORS, ROUTE_LEGEND_ITEMS } from './trafficVisuals';
 import type { PacketView } from './types';
 
@@ -215,7 +216,7 @@ async function start(): Promise<void> {
     const packetCanvas = required<HTMLCanvasElement>('packet-canvas');
     const liveAnimator = new PacketAnimator(liveMap.map, packetCanvas);
     animator = liveAnimator;
-    const routeSonifier = new RouteSonifier(liveMap.map, packetCanvas);
+    const routeSonifier = new RouteSonifier(liveAnimator.projection, packetCanvas);
     sonifier = routeSonifier;
     soundVolume.value = String(Math.round(routeSonifier.getVolume() * 100));
     soundVolumeOutput.value = `${soundVolume.value}%`;
@@ -251,6 +252,7 @@ async function start(): Promise<void> {
       persistUiPreference({ hillshade: visible });
     });
     wireLayerToggle(terrainButton, uiPreferences.terrain3D, '3D terrain', (visible) => {
+      if (visible && !uiPreferences.hillshade) hillshadeButton.click();
       liveMap.setTerrain3D(visible);
       persistUiPreference({ terrain3D: visible });
     });
@@ -261,39 +263,21 @@ async function start(): Promise<void> {
       liveMap.setRouteWindow(window);
       persistUiPreference({ routeWindow: window });
     });
-    const renderNodeSearch = (): void => {
-      const started = performance.now();
-      const results = liveMap.findNodes(nodeSearch.value);
-      nodeSearchResults.replaceChildren();
-      if (!nodeSearch.value.trim()) {
-        mapElement.dataset.nodeSearchApplyMs = (performance.now() - started).toFixed(1);
-        return;
-      } else if (results.length === 0) {
-        const empty = document.createElement('p');
-        empty.textContent = 'No matching public labels';
-        nodeSearchResults.append(empty);
-      } else {
-        for (const { node } of results) {
-          const result = document.createElement('button');
-          result.type = 'button';
-          result.className = 'node-search-result';
-          result.setAttribute('role', 'option');
-          result.dataset.nodeId = node.id;
-          const label = document.createElement('strong');
-          label.textContent = node.label;
-          const context = document.createElement('span');
-          context.textContent = `${node.role.replace('_', ' ')} · ${relativeNodeTime(node.lastSeen)}`;
-          result.append(label, context);
-          result.addEventListener('click', () => {
-            liveMap.selectNodeByID(node.id, true);
-            closeFindPanel();
-            if (activeViewClass === 'mobile') setLayersOpen(false);
-          });
-          nodeSearchResults.append(result);
-        }
-      }
-      mapElement.dataset.nodeSearchApplyMs = (performance.now() - started).toFixed(1);
-    };
+    const renderNodeSearch = wireNodeSearch({
+      input: nodeSearch,
+      results: nodeSearchResults,
+      metrics: mapElement,
+      search: (query) => liveMap.findNodes(query),
+      select(nodeID) {
+        liveMap.selectNodeByID(nodeID, true);
+        closeFindPanel();
+        if (activeViewClass === 'mobile') setLayersOpen(false);
+      },
+      dismiss() {
+        closeFindPanel();
+        findButton.focus();
+      },
+    });
     findButton.addEventListener('click', () => {
       const opening = findPanel.hidden;
       findPanel.hidden = !opening;
@@ -302,23 +286,6 @@ async function start(): Promise<void> {
       closeSoundPanel();
       renderNodeSearch();
       window.requestAnimationFrame(() => nodeSearch.focus());
-    });
-    nodeSearch.addEventListener('input', renderNodeSearch);
-    nodeSearch.addEventListener('keydown', (event) => {
-      if (event.key === 'ArrowDown') {
-        const first = nodeSearchResults.querySelector<HTMLButtonElement>('button');
-        if (first) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-      if (event.key === 'Enter') {
-        const first = nodeSearchResults.querySelector<HTMLButtonElement>('button');
-        if (first) {
-          event.preventDefault();
-          first.click();
-        }
-      }
     });
     let wasHidden = document.hidden;
     document.addEventListener('visibilitychange', () => {
@@ -402,9 +369,11 @@ async function start(): Promise<void> {
     setLiveFollow(false);
 
     liveMap.map.on('dragstart', () => setLiveFollow(false));
-    liveMap.map.on('zoomstart', (event) => {
-      if (event.originalEvent) setLiveFollow(false);
-    });
+    for (const type of ['zoomstart', 'rotatestart', 'pitchstart'] as const) {
+      liveMap.map.on(type, (event) => {
+        if (event.originalEvent) setLiveFollow(false);
+      });
+    }
 
     const updateStatus = (): void => {
       const display = activityLabel(liveStore.snapshot, streamConnected);
@@ -465,7 +434,7 @@ async function start(): Promise<void> {
         const packet = liveStore.applyPacket(event);
         lastUpdate.textContent = formatUpdate(event.at);
         if (!packet) return;
-        liveAnimator.add(packet);
+        liveAnimator.add(packet, { longHaul: potentialLongHaulPacket(packet) });
         const scheduled = routeSonifier.play(packet);
         if (scheduled > 0) pulseSoundChrome(scheduled);
         pulseTrafficChrome(packet.payloadType);
@@ -524,7 +493,7 @@ async function start(): Promise<void> {
     mapView?.destroy();
     statusElement.dataset.state = 'offline';
     statusText.textContent = 'Unavailable';
-    fatal.textContent = error instanceof Error ? error.message : 'CartoLite could not start';
+    console.warn('CartoLite could not start:', error);
     fatal.hidden = false;
   }
 }
@@ -563,8 +532,6 @@ function pulseTrafficChrome(payloadType: string | undefined): void {
   appElement.classList.add('traffic-awake');
   if (now - lastTrafficPulseAt >= 620) {
     lastTrafficPulseAt = now;
-    topbar.classList.remove('traffic-pulse');
-    void topbar.offsetWidth;
     topbar.classList.add('traffic-pulse');
     window.setTimeout(() => topbar.classList.remove('traffic-pulse'), 720);
   }
@@ -612,14 +579,8 @@ function closeSoundPanel(): void {
 function closeFindPanel(): void {
   findPanel.hidden = true;
   findButton.setAttribute('aria-expanded', 'false');
-}
-
-function relativeNodeTime(timestamp: number): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1_000));
-  if (seconds < 60) return 'seen now';
-  if (seconds < 3_600) return `seen ${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86_400) return `seen ${Math.floor(seconds / 3_600)}h ago`;
-  return `seen ${Math.floor(seconds / 86_400)}d ago`;
+  nodeSearch.setAttribute('aria-expanded', 'false');
+  nodeSearch.removeAttribute('aria-activedescendant');
 }
 
 function formatUpdate(timestamp: number): string {

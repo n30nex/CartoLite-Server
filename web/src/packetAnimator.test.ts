@@ -21,15 +21,12 @@ import {
   packetDuration,
   payloadColor,
   pulseTiming,
-  quadraticPoint,
-  quadraticSlice,
   RESIDUE_HOT_MS,
   RESIDUE_MS,
   RESIDUE_REDRAW_MS,
   residueLife,
   residueSparkleProgress,
   residueStyle,
-  routeCurve,
   routeDistanceKm,
   routeDuration,
   routeMotion,
@@ -112,29 +109,6 @@ describe('packet animation limits', () => {
     expect(interpolateScreenPoint(from, to, 0)).toEqual(from);
     expect(interpolateScreenPoint(from, to, 0.25)).toEqual({ x: 35, y: 30 });
     expect(interpolateScreenPoint(from, to, 1)).toEqual(to);
-  });
-
-  it('uses a deterministic curved ribbon while preserving exact endpoints', () => {
-    const from = { x: 10, y: 20 };
-    const to = { x: 210, y: 20 };
-    const curve = routeCurve(from, to, 'route-a|echo');
-
-    expect(curve).toEqual(routeCurve(from, to, 'route-a|echo'));
-    expect(curve.control.y).not.toBe(20);
-    expect(quadraticPoint(curve, 0)).toEqual(from);
-    expect(quadraticPoint(curve, 1)).toEqual(to);
-    const halfway = quadraticSlice(curve, 0.5);
-    expect(halfway.head).toEqual(quadraticPoint(curve, 0.5));
-    expect(Math.hypot(halfway.tangent.x, halfway.tangent.y)).toBeGreaterThan(0);
-  });
-
-  it('can lock live travel to the straight geographic route layer', () => {
-    const from = { x: 10, y: 20 };
-    const to = { x: 210, y: 60 };
-    const route = routeCurve(from, to, 'route-a|echo', 0);
-
-    expect(route.control).toEqual({ x: 110, y: 40 });
-    expect(quadraticPoint(route, 0.5)).toEqual({ x: 110, y: 40 });
   });
 
   it('keeps a short tapered trail on the exact straight route segment', () => {
@@ -276,15 +250,26 @@ describe('PacketAnimator motion preference lifecycle', () => {
     };
 
     const animator = new PacketAnimator(map, canvas);
-    animator.add(packet);
+    animator.add(packet, { longHaul: true });
     const state = animator as unknown as {
-      activeRoutes: Array<{ started: number }>;
+      activeRoutes: Array<{ started: number; longHaul: boolean }>;
       residue: unknown[];
     };
 
     expect(canvas.dataset.motionMode).toBe('animated');
+    expect(canvas.dataset.lastPacketRange).toBe('long-haul');
     expect(state.activeRoutes[0]?.started).toBe(500);
+    expect(state.activeRoutes[0]?.longHaul).toBe(true);
     expect(state.residue).toHaveLength(0);
+
+    const resetProjection = vi.spyOn(animator.projection, 'reset');
+    const mapListeners = vi.mocked(map.on).mock.calls;
+    const move = mapListeners.find(([type]) => type === 'move')![1] as () => void;
+    const terrain = mapListeners.find(([type]) => type === 'terrain')![1] as () => void;
+    move();
+    terrain();
+    expect(resetProjection).toHaveBeenCalledTimes(2);
+    expect(state.activeRoutes[0]?.started).toBe(500);
 
     motionListener.current?.({ matches: true } as MediaQueryListEvent);
 

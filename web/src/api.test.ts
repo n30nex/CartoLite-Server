@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LiveFeed, type LiveFeedHandlers } from './api';
+import { fetchState, LiveFeed, type LiveFeedHandlers } from './api';
 import type { PacketEventV2, StateV2 } from './types';
 
 const initial: StateV2 = {
@@ -15,6 +15,8 @@ const initial: StateV2 = {
 
 class MockEventSource extends EventTarget {
   static instances: MockEventSource[] = [];
+  static CLOSED = 2;
+  readyState = 0;
   readonly url: string;
   readonly withCredentials: boolean;
   closed = false;
@@ -139,6 +141,92 @@ describe('LiveFeed recovery', () => {
     expect(MockEventSource.instances).toHaveLength(2);
     expect(MockEventSource.instances[1]?.url).toBe('/api/events?bootId=boot-a&after=44');
     feed.stop();
+  });
+
+  it('backs off refused streams until one opens, while ignoring stale failures', async () => {
+    vi.useFakeTimers();
+    const recover = vi.fn(async () => ({ ...initial, seq: 44 }));
+    const feed = new LiveFeed(initial, handlers({ recover }));
+    feed.start();
+    const first = MockEventSource.instances[0]!;
+    first.readyState = MockEventSource.CLOSED;
+    first.onerror?.(new Event('error'));
+    first.onerror?.(new Event('error'));
+    expect(first.closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(recover).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(recover).toHaveBeenCalledTimes(1);
+
+    const second = MockEventSource.instances[1]!;
+    expect(second.url).toBe('/api/events?bootId=boot-a&after=44');
+    second.readyState = MockEventSource.CLOSED;
+    second.onerror?.(new Event('error'));
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(recover).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(recover).toHaveBeenCalledTimes(2);
+
+    const third = MockEventSource.instances[2]!;
+    third.onopen?.(new Event('open'));
+    third.readyState = MockEventSource.CLOSED;
+    third.onerror?.(new Event('error'));
+    feed.stop();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(recover).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves transient reconnects to EventSource and recovers malformed resets', async () => {
+    const recover = vi.fn(async () => initial);
+    const onConnection = vi.fn();
+    const feed = new LiveFeed(initial, handlers({ recover, onConnection }));
+    feed.start();
+    const source = MockEventSource.instances[0]!;
+    source.onerror?.(new Event('error'));
+    await settle();
+    expect(onConnection).toHaveBeenCalledWith(false);
+    expect(source.closed).toBe(false);
+    expect(recover).not.toHaveBeenCalled();
+    source.dispatchEvent(new MessageEvent('reset', { data: '{' }));
+    await settle();
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(source.closed).toBe(true);
+    feed.stop();
+  });
+});
+
+describe('state request deadlines', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('aborts a stalled snapshot so recovery can retry', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', vi.fn((_url, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true });
+    })));
+    const request = expect(fetchState()).rejects.toThrow('Live data request timed out');
+    await vi.advanceTimersByTimeAsync(15_000);
+    await request;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('preserves caller cancellation and clears the deadline after success', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => initial });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await fetchState()).toEqual(initial);
+    expect(vi.getTimerCount()).toBe(0);
+    fetchMock.mockImplementationOnce((_url, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true });
+    }));
+    const controller = new AbortController();
+    const cancelled = expect(fetchState(controller.signal)).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    await cancelled;
+    expect(fetchMock.mock.calls[1]?.[1].signal.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

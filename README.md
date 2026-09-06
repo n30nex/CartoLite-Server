@@ -28,7 +28,7 @@
 
 ## See your mesh move
 
-CartoLite Server renders public MeshCore activity as a living map: packet trails travel hop by hop, recently heard routes hold a restrained glow, and packet types keep distinct colours. Optional Web Audio turns every visible live hop into a musical articulation.
+CartoLite Server renders public MeshCore activity as a living map: packet trails travel hop by hop, recently heard routes hold a restrained glow, and packet types keep distinct colours. Optional Web Audio turns every visible live hop into a musical articulation. Stronger Topo shading and terrain-aware trails, ground rings, and route history add context in 3D; enabling 3D also enables Topo. The worldwide [Netgraph](docs/netgraph.md) adds a stable topology view grouped by Maidenhead grid squares, with touch navigation, synchronized traffic, and node inspection.
 
 <table>
   <tr>
@@ -103,7 +103,7 @@ CartoLite Server does not publish a universal prebuilt image because each operat
 
 ## Project scope
 
-This repository contains the standalone server and browser map. It has no country boundary, default region allowlist, Android app, Labs, analytics, database, chat, history, or operator dashboard.
+This repository contains the standalone server, browser map, and worldwide Netgraph. It has no country boundary, default region allowlist, Android app, Labs, analytics, database, chat, history, or operator dashboard.
 
 ## Documentation
 
@@ -113,6 +113,8 @@ This repository contains the standalone server and browser map. It has no countr
 - [Public API v2](docs/public-api.md)
 - [Data sources](docs/data-sources.md)
 - [Sound and animation](docs/sound-and-animation.md)
+- [Worldwide Netgraph](docs/netgraph.md)
+- [Upstream refresh and validation](docs/upstream-refresh-0.2.0.md)
 - [Security policy](SECURITY.md)
 
 ## License

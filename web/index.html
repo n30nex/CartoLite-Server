@@ -18,10 +18,14 @@
       <div id="map" aria-label="Live MeshCore route map"></div>
       <div id="map-grade" class="map-grade" aria-hidden="true"></div>
       <canvas id="packet-canvas" aria-hidden="true"></canvas>
+      <div class="toolbar">
       <section id="topbar" class="topbar glass" aria-label="CartoLite navigation and live status">
         <button id="about-button" class="brand" type="button" aria-haspopup="dialog" title="About CartoLite">
           <span class="brand-mark" aria-hidden="true"></span><span>CartoLite</span>
         </button>
+        <a id="netgraph-link" class="netgraph-link" href="/netgraph/" aria-label="Open CartoLite Netgraph" title="CartoLite Netgraph">
+          <span aria-hidden="true">⌘</span><span>Netgraph</span>
+        </a>
         <div id="status" class="status" data-state="loading" role="status">
           <span class="status-dot" aria-hidden="true"></span><span id="status-text">Starting…</span>
           <span id="traffic-meter" class="traffic-meter" data-level="0" aria-hidden="true">
@@ -128,6 +132,7 @@
         </div>
         <button id="reset-button" class="control-button icon-button" type="button" title="Reset map view" aria-label="Reset map view">⌂</button>
       </section>
+      </div>
       <section id="legend" class="legend glass" aria-label="Map legend" data-collapsed="true" data-focused="false">
         <button id="legend-toggle" class="legend-toggle" type="button" aria-label="Show map legend" aria-controls="legend-items" aria-expanded="false">
           <span class="legend-toggle-mark" aria-hidden="true">i</span>
@@ -144,13 +149,16 @@
       <section id="route-legend" class="route-legend glass" aria-label="Route colors show the latest packet type" hidden></section>
       <div id="tooltip" class="tooltip glass" role="tooltip" hidden></div>
       <section id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected node details" hidden></section>
-      <div id="fatal" class="fatal glass" role="alert" hidden></div>
+      <div id="fatal" class="fatal glass" role="alert" hidden>
+        Unable to load the map. Check your connection, then try again.<br />
+        <a class="control-button" href="">Try again</a>
+      </div>
       <dialog id="about-dialog" class="about-dialog glass" aria-labelledby="about-title">
         <button id="about-close" class="about-close" type="button" aria-label="Close CartoLite information">×</button>
         <h1 id="about-title">CartoLite</h1>
         <p>A self-hosted, privacy-safe view of high-confidence MeshCore RF traffic worldwide.</p>
         <dl>
-          <div><dt>Map</dt><dd>Clusters and packet-coloured heat summarize activity. Clusters can be disabled at every zoom, while optional topography and 3D terrain add geographic context.</dd></div>
+          <div><dt>Map</dt><dd>Clusters and packet-coloured heat summarize activity. 3D also enables Topo, with terrain-following packet trails and tilted arrival rings. Terrain is exaggerated 1.35× for readability; traffic overlays illustrate confirmed hops, not antenna heights or radio coverage.</dd></div>
           <div><dt>Colours</dt><dd>Route and packet colours show the latest sanitized packet kind, never message content.</dd></div>
           <div><dt>Sound</dt><dd>Opt in to hear every visible live hop in Aurora, Wood, or Chimes. Volume, scene, and your choice stay only in this browser; remembered sound always waits for a tap before resuming.</dd></div>
           <div><dt>Find</dt><dd>Search public node labels locally, then inspect active neighbours without sending or saving your query.</dd></div>
