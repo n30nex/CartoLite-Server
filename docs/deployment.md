@@ -41,4 +41,4 @@ Before an upgrade, copy the checkpoint and record the current image ID. Build th
 
 ## Upgrade to 0.2.0
 
-Use the v0.2.0 source tag and the updated example version setting. Rebuild with your own existing BuildKit basemap secret, retain the MQTT and optional region configuration, and preserve the checkpoint and previous image before recreating the service. Both the map and /netgraph/ use the same public API v2 feed. Verify 3D enables Topo, world locations remain available, and Netgraph groups nodes by global grid squares.
+Use the v0.2.0 source tag and set CARTOLITE_VERSION=0.2.0 in your existing .env. Keep your broker settings and secret files. Rebuild with your own existing BuildKit basemap secret, retain the MQTT and optional region configuration, and preserve the checkpoint and previous image before recreating the service. Both the map and /netgraph/ use the same public API v2 feed. Verify 3D enables Topo, world locations remain available, and Netgraph groups nodes by global grid squares.
