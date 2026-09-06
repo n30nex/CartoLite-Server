@@ -399,6 +399,14 @@ async function start(): Promise<void> {
     const followQueue = new FollowQueue();
     mapElement.dataset.followDwellMs = String(LIVE_FOLLOW_MIN_INTERVAL_MS);
 
+    const clearFollowActivity = (): void => {
+      followTitle.textContent = 'Waiting for activity';
+      followDetail.textContent = 'Nearby activity is shown first';
+      delete followCard.dataset.packetAt;
+      delete followCard.dataset.packetKind;
+      liveMap.showFollowPacket();
+    };
+
     const tickFollow = (): void => {
       if (!liveFollow || document.hidden) return;
       const now = Date.now();
@@ -413,6 +421,7 @@ async function start(): Promise<void> {
         liveMap.follow(packet);
       }
       const remaining = followQueue.remaining(now);
+      if (remaining === 0 && followCard.dataset.packetAt) clearFollowActivity();
       followCountdown.value = remaining > 0 ? `${remaining}s` : '';
       followProgress.value = remaining;
       followState.textContent = remaining > 0 ? 'Next activity in' : 'Waiting for new activity';
@@ -443,8 +452,7 @@ async function start(): Promise<void> {
       followProgress.value = 0;
       if (enabled) {
         liveMap.beginFollow();
-        followTitle.textContent = 'Waiting for activity';
-        followDetail.textContent = 'Nearby activity is shown first';
+        clearFollowActivity();
         followState.textContent = 'Waiting for a live packet';
         followTimer = window.setInterval(tickFollow, 250);
       } else {

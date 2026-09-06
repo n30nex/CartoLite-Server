@@ -666,6 +666,7 @@ export class LiveMap {
         type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: [point.lng, point.lat] },
       });
     }
+    this.container.dataset.followFeatureCount = String(features.length);
     source.setData({ type: 'FeatureCollection', features });
   }
 

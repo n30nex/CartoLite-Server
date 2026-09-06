@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-09-06
+
+- Clear expired Live Follow cards and map highlights when the feed goes quiet, while keeping Follow ready for fresh activity.
+- Keep hover labels readable with the light interface theme.
+- Add browser coverage for quiet-feed expiry after the ten-second dwell.
+
 ## 0.3.0 - 2026-09-06
 
 - Keep secondary controls in one compact Map menu on desktop, tablet and phone. Add saved Night, Daylight and Streets map styles, light/dark interface choices, labels/roads/live-packet toggles and route/Topo strength sliders.

@@ -10,7 +10,7 @@ Wide-zoom history now uses exact GPU line segments at every flat-map zoom. The p
 
 Live Follow holds each packet for ten seconds. A small card shows its public node labels, sanitized packet kind, confirmed hop count and countdown. Observer-only packets say “heard here”; they do not acquire an inferred route. New traffic is queued during the hold, with nearby traffic preferred. Camera transitions are gradual, preserve 3D orientation and avoid further movement when the packet already fits. The starting zoom is retained as the detail limit so repeated long routes cannot permanently ratchet the camera outward.
 
-Dragging, zooming, rotating, inspecting a node or hiding the tab pauses follow. Resume starts with fresh activity. Closing the card stops follow. Empty queues wait for a new packet instead of replaying stale traffic. The card does not display packet IDs, keys, paths, messages or resolver details.
+Dragging, zooming, rotating, inspecting a node or hiding the tab pauses follow. Resume starts with fresh activity. Closing the card stops follow. When the ten-second hold ends with no replacement, the card and its map highlight clear and wait for a new packet instead of retaining stale activity. The card does not display packet IDs, keys, paths, messages or resolver details.
 
 Validation uses synthetic fixtures in GitHub Actions: saved settings, keyboard controls, menu bounds, theme changes, route geometry, a ten-second countdown under incoming traffic, pause/resume, terrain and worldwide date-line regressions. Existing performance and privacy budgets remain in place.
 
