@@ -8,6 +8,7 @@ This is the worldwide source-release roadmap. Shared work is paired with [CartoL
 
 - **Planned:** accepted direction, implementation has not started.
 - **Active:** current work package.
+- **Implemented:** code and regression coverage are present; merge, release and runtime evidence are tracked separately below.
 - **Review:** implementation and regression checks are in a pull request; consult its exact-commit Actions checks.
 - **Done:** merged with passing checks. Release/deployment is recorded separately.
 - **Needs setup:** an external configuration, provider choice, or physical test is required.
@@ -18,7 +19,7 @@ Each item needs its acceptance check, edition parity, and an exact CI result bef
 
 | Milestone | Status | Deliverable / exit condition |
 |---|---|---|
-| M1 — Security and data correctness | Active | A01, A02, A03, A05 and A06; patched map dependency, runtime dependency audit, conservative source resolution, bounded numeric/input parsing, and authoritative expiry/eviction reconciliation. Both editions pass existing full CI plus focused regressions. |
+| M1 — Security and data correctness | Implemented | A01, A02, A03, A05 and A06 are implemented in the paired corrective release. Merge/release requires the existing full CI plus focused regressions in both editions. |
 | O1 — Canada recovery operations | Needs setup | A04 and R09; independently verifiable backup, isolated restore, monitoring, and current deployment identity. This is a separate Canada operations package. |
 | M2 — Usability and portable operation | Planned | A07–A12; honest count/window labels, optional storage, keyboard continuity, readable mobile counters, dependency/release policy, and identifiable worldwide installs. |
 | M3 — Follow and display refinement | Planned | F01–F08; area-constrained follow, readable cards, shared display/motion controls, layer strengths, camera controls, cross-view selection and bounded discovery/focus. |
@@ -29,12 +30,12 @@ Each item needs its acceptance check, edition parity, and an exact CI result bef
 
 | ID | Priority | Scope | Status | Work and acceptance |
 |---|---|---|---|---|
-| A01 | P1 | Both | Active | Upgrade MapLibre 5.19.0 to patched 6.4.1, adapt ESM imports and bundled worker setup, and scan runtime dependencies from the lockfile. Exact-revision type/build, map, terrain, route-layer, recovery and browser gates pass. Track WebGL2 as the map minimum. |
-| A02 | P1 | Both | Active | Check source-prefix uniqueness before checking coordinates. A positioned/unpositioned collision never creates a guessed origin leg; independently resolved downstream hops remain visible. |
-| A03 | P1 | Both | Active | Coalesce capacity-eviction resets after an authoritative snapshot. Crossing node/route caps leaves the browser consistent and bounded, with no dangling endpoint references or reset per packet. |
+| A01 | P1 | Both | Implemented | Upgrade MapLibre 5.19.0 to patched 6.4.1, adapt ESM imports and bundled worker setup, and scan runtime dependencies from the lockfile. Exact-revision type/build, map, terrain, route-layer, recovery and browser gates pass. Track WebGL2 as the map minimum. |
+| A02 | P1 | Both | Implemented | Check source-prefix uniqueness before checking coordinates. A positioned/unpositioned collision never creates a guessed origin leg; independently resolved downstream hops remain visible. |
+| A03 | P1 | Both | Implemented | Coalesce capacity-eviction resets after an authoritative snapshot. Crossing node/route caps leaves the browser consistent and bounded, with no dangling endpoint references or reset per packet. |
 | A04 | P1 | Canada | Needs setup | Configure the documented encrypted off-host backup and restore path. Prove a checksummed isolated restore with the matching image/version and independent monitoring; preserve production throughout validation. |
-| A05 | P2 | Both | Active | Reject non-finite RF/coordinate values and impose a bounded MQTT envelope before normalization. Synthetic invalid numbers and over-limit JSON/hex are rejected; valid RSSI-only and SNR-only packets still work. |
-| A06 | P2 | Both | Active | Run retention maintenance during quiet periods and avoid unnecessary checkpoint writes. With no new messages, expired routes/nodes leave the API, checkpoint and connected client; quiet connected feeds remain ready. |
+| A05 | P2 | Both | Implemented | Reject non-finite RF/coordinate values and impose a bounded MQTT envelope before normalization. Synthetic invalid numbers and over-limit JSON/hex are rejected; valid RSSI-only and SNR-only packets still work. |
+| A06 | P2 | Both | Implemented | Run retention maintenance during quiet periods and avoid unnecessary checkpoint writes. With no new messages, expired routes/nodes leave the API, checkpoint and connected client; quiet connected feeds remain ready. |
 | A07 | P2 | Both | Planned | Label cumulative observation totals honestly and describe windows as “links heard within this period.” Never imply current totals are unique packets counted within the chosen interval. |
 | A08 | P2 | Both map pages | Planned | Guard access to browser storage itself and fall back to in-memory preferences. A throwing storage getter cannot prevent startup or control use. |
 | A09 | P2 | Both | Planned | Transfer keyboard selection focus to details, restore it on close, add Netgraph keyboard pan/zoom/reset, and bounded node/area browsing. Find → details → neighbour → close works without a pointer. |
@@ -79,9 +80,10 @@ M3 uses existing public data and browser-local settings. M4 terrain features use
 
 ## Delivery and parity record
 
-The audited baselines were Canada 0.12.0 (`2e827a4`) and Worldwide 0.3.1 (`6a446ee`). The active branch is `codex/roadmap-foundation-20260909` in both repositories.
+The audited baselines were Canada 0.12.0 (`2e827a4`) and Worldwide 0.3.1 (`6a446ee`). M1 is delivered through [Canada PR #70](https://github.com/n30nex/CartoLite/pull/70) and [Worldwide PR #9](https://github.com/n30nex/CartoLite-Server/pull/9), targeting releases [0.12.1](https://github.com/n30nex/CartoLite/releases/tag/v0.12.1) and [0.3.2](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.3.2). Use those PR checks and release manifests for exact revisions and validation results.
+
+The migration measured 474,482 compressed JS/CSS bytes for Canada and 446,084 for Worldwide in Actions, including the new 129,701-byte map worker. M1 now enforces total, non-map-worker, and map-worker caps separately. R06 still tracks entry-page/lazy-load measurement. Rendering timing and topology-count gates are unchanged.
 
 For each work package, record its PR, exact checked commit, CI result, counterpart PR or scope exception, and any release/runtime proof. A green candidate PR remains Review until merged; a merged change remains undeployed until an exact release is rolled out and verified.
 
 Preserve public schema v2, conservative route resolution, the single-service/atomic-checkpoint architecture and hardened runtime. Canada keeps its published-image promotion path, geographic scope, Labs and Android. Worldwide remains an independent source distribution with coordinate-derived areas, optional exact region filtering, and no Canada-only data, Labs or Android.
-
