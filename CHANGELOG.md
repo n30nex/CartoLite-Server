@@ -3,6 +3,7 @@
 ## 0.3.2 - 2026-09-09
 
 - Add the paired audit roadmap and begin its security and data-correctness milestone.
+- Attach maintainer-dispatched CI results to the exact commit so pull requests expose their real validation status.
 - Upgrade to MapLibre 6.4.1, configure its bundled worker, and check shipped frontend dependencies in CI. The map now requires WebGL2; Netgraph retains Canvas2D.
 - Omit ambiguous source legs even when a conflicting identity has no coordinates. Preserve independently confirmed downstream hops.
 - Reject non-finite RF values and MQTT envelopes larger than 64 KiB before normalization.
