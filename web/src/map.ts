@@ -686,7 +686,9 @@ export class LiveMap {
     if (force || previous.basemap !== preferences.basemap) {
       for (const layer of cartoVectorStyle(undefined, preferences.basemap).layers) {
         if (!this.map.getLayer(layer.id) || !('paint' in layer)) continue;
-        for (const [property, value] of Object.entries(layer.paint ?? {})) this.map.setPaintProperty(layer.id, property, value);
+        for (const [property, value] of Object.entries(layer.paint ?? {})) {
+          this.map.setPaintProperty(layer.id, property as Parameters<maplibregl.Map['setPaintProperty']>[1], value);
+        }
       }
       const light = preferences.basemap !== 'dark';
       this.historicalRouteLayer.setLightBackground(light);
