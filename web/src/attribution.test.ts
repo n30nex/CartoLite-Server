@@ -20,4 +20,3 @@ it('removes consecutive unsafe attribution attributes while keeping safe credit 
   expect(element.querySelector('a')?.getAttribute('href')).toBe('https://example.invalid');
   control.onRemove();
 });
-
