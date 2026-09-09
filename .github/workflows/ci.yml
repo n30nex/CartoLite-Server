@@ -40,6 +40,9 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - working-directory: web
         run: npm ci
+      - name: Audit shipped frontend dependencies
+        working-directory: web
+        run: npm audit --omit=dev --audit-level=high
       - working-directory: web
         run: npm test
       - working-directory: web

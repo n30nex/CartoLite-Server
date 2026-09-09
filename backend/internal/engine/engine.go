@@ -75,6 +75,7 @@ type Engine struct {
 	prunedNodes          atomic.Int64
 	prunedRoutes         atomic.Int64
 	checkpointDirty      bool
+	snapshotResetPending bool
 	done                 chan struct{}
 	publish              func(Event)
 
@@ -172,9 +173,7 @@ func (e *Engine) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			if dirtyCheckpoint {
-				_, _ = e.flushCheckpoint(time.Now())
-			}
+			_, _ = e.flushCheckpoint(time.Now(), dirtyCheckpoint)
 			e.updateSnapshot(time.Now())
 			return
 		case message := <-e.input:
@@ -201,13 +200,12 @@ func (e *Engine) Run(ctx context.Context) {
 				dirtySnapshot = false
 			}
 		case now := <-checkpointTick.C:
-			if dirtyCheckpoint {
-				pruned, saved := e.flushCheckpointAndReset(now)
-				if pruned {
-					dirtySnapshot = false
-				}
-				dirtyCheckpoint = !saved
+			// Expiry is clock-driven even when no new MQTT state needs saving.
+			reset, saved := e.flushCheckpointAndReset(now, dirtyCheckpoint)
+			if reset {
+				dirtySnapshot = false
 			}
+			dirtyCheckpoint = !saved
 		}
 	}
 }
@@ -331,20 +329,20 @@ func (e *Engine) sourceNode(region string, packet meshcore.Packet) *privateNode 
 		return nil
 	}
 	matches := e.prefixes[prefixMapKey(region, 1, prefix)]
-	positioned := make([]*privateNode, 0, len(matches))
-	for nodeKey := range matches {
-		if candidate := e.nodes[nodeKey]; candidate != nil && candidate.HasCoords {
-			positioned = append(positioned, candidate)
-		}
-	}
-	if len(positioned) != 1 {
+	// An unpositioned identity still makes a shared source hint ambiguous.
+	if len(matches) != 1 {
 		return nil
 	}
-	return positioned[0]
+	for nodeKey := range matches {
+		if candidate := e.nodes[nodeKey]; candidate != nil && candidate.HasCoords {
+			return candidate
+		}
+	}
+	return nil
 }
 
 func (e *Engine) resolveAndRecord(message mqtt.Message, packet meshcore.Packet, source, observer *privateNode, payloadKind string) ([]RouteSegmentV2, bool) {
-	if packet.InvalidForMap || (message.RSSI == nil && message.SNR == nil) {
+	if packet.InvalidForMap || (!finiteRF(message.RSSI) && !finiteRF(message.SNR)) {
 		return nil, false
 	}
 	seen := make(map[string]struct{}, len(packet.Path))
@@ -476,6 +474,10 @@ func (e *Engine) emit(event Event) {
 }
 
 func (e *Engine) updateSnapshot(now time.Time) {
+	reset := e.snapshotResetPending
+	if reset {
+		e.seq.Add(1)
+	}
 	nowMillis := now.UnixMilli()
 	state := StateV2{
 		SchemaVersion: 2,
@@ -523,6 +525,11 @@ func (e *Engine) updateSnapshot(now time.Time) {
 	e.publicNodes.Store(int64(len(state.Nodes)))
 	e.publicRoutes.Store(int64(len(state.Routes)))
 	e.snapshot.Store(body)
+	if reset {
+		// Recovering clients must see the snapshot carrying this exact cursor.
+		e.snapshotResetPending = false
+		e.emit(Event{Name: "reset", Seq: state.Seq, Data: ResetEventV2{Seq: state.Seq, BootID: e.bootID}})
+	}
 }
 
 func (e *Engine) publicStatus(now time.Time) PublicStatus {
@@ -536,9 +543,14 @@ func (e *Engine) publicStatus(now time.Time) PublicStatus {
 	return PublicStatus{Feed: feed, Activity: activity, LastPacketAt: e.lastPacket, Dropped: e.dropped.Load(), Version: e.version, GitSHA: e.gitSHA}
 }
 
-func (e *Engine) flushCheckpoint(now time.Time) (bool, bool) {
+func (e *Engine) flushCheckpoint(now time.Time, dirty bool) (bool, bool) {
 	prunedRoutes, prunedNodes := e.pruneDurableState(now.UnixMilli())
 	pruned := prunedRoutes > 0 || prunedNodes > 0
+	if !dirty && !pruned {
+		return false, true
+	}
+	e.prunedNodes.Add(int64(prunedNodes))
+	e.prunedRoutes.Add(int64(prunedRoutes))
 	started := time.Now()
 	if err := writeCheckpoint(e.checkpoint, e.nodes, e.routes); err != nil {
 		e.checkpointOK.Store(false)
@@ -556,8 +568,6 @@ func (e *Engine) flushCheckpoint(now time.Time) (bool, bool) {
 	e.lastCheckpointAt.Store(now.UnixMilli())
 	e.lastCheckpointNodes.Store(int64(len(e.nodes)))
 	e.lastCheckpointRoutes.Store(int64(len(e.routes)))
-	e.prunedNodes.Add(int64(prunedNodes))
-	e.prunedRoutes.Add(int64(prunedRoutes))
 	e.log.Info("checkpoint saved",
 		"bytes", bytes,
 		"durationMs", duration.Milliseconds(),
@@ -569,14 +579,13 @@ func (e *Engine) flushCheckpoint(now time.Time) (bool, bool) {
 	return pruned, true
 }
 
-func (e *Engine) flushCheckpointAndReset(now time.Time) (bool, bool) {
-	pruned, saved := e.flushCheckpoint(now)
-	if !pruned {
+func (e *Engine) flushCheckpointAndReset(now time.Time, dirty bool) (bool, bool) {
+	pruned, saved := e.flushCheckpoint(now, dirty)
+	if !pruned && !e.snapshotResetPending {
 		return false, saved
 	}
-	seq := e.seq.Add(1)
+	e.snapshotResetPending = true
 	e.updateSnapshot(now)
-	e.emit(Event{Name: "reset", Seq: seq, Data: ResetEventV2{Seq: seq, BootID: e.bootID}})
 	return true, saved
 }
 
@@ -654,6 +663,7 @@ func (e *Engine) evictOldestNode() {
 		return
 	}
 	id := nodePublicID(oldest)
+	e.snapshotResetPending = true
 	delete(e.nodes, oldestKey)
 	e.unindexNode(oldestKey, oldest)
 	e.refreshNodeID(id)
@@ -688,6 +698,7 @@ func (e *Engine) evictRoutes() {
 			}
 		}
 		delete(e.routes, oldestID)
+		e.snapshotResetPending = true
 	}
 }
 
@@ -788,6 +799,10 @@ func isSensitiveHex(value string) bool {
 		}
 	}
 	return false
+}
+
+func finiteRF(value *float64) bool {
+	return value != nil && !math.IsNaN(*value) && !math.IsInf(*value, 0)
 }
 
 func validCoords(lat, lng float64) bool {

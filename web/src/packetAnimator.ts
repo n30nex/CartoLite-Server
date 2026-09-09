@@ -1,5 +1,5 @@
 import { stableHash as stableVisualHash, colorWithAlpha as withAlpha } from './trafficVisuals';
-import type maplibregl from 'maplibre-gl';
+import type * as maplibregl from 'maplibre-gl';
 import type { EndpointV2, ObserverPacketEventV2, PacketView, RoutePacketView, RouteSegmentView } from './types';
 import { TerrainProjector, surfaceArc, surfacePathPoint, surfaceTrail, traceSurfacePath, type SurfacePoint } from './terrainProjection';
 import {

@@ -84,6 +84,8 @@ The default bind is loopback-only. Keep it that way behind a TLS reverse proxy, 
 
 ## MQTT input
 
+MQTT bridge envelopes are limited to 64 KiB before normalization, and RF evidence must contain finite numbers. The geographic map requires WebGL2; Netgraph uses Canvas2D.
+
 The subscriber defaults to `meshcore/#` and accepts the standard topic shape:
 
 ```text
