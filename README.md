@@ -107,6 +107,7 @@ This repository contains the standalone server, browser map, and worldwide Netgr
 
 ## Documentation
 
+- [Audit roadmap and current work](docs/roadmap.md)
 - [Deployment](docs/deployment.md)
 - [Architecture](docs/architecture.md)
 - [Privacy boundary](docs/privacy.md)
