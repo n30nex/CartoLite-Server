@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// Bound bridge-envelope parsing and queued state; transport limits belong to the broker.
+const maxMessageBytes = 64 * 1024
 
 var (
 	regionPattern = regexp.MustCompile(`^[A-Z0-9_-]{1,16}$`)
@@ -53,6 +57,9 @@ func ParseTopic(value string) (Topic, error) {
 }
 
 func Normalize(topic string, body []byte, receivedAt time.Time) (Message, error) {
+	if len(body) > maxMessageBytes {
+		return Message{}, fmt.Errorf("mqtt payload exceeds %d bytes", maxMessageBytes)
+	}
 	info, err := ParseTopic(topic)
 	if err != nil {
 		return Message{}, err
@@ -140,16 +147,21 @@ func firstString(values map[string]any, keys ...string) string {
 
 func firstNumber(values map[string]any, keys ...string) *float64 {
 	for _, key := range keys {
-		if value, ok := values[key]; ok {
-			switch typed := value.(type) {
-			case float64:
-				copy := typed
-				return &copy
-			case string:
-				if parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64); err == nil {
-					return &parsed
-				}
+		var number float64
+		switch typed := values[key].(type) {
+		case float64:
+			number = typed
+		case string:
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+			if err != nil {
+				continue
 			}
+			number = parsed
+		default:
+			continue
+		}
+		if !math.IsNaN(number) && !math.IsInf(number, 0) {
+			return &number
 		}
 	}
 	return nil

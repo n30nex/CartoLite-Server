@@ -1,4 +1,6 @@
-import maplibregl, {
+import * as maplibregl from 'maplibre-gl';
+import workerURL from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import {
   type ExpressionSpecification,
   type GeoJSONSource,
   type GeoJSONSourceDiff,
@@ -35,6 +37,8 @@ import {
   type PacketKind
 } from './trafficVisuals';
 import type { EndpointV2, NodeV2, PacketView, RouteV2, StateV2 } from './types';
+
+maplibregl.setWorkerUrl(workerURL);
 
 export const DEFAULT_CENTER: [number, number] = [0, 20];
 export const DEFAULT_ZOOM = 1.4;
@@ -682,7 +686,9 @@ export class LiveMap {
     if (force || previous.basemap !== preferences.basemap) {
       for (const layer of cartoVectorStyle(undefined, preferences.basemap).layers) {
         if (!this.map.getLayer(layer.id) || !('paint' in layer)) continue;
-        for (const [property, value] of Object.entries(layer.paint ?? {})) this.map.setPaintProperty(layer.id, property, value);
+        for (const [property, value] of Object.entries(layer.paint ?? {})) {
+          this.map.setPaintProperty(layer.id, property as Parameters<maplibregl.Map['setPaintProperty']>[1], value);
+        }
       }
       const light = preferences.basemap !== 'dark';
       this.historicalRouteLayer.setLightBackground(light);

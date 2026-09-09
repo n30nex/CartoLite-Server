@@ -160,7 +160,7 @@ func SourcePublicKey(packet Packet) string {
 }
 
 // SourcePrefix returns the one-byte source hint present in these normal packet
-// payloads. Callers must require a unique positioned node before using it.
+// payloads. Callers must establish unique identity before requiring coordinates.
 func SourcePrefix(packet Packet) (string, bool) {
 	switch packet.PayloadType {
 	case PayloadRequest, PayloadResponse, PayloadPlainText, PayloadPath:

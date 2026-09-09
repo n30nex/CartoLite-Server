@@ -511,7 +511,7 @@ func TestCheckpointPruningResetsClientsAfterRefreshingSnapshot(t *testing.T) {
 		}
 	})
 
-	pruned, saved := state.flushCheckpointAndReset(now)
+	pruned, saved := state.flushCheckpointAndReset(now, true)
 	if !pruned || !saved {
 		t.Fatalf("checkpoint pruned/saved = %v/%v, want true/true", pruned, saved)
 	}
