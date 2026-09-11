@@ -1,8 +1,10 @@
 import { stableHash } from './trafficVisuals';
+import { isSoundScene, SOUND_SCENES as SCENES, type SoundScene } from './soundScenes';
 import { surfacePathPoint, type SurfacePoint } from './terrainProjection';
 import { routeDuration, segmentNearViewport, segmentTravelWeights } from './packetAnimator';
 import type { EndpointV2, PacketView } from './types';
 import type { PacketKind } from './trafficVisuals';
+export { isSoundScene, type SoundScene } from './soundScenes';
 
 const MASTER_LEVEL = 0.9;
 const VOICE_LEVEL = 0.17;
@@ -14,7 +16,6 @@ export const SOUND_STORAGE_KEY = 'cartolite:sound:v2';
 export const DEFAULT_SOUND_VOLUME = 0.8;
 export const DEFAULT_SOUND_SCENE: SoundScene = 'aurora';
 
-export type SoundScene = 'aurora' | 'wood' | 'chimes';
 export type SoundCharacter = 'map' | 'loom' | 'village';
 
 export interface SoundPreferenceV2 {
@@ -82,50 +83,6 @@ const VOICES: Readonly<Record<PacketKind, Voice>> = {
   ACK: { root: 67, intervals: [0, 2, 4, 7, 9], brightness: 5_800, durationScale: 0.72 },
   Control: { root: 64, intervals: [0, 3, 5, 7, 10], brightness: 3_200, durationScale: 1.04 },
   Other: { root: 60, intervals: [0, 2, 5, 7, 9], brightness: 4_600, durationScale: 0.9 },
-};
-
-interface SceneProfile {
-  durationScale: number;
-  brightnessScale: number;
-  attackSeconds: number;
-  sustainLevel: number;
-  levelScale: number;
-  pitchEndRatio: number;
-  registerShifts: readonly number[];
-  harmonics: readonly (readonly number[])[];
-}
-
-const SCENES: Readonly<Record<SoundScene, SceneProfile>> = {
-  aurora: {
-    durationScale: 1,
-    brightnessScale: 1,
-    attackSeconds: 0.016,
-    sustainLevel: 0.32,
-    levelScale: 1,
-    pitchEndRatio: 1,
-    registerShifts: [0, 0, 12],
-    harmonics: [[1, 0.22, 0.08], [1, 0.16, 0.11, 0.03], [1, 0.28, 0.05]],
-  },
-  wood: {
-    durationScale: 0.72,
-    brightnessScale: 0.68,
-    attackSeconds: 0.006,
-    sustainLevel: 0.14,
-    levelScale: 0.96,
-    pitchEndRatio: 0.985,
-    registerShifts: [-12, 0, 0],
-    harmonics: [[1, 0.46, 0.2, 0.07], [1, 0.36, 0.24, 0.09], [1, 0.5, 0.14, 0.05]],
-  },
-  chimes: {
-    durationScale: 1.12,
-    brightnessScale: 1.18,
-    attackSeconds: 0.009,
-    sustainLevel: 0.24,
-    levelScale: 0.82,
-    pitchEndRatio: 1.004,
-    registerShifts: [0, 12, 12],
-    harmonics: [[1, 0.08, 0.31, 0.04, 0.15], [1, 0.12, 0.24, 0.03, 0.2], [1, 0.05, 0.36, 0.08, 0.12]],
-  },
 };
 
 interface CharacterProfile {
@@ -232,10 +189,10 @@ export function routeSoundPlan(
     const midi = voice.root + voice.intervals[step]! + octave + (sceneProfile.registerShifts[variation] ?? 0) + characterShift;
     const note: HopNote = {
       startMS,
-      durationMS: Math.round(Math.max(150, Math.min(640, totalDuration * weight * 0.78 * voice.durationScale * sceneProfile.durationScale * characterProfile.durationScale))),
+      durationMS: Math.round(Math.max(150, Math.min(sceneProfile.maxDurationMS, totalDuration * weight * 0.78 * voice.durationScale * sceneProfile.durationScale * characterProfile.durationScale))),
       frequency: midiToFrequency(midi),
       pan: clamp((midpointX / width) * 1.5 - 0.75, -0.75, 0.75),
-      brightness: Math.max(1_400, (voice.brightness - index * 260) * sceneProfile.brightnessScale * characterProfile.brightnessScale),
+      brightness: Math.max(sceneProfile.minBrightness, Math.min(12_000, (voice.brightness - index * 260) * sceneProfile.brightnessScale * characterProfile.brightnessScale)),
       scene,
       character,
       variation,
@@ -424,9 +381,12 @@ export class RouteSonifier {
     const scene = SCENES[note.scene];
     const character = CHARACTERS[note.character];
     const filter = context.createBiquadFilter();
-    filter.type = 'lowpass';
+    filter.type = scene.filterType;
     filter.frequency.setValueAtTime(note.brightness, starts);
-    filter.Q.value = 0.45;
+    if (scene.filterEndRatio !== 1) {
+      filter.frequency.exponentialRampToValueAtTime(Math.max(80, note.brightness * scene.filterEndRatio), ends);
+    }
+    filter.Q.value = scene.filterQ;
     const panner = context.createStereoPanner();
     panner.pan.setValueAtTime(note.pan, starts);
     const envelope = context.createGain();
@@ -437,7 +397,7 @@ export class RouteSonifier {
     envelope.gain.exponentialRampToValueAtTime(Math.max(MIN_GAIN, peak * scene.sustainLevel * character.sustainScale), starts + audibleDuration * 0.42);
     envelope.gain.exponentialRampToValueAtTime(MIN_GAIN, ends);
     filter.connect(panner).connect(envelope).connect(master);
-    if (this.ambience) envelope.connect(this.ambience);
+    if (this.ambience && scene.ambience) envelope.connect(this.ambience);
 
     const oscillator = this.oscillator(note, starts, ends, filter);
     oscillator.onended = () => {
@@ -511,14 +471,9 @@ export class RouteSonifier {
   }
 }
 
-export function isSoundScene(value: unknown): value is SoundScene {
-  return value === 'aurora' || value === 'wood' || value === 'chimes';
-}
-
 function audioContextConstructor(): AudioContextConstructor | undefined {
   return window.AudioContext ?? (window as WebKitAudioWindow).webkitAudioContext;
 }
-
 
 function segmentIntersectsViewport(
   from: { x: number; y: number },

@@ -51,7 +51,7 @@ CartoLite Server renders public MeshCore activity as a living map: packet trails
 |---|---|
 | **Live topology** | Vector geography, packet trails, route glow, packet-type heat, clusters, hillshade, and 3D terrain. |
 | **Find and inspect** | Search downloaded node labels, open node details, and browse neighbours sorted by last heard. |
-| **Musical traffic** | Opt-in Aurora, Wood, and Chimes scenes using native browser audio and visible live hops only. |
+| **Musical traffic** | A grouped choice of [30 sound voices](docs/sound-voices.md), using opt-in native browser audio and visible live hops only. |
 | **Works worldwide** | Accept valid coordinates anywhere, or apply an exact region allowlist for a shared broker. |
 | **Responsive and resilient** | Desktop and phone layouts, Live Follow, saved views, and automatic recovery after sleep or network loss. |
 | **Small operational footprint** | One dependency-light Go service, one atomic checkpoint, no database, and a hardened container. |

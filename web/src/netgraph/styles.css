@@ -316,3 +316,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Keep the larger voice library within the existing compact sound menu. */
+.sound-panel { max-height: calc(100dvh - 140px); overflow-y: auto; }
+.scene-control { grid-template-columns: auto minmax(0, 1fr); }
+.scene-control select { width: 100%; min-width: 0; }
+.sound-panel .sound-description { display: block; min-height: 2.8em; line-height: 1.4; }

@@ -1,3 +1,4 @@
+import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from '../soundScenes';
 import './styles.css';
 import { fetchState, LiveFeed } from '../api';
 import { RouteSonifier, type SoundScene, type SoundStatus } from '../audio';
@@ -31,6 +32,7 @@ const soundState = required<HTMLElement>('sound-state');
 const soundPanelState = required<HTMLElement>('sound-panel-state');
 const soundToggle = required<HTMLButtonElement>('sound-toggle');
 const soundScene = required<HTMLSelectElement>('sound-scene');
+populateSoundScenes(soundScene);
 const soundVolume = required<HTMLInputElement>('sound-volume');
 const soundVolumeOutput = required<HTMLOutputElement>('sound-volume-output');
 const soundActivity = required<HTMLElement>('sound-activity');
@@ -308,7 +310,7 @@ function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void
 function configureSound(sonifier: RouteSonifier): void {
   soundVolume.value = String(Math.round(sonifier.getVolume() * 100));
   soundVolumeOutput.value = `${soundVolume.value}%`;
-  soundScene.value = sonifier.getScene();
+  syncSoundScene(soundScene, sonifier.getScene());
   sonifier.setStatusListener((status) => updateSound(status, sonifier.getVolume(), sonifier.getScene()));
   if (!sonifier.supported()) {
     soundButton.disabled = true;
@@ -338,7 +340,7 @@ function configureSound(sonifier: RouteSonifier): void {
 function updateSound(status: SoundStatus, volume: number, scene: SoundScene): void {
   const label = status === 'on' ? 'On' : status === 'resume' ? 'Tap to Resume' : 'Off';
   const percent = Math.round(volume * 100);
-  const sceneLabel = scene[0]!.toUpperCase() + scene.slice(1);
+  const sceneLabel = SOUND_SCENES[scene].label;
   soundState.textContent = label;
   soundPanelState.textContent = label;
   soundButton.dataset.soundState = status;
@@ -351,7 +353,7 @@ function updateSound(status: SoundStatus, volume: number, scene: SoundScene): vo
   soundToggle.textContent = status === 'on' ? 'Turn sound off' : status === 'resume' ? 'Tap to Resume' : 'Turn sound on';
   soundVolume.value = String(percent);
   soundVolumeOutput.value = `${percent}%`;
-  soundScene.value = scene;
+  syncSoundScene(soundScene, scene);
 }
 
 function renderTooltip(node: NodeV2 | null, point?: { x: number; y: number }): void {

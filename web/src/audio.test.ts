@@ -1,3 +1,4 @@
+import { SOUND_SCENE_IDS } from './soundScenes';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EndpointV2, RoutePacketView } from './types';
 import {
@@ -127,9 +128,9 @@ describe('route hop sonification', () => {
     expect(text.frequency).not.toBe(acknowledgement.frequency);
   });
 
-  it('keeps every visible hop deterministic in all three scenes', () => {
+  it('keeps every visible hop deterministic in all sound voices', () => {
     const route = packet([endpoint('a', 10, 50), endpoint('b', 50, 50), endpoint('c', 90, 50)]);
-    for (const scene of ['aurora', 'wood', 'chimes'] as const) {
+    for (const scene of SOUND_SCENE_IDS) {
       const first = routeSoundPlan(route, projector, 100, 100, scene);
       expect(first).toHaveLength(route.segments.length);
       expect(routeSoundPlan(route, projector, 100, 100, scene)).toEqual(first);
@@ -161,7 +162,7 @@ describe('route hop sonification', () => {
     const route = packet([endpoint('a', 10, 50), endpoint('b', 50, 50), endpoint('c', 90, 50)]);
     try {
       expect(await sonifier.setEnabled(true)).toBe(true);
-      for (const scene of ['aurora', 'wood', 'chimes'] as const) {
+      for (const scene of SOUND_SCENE_IDS) {
         sonifier.setScene(scene);
         for (const character of ['map', 'loom', 'village'] as const) {
           const before = FakeAudioContext.oscillators;

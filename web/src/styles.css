@@ -696,3 +696,9 @@ button { font: inherit; }
 }
 
 .director-enabled :is(.node-inspector-sheet, .node-inspector-popup) { visibility: hidden; pointer-events: none; }
+
+/* Keep the larger voice library within the existing compact sound menu. */
+.sound-panel { max-height: calc(100dvh - 140px); overflow-y: auto; }
+.scene-control { grid-template-columns: auto minmax(0, 1fr); }
+.scene-control select { width: 100%; min-width: 0; }
+.sound-panel .sound-description { display: block; min-height: 2.8em; line-height: 1.4; }
