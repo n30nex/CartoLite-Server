@@ -129,13 +129,10 @@
             <header><strong>Sound</strong><span id="sound-panel-state" aria-live="polite">Off</span></header>
             <button id="sound-toggle" class="sound-toggle" type="button">Turn sound on</button>
             <label class="scene-control" for="sound-scene">
-              <span>Scene</span>
-              <select id="sound-scene">
-                <option value="aurora">Aurora</option>
-                <option value="wood">Wood</option>
-                <option value="chimes">Chimes</option>
-              </select>
+              <span>Voice</span>
+              <select id="sound-scene" aria-label="Sound voice" aria-describedby="sound-description"></select>
             </label>
+            <p id="sound-description" class="sound-description"></p>
             <label class="volume-control" for="sound-volume">
               <span>Volume</span><output id="sound-volume-output" for="sound-volume">80%</output>
               <input id="sound-volume" type="range" min="0" max="100" step="1" value="80" />

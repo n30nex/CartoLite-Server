@@ -1,3 +1,4 @@
+import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from './soundScenes';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 import { fetchState, LiveFeed } from './api';
@@ -47,6 +48,7 @@ const soundState = required<HTMLElement>('sound-state');
 const soundPanelState = required<HTMLElement>('sound-panel-state');
 const soundToggle = required<HTMLButtonElement>('sound-toggle');
 const soundScene = required<HTMLSelectElement>('sound-scene');
+populateSoundScenes(soundScene);
 const soundVolume = required<HTMLInputElement>('sound-volume');
 const soundVolumeOutput = required<HTMLOutputElement>('sound-volume-output');
 const soundActivity = required<HTMLElement>('sound-activity');
@@ -233,7 +235,7 @@ async function start(): Promise<void> {
     sonifier = routeSonifier;
     soundVolume.value = String(Math.round(routeSonifier.getVolume() * 100));
     soundVolumeOutput.value = `${soundVolume.value}%`;
-    soundScene.value = routeSonifier.getScene();
+    syncSoundScene(soundScene, routeSonifier.getScene());
     routeSonifier.setStatusListener((status) => updateSoundChrome(
       status,
       routeSonifier.getVolume(),
@@ -649,7 +651,7 @@ function pulseSoundChrome(notes: number): void {
 function updateSoundChrome(status: SoundStatus, volume: number, scene: SoundScene): void {
   const label = status === 'on' ? 'On' : status === 'resume' ? 'Tap to Resume' : 'Off';
   const percent = Math.round(volume * 100);
-  const sceneLabel = scene[0]!.toUpperCase() + scene.slice(1);
+  const sceneLabel = SOUND_SCENES[scene].label;
   soundState.textContent = label;
   soundPanelState.textContent = label;
   soundButton.dataset.soundState = status;
@@ -664,7 +666,7 @@ function updateSoundChrome(status: SoundStatus, volume: number, scene: SoundScen
   soundToggle.textContent = status === 'on' ? 'Turn sound off' : status === 'resume' ? 'Tap to Resume' : 'Turn sound on';
   soundVolume.value = String(percent);
   soundVolumeOutput.value = `${percent}%`;
-  soundScene.value = scene;
+  syncSoundScene(soundScene, scene);
 }
 
 function closeSoundPanel(): void {

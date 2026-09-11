@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-09-11
+
+- Expand live packet sounds from 3 to 30 voices: keys, mallets, plucked strings, bells, synths, sonar-like pings and percussion.
+- Add grouped voice selection, clear sound names and descriptions, and preserve saved choices across Map and Netgraph.
+- Give voices distinct harmonic spectra, envelopes, pitch bends, filter sweeps and note lengths while keeping one oscillator per visible hop, synchronized starts, opt-in playback and existing volume/muting behavior.
+- Add native offline audio rendering checks for all 30 voices, preference and picker regressions, and shared-view browser coverage. No audio samples, remote assets or runtime dependencies are added.
+
 ## 0.3.2 - 2026-09-09
 
 - Add the paired audit roadmap and begin its security and data-correctness milestone.
