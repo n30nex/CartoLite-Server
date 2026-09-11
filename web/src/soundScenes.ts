@@ -193,7 +193,7 @@ const profiles = {
     sustainLevel: 0.15, levelScale: 0.72, pitchEndRatio: 0.975,
     registerShifts: [0,0,-12],
     harmonics: [[1,0.16,0.67,0.08,0.28,0.06],[1,0.128,0.771,0.064,0.322,0.048],[1,0.179,0.523,0.09,0.218,0.067]],
-    filterType: 'bandpass', filterQ: 0.65, filterEndRatio: 0.6,
+    filterType: 'lowpass', filterQ: 0.65, filterEndRatio: 0.6,
     minBrightness: 180, ambience: true,
   },
   'soft-organ': {
@@ -292,7 +292,7 @@ const profiles = {
     sustainLevel: 0.12, levelScale: 0.58, pitchEndRatio: 1.16,
     registerShifts: [12,12,0],
     harmonics: [[1,0.38,0.17,0.07],[1,0.304,0.196,0.056],[1,0.426,0.133,0.078]],
-    filterType: 'bandpass', filterQ: 1, filterEndRatio: 0.6,
+    filterType: 'lowpass', filterQ: 0.6, filterEndRatio: 0.6,
     minBrightness: 180, ambience: false,
   },
   'bubble': {
@@ -314,7 +314,7 @@ const profiles = {
     sustainLevel: 0.065, levelScale: 0.61, pitchEndRatio: 1.58,
     registerShifts: [0,12,0],
     harmonics: [[1,0.025,0.18,0.012],[1,0.02,0.207,0.01],[1,0.028,0.14,0.013]],
-    filterType: 'bandpass', filterQ: 1.6, filterEndRatio: 0.33,
+    filterType: 'lowpass', filterQ: 0.75, filterEndRatio: 0.33,
     minBrightness: 180, ambience: true,
   },
   'soft-kick': {
@@ -343,8 +343,8 @@ const profiles = {
     maxDurationMS: 160,
     label: "Rim Click", group: "Signals & percussion",
     description: "Dry, high wooden clicks for a percussive pulse.",
-    durationScale: 0.34, brightnessScale: 0.43, attackSeconds: 0.002,
-    sustainLevel: 0.025, levelScale: 0.41, pitchEndRatio: 0.76,
+    durationScale: 0.34, brightnessScale: 0.27, attackSeconds: 0.002,
+    sustainLevel: 0.025, levelScale: 0.62, pitchEndRatio: 0.76,
     registerShifts: [12,24,12],
     harmonics: [[0.08,0.7,1,0.22,0.56,0.1],[0.08,0.56,1.15,0.176,0.644,0.08],[0.08,0.784,0.78,0.246,0.437,0.112]],
     filterType: 'highpass', filterQ: 0.55, filterEndRatio: 0.65,
