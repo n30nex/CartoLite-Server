@@ -29,8 +29,10 @@
 :root[data-basemap="light"] .graph-grade, :root[data-basemap="streets"] .graph-grade { background: none; box-shadow: inset 0 0 80px rgba(72, 93, 85, 0.05); }
 .netgraph-app .glass { color: var(--ink); }
 .netgraph-app .controls { z-index: 8; }
-#map .maplibregl-ctrl-attrib { color: var(--muted); background: var(--panel-solid); }
+#map .maplibregl-ctrl-attrib { color: var(--muted); background: var(--panel-solid); opacity: 1; font-size: 10px; }
 #map .maplibregl-ctrl-attrib a { color: var(--ink); }
+:root[data-theme="light"] .route-legend, :root[data-theme="light"] .route-legend-label { color: var(--ink); }
+:root[data-view-class="mobile"] #app:has(.region-legend:not([hidden])) .route-legend { bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); }
 :root[data-theme="dark"] #map .maplibregl-ctrl-attrib-button { filter: invert(1); }
 .netgraph-app .packet-legend i[data-kind] { background: var(--route-color); box-shadow: none; }
 .netgraph-app .role-legend i[data-role="repeater"] { background: var(--ui-kind-advert); }

@@ -4,9 +4,11 @@
 
 All topology and activity originate from the operator-configured MeshCore MQTT feed. The server sends no traffic to a shared CartoLite service. MQTT credentials stay inside the server container environment and are never returned by an endpoint.
 
-## CARTO vector basemap
+## Vector maps and buildings
 
-The browser uses a minimal CARTO vector style for land, water, boundaries, roads, and place labels. Each operator supplies a CARTO Basemaps API key during the image build. The client makes normal TileJSON, vector PBF, and glyph requests directly to CARTO. There is no raster basemap fallback.
+The default map uses OpenFreeMap vector tiles and glyphs without registration or a key. CartoLite supplies its own Night, Daylight and Streets paint styles. The same OpenMapTiles-compatible source supplies building footprints and approximate heights; no precise building or antenna height is invented when data is missing.
+
+Operators can choose CARTO using the runtime secret override described in [Deployment](deployment.md). Its browser-visible key is provided through `/api/config`, never built into the published image. Buildings still use OpenFreeMap in this mode. Requests go directly to the attributed provider and contain no MeshCore traffic. There is no raster basemap fallback.
 
 ## Optional terrain
 

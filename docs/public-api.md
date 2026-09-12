@@ -1,5 +1,13 @@
 # Public API v2
 
+Traffic endpoints remain schema v2. A separate `GET /api/config` endpoint returns display configuration with `Cache-Control: no-store`:
+
+```json
+{"schemaVersion":1,"basemap":{"provider":"openfreemap"}}
+```
+
+When the operator selects CARTO, `basemap.provider` is `carto` and `basemap.cartoBrowserKey` contains the intentionally browser-visible map key read at startup. No other configuration fields or MQTT credentials are returned.
+
 All endpoints are public and intentionally sanitized. State responses use `Cache-Control: no-store`.
 
 ## Endpoints

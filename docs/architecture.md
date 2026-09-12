@@ -21,8 +21,10 @@ The checkpoint contains current topology and private resolver material needed af
 
 The browser treats `/api/state` as authoritative and `/api/events` as a bounded low-latency delta stream. Boot changes, sequence gaps, expired replay cursors, visibility resume, and network restoration trigger one coalesced state refresh and stream replacement.
 
-MapLibre owns stable geography, nodes, heat, and route geometry. The historical route texture covers the complete Web Mercator world at overview zooms; detail zooms use the same exact straight route segments in a compact WebGL line buffer. Canvas owns only transient packet cores, wakes, sparks, handoffs, and 45-second residue. The browser keeps map and sound settings locally.
+MapLibre owns stable geography, nodes, heat, buildings and route geometry. Batched WebGL stroke meshes support consistent widths, casings and patterns without enlarged route textures. Terrain paths use bounded adaptive samples; the same projection governs packet movement and route inspection. Date-line breaks never become extra hops or cross-world strokes. Canvas owns transient packet motion and configurable 0–45-second residue. One browser-local display profile is shared by Map and Netgraph; sound preferences remain independent.
+
+`GET /api/config` is a separate schema-1 browser configuration response, containing only the selected provider and an optional public CARTO browser key. The server reads that key from a mounted file at startup. Published images contain no operator or CI key; OpenFreeMap is the default. Native amd64/arm64 images are tested and attested before digest promotion.
 
 ## Worldwide visual refresh
 
-The map and Netgraph share recovery, keyboard Finder, packet timing, colours and hop audio. Terrain paths use bounded geographic samples with cache invalidation on camera and DEM changes; date-line strokes are split without creating new hops. Netgraph derives Maidenhead groups locally from public coordinates and uses adaptive Canvas2D effects. No country data, database, new service, geocoder, or public schema fields are required. See [the port notes](upstream-refresh-0.2.0.md).
+The map and Netgraph share recovery, keyboard Finder, packet timing, palettes, route styles and hop audio. Netgraph derives Maidenhead groups locally from public coordinates and uses adaptive Canvas2D effects. The traffic schema stays at v2. No country data, database, new service or geocoder is introduced. The earlier [0.2.0 port notes](upstream-refresh-0.2.0.md) describe that historical source release.

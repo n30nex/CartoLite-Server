@@ -37,7 +37,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const buffer = gl.createBuffer();
     if (!buffer) throw new Error('Unable to create route stroke buffer');
     const uniforms: Record<string, WebGLUniformLocation> = {};
-    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing']) {
+    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline']) {
       const location = gl.getUniformLocation(program, `u_${name}`);
       if (location === null) throw new Error(`Missing route uniform: ${name}`);
       uniforms[name] = location;
@@ -156,6 +156,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (!this.vertexCount) return;
     const { program, buffer, uniforms, attributes } = this.resources;
     const settings = displayPreferences();
+    const denseOverview = this.routes.length > 2000 && this.map.getZoom() < 11;
     const depth = gl.isEnabled(gl.DEPTH_TEST);
     const cull = gl.isEnabled(gl.CULL_FACE);
     const depthMask = gl.getParameter(gl.DEPTH_WRITEMASK) as boolean;
@@ -178,7 +179,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniformMatrix4fv(uniforms.matrix!, false, new Float32Array(matrix));
     gl.uniform2f(uniforms.viewport!, Math.max(1, this.map.getCanvas().clientWidth), Math.max(1, this.map.getCanvas().clientHeight));
     gl.uniform1f(uniforms.width!, settings.width);
-    gl.uniform1f(uniforms.glow!, settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
+    gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
+    gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
     gl.uniform1f(uniforms.opacity!, this.opacity);
     gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
@@ -223,7 +225,7 @@ export function historicalRouteVertices(routes: readonly Feature<LineString>[]):
 function createProgram(gl: GL): WebGLProgram {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, `
     precision highp float;
-    uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; uniform float u_glow;
+    uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; uniform float u_glow; uniform float u_outline;
     attribute vec3 a_from; attribute vec3 a_to; attribute vec2 a_corner;
     attribute vec3 a_color; attribute float a_alpha; attribute float a_band;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
@@ -231,7 +233,7 @@ function createProgram(gl: GL): WebGLProgram {
       vec4 a = u_matrix * vec4(a_from, 1.0); vec4 b = u_matrix * vec4(a_to, 1.0);
       vec2 delta = (b.xy / b.w - a.xy / a.w) * u_viewport * 0.5;
       float len = max(0.001, length(delta)); vec2 direction = delta / len;
-      float extent = u_width * 0.5 + 1.0 + u_glow * 5.0;
+      float extent = u_width * 0.5 + max(0.55, u_outline) + u_glow * 5.0;
       vec4 point = mix(a, b, a_corner.x);
       vec2 shift = (direction * (a_corner.x * 2.0 - 1.0) + vec2(-direction.y, direction.x) * a_corner.y) * extent;
       point.xy += shift * 2.0 / u_viewport * point.w;
@@ -243,18 +245,20 @@ function createProgram(gl: GL): WebGLProgram {
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, `
     precision highp float;
     uniform float u_width; uniform float u_glow; uniform float u_opacity; uniform float u_maximum_band; uniform float u_pattern;
-    uniform vec3 u_casing;
+    uniform vec3 u_casing; uniform float u_outline;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
     void main() {
       if (v_band > u_maximum_band + 0.1 || v_alpha <= 0.0) discard;
       float x = v_local.x; float outside = max(-x, x - v_length);
-      float distance = length(vec2(max(0.0, outside), v_local.y));
+      float distance = abs(v_local.y);
+      if (outside > 0.0) distance = length(vec2(outside, v_local.y));
       if (u_pattern > 1.5) { float period = u_width * 2.7; distance = max(distance, length(vec2(mod(x, period) - period * 0.5, v_local.y))); }
       else if (u_pattern > 0.5 && mod(max(0.0, x), u_width * 7.0) > u_width * 4.0) discard;
       float core = 1.0 - smoothstep(u_width * 0.5 - 0.45, u_width * 0.5 + 0.55, distance);
-      float glow = (1.0 - smoothstep(u_width * 0.5, u_width * 0.5 + 1.0 + u_glow * 5.0, distance)) * u_glow * 0.18;
-      float rim = (1.0 - smoothstep(u_width * 0.5 + 0.25, u_width * 0.5 + 1.0, distance)) * (1.0 - core);
-      vec3 ink = core + rim > 0.001 ? (v_color * core + u_casing * rim) / (core + rim) : v_color;
+      float glow = 0.0; float rim = 0.0; vec3 ink = v_color;
+      if (u_glow > 0.001) glow = (1.0 - smoothstep(u_width * 0.5, u_width * 0.5 + 1.0 + u_glow * 5.0, distance)) * u_glow * 0.18;
+      if (u_outline > 0.0) rim = (1.0 - smoothstep(u_width * 0.5 + 0.25, u_width * 0.5 + u_outline, distance)) * (1.0 - core);
+      if (rim > 0.001) ink = (v_color * core + u_casing * rim) / max(0.001, core + rim);
       gl_FragColor = vec4(ink, max(core + rim * 0.8, glow) * v_alpha * u_opacity);
     }
   `);

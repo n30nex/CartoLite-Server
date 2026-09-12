@@ -122,14 +122,14 @@ test('renders buildings in desktop 3D and preserves controllable camera orientat
   expect(await changedPixels(page, without, withBuildings), 'synthetic building geometry must actually draw').toBeGreaterThan(300);
   await openMapOptions(page);
   await page.locator('.camera-settings > summary').click();
-  await page.locator('#camera-pitch').press('Home');
-  for (let i = 0; i < 35; i++) await page.locator('#camera-pitch').press('ArrowRight');
-  await expect(map).toHaveAttribute('data-camera-pitch', '35');
+  await page.locator('#camera-pitch').press('End');
+  await page.locator('#camera-pitch').press('ArrowLeft');
+  await expect(map).toHaveAttribute('data-camera-pitch', '64');
   await page.locator('#terrain-height').press('End');
   await expect(page.locator('#terrain-height-output')).toHaveText('2×');
   await page.keyboard.press('Escape');
   await page.reload();
-  await expect(map).toHaveAttribute('data-camera-pitch', '35');
+  await expect(map).toHaveAttribute('data-camera-pitch', '64');
   await expect(map).toHaveAttribute('data-buildings-visible', 'true');
   await expect(page.locator('#map-notice')).toBeHidden();
 });

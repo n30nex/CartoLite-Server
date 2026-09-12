@@ -1,6 +1,6 @@
 # Audit roadmap
 
-Updated: 9 September 2026. This roadmap turns the end-to-end audit into tracked delivery work. Audit IDs A01–A12 are retained; F IDs track features and R IDs track validation risks.
+Updated: 12 September 2026. This roadmap turns the end-to-end audit into tracked delivery work. Audit IDs A01–A12 are retained; F IDs track features and R IDs track validation risks.
 
 This is the worldwide source-release roadmap. Shared work is paired with [CartoLite Canada](https://github.com/n30nex/CartoLite); A04/O1 is tracked upstream and is not an operator rollout for this repository.
 
@@ -86,4 +86,10 @@ The migration measured 474,482 compressed JS/CSS bytes for Canada and 446,084 fo
 
 For each work package, record its PR, exact checked commit, CI result, counterpart PR or scope exception, and any release/runtime proof. A green candidate PR remains Review until merged; a merged change remains undeployed until an exact release is rolled out and verified.
 
-Preserve public schema v2, conservative route resolution, the single-service/atomic-checkpoint architecture and hardened runtime. Canada keeps its published-image promotion path, geographic scope, Labs and Android. Worldwide remains an independent source distribution with coordinate-derived areas, optional exact region filtering, and no Canada-only data, Labs or Android.
+Preserve public schema v2, conservative route resolution, the single-service/atomic-checkpoint architecture and hardened runtime. Canada keeps its published-image promotion path, geographic scope, Labs and Android. Worldwide adds a prebuilt amd64/arm64 image distribution with coordinate-derived areas, optional exact region filtering, and no Canada-only data, Labs or Android.
+
+## Current visual and Docker release package
+
+Active work: Canada 0.14.0 ([PR77](https://github.com/n30nex/CartoLite/pull/77)) and Worldwide 0.5.0 ([PR12](https://github.com/n30nex/CartoLite-Server/pull/12)). This package delivers shared scene/interface themes, six route presets with advanced controls, readable light/dark palettes, adaptive terrain strokes, desktop buildings/camera controls, and Canada region fills/legend. Worldwide additionally gains key-free default maps, runtime provider configuration and tested native Docker image publication.
+
+This covers the theme/preset/contrast parts of F03, line/glow/residue controls in F04, and the camera/shading parts of F05. Their remaining text-size/motion/heat-strength work and the other follow/discovery features remain on the roadmap. R08 gains missing-tile recovery coverage; broader degraded-service scenarios remain tracked. A passing candidate remains unreleased until exact-commit main validation, release verification and applicable live deployment checks complete.
