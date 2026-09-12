@@ -9,12 +9,7 @@ export const ROUTE_BRIGHT_AGE_MS = 60 * 60_000;
 export const ROUTE_MAX_AGE_MS = 24 * 60 * 60_000;
 
 export const PACKET_KIND_COLORS: Readonly<Record<PacketKind, string>> = {
-  Advert: '#4de7c4',
-  Trace: '#ffd15a',
-  Text: '#ff75b5',
-  ACK: '#78cfff',
-  Control: '#a78bfa',
-  Other: '#9caebd'
+  Advert: '#4de7c4', Trace: '#ffd15a', Text: '#ff75b5', ACK: '#78cfff', Control: '#a78bfa', Other: '#9caebd',
 };
 
 export const PACKET_KIND_SIGNATURES: Readonly<Record<PacketKind, PacketSignature>> = {

@@ -20,7 +20,7 @@ func testHandler(t *testing.T, ready bool) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := New(state, NewHub(state.BootID()), func() bool { return ready }, "test", "abc")
+	server, err := New(state, NewHub(state.BootID()), func() bool { return ready }, "test", "abc", PublicBasemapConfig{Provider: "openfreemap"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestSSESubscribesBeforeHelloFlush(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub := NewHub(state.BootID())
-	server, err := New(state, hub, func() bool { return true }, "test", "abc")
+	server, err := New(state, hub, func() bool { return true }, "test", "abc", PublicBasemapConfig{Provider: "openfreemap"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +217,7 @@ func TestSSEHelloHasNoIDAndReplayIsOrdered(t *testing.T) {
 	hub := NewHub(state.BootID())
 	hub.Publish(engine.Event{Name: "node", Seq: 1, Data: map[string]any{"seq": 1}})
 	hub.Publish(engine.Event{Name: "packet", Seq: 2, Data: map[string]any{"seq": 2}})
-	server, err := New(state, hub, func() bool { return true }, "test", "abc")
+	server, err := New(state, hub, func() bool { return true }, "test", "abc", PublicBasemapConfig{Provider: "openfreemap"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestSSEBootMismatchResetsAndCloses(t *testing.T) {
 	}
 	hub := NewHub(state.BootID())
 	hub.Publish(engine.Event{Name: "status", Seq: 1, Data: map[string]any{"seq": 1}})
-	server, err := New(state, hub, func() bool { return true }, "test", "abc")
+	server, err := New(state, hub, func() bool { return true }, "test", "abc", PublicBasemapConfig{Provider: "openfreemap"})
 	if err != nil {
 		t.Fatal(err)
 	}

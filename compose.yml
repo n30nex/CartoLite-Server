@@ -2,15 +2,7 @@ name: cartolite-server
 
 services:
   cartolite:
-    image: ${CARTOLITE_IMAGE:-cartolite-server:local}
-    build:
-      context: .
-      args:
-        APP_VERSION: ${CARTOLITE_VERSION:-dev}
-        GIT_SHA: ${CARTOLITE_GIT_SHA:-local}
-        BUILD_TIME: ${CARTOLITE_BUILD_TIME:-unknown}
-      secrets:
-        - carto_basemap_api_key
+    image: ${CARTOLITE_IMAGE:-ghcr.io/n30nex/cartolite-server:0.5.0}
     restart: unless-stopped
     ports:
       - "${CARTOLITE_BIND_ADDR:-127.0.0.1}:${CARTOLITE_PORT:-8080}:8080"
@@ -26,6 +18,7 @@ services:
       MQTT_INGEST_QUEUE_SIZE: ${MQTT_INGEST_QUEUE_SIZE:-4096}
       STATE_PATH: ${STATE_PATH:-/data/state-v1.json}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      BASEMAP_PROVIDER: openfreemap
     volumes:
       - cartolite-data:/data
     read_only: true
@@ -50,7 +43,3 @@ services:
 
 volumes:
   cartolite-data:
-
-secrets:
-  carto_basemap_api_key:
-    file: ${CARTO_BASEMAP_API_KEY_FILE:-./.secrets/carto-basemap-api-key}

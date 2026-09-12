@@ -1,9 +1,8 @@
-import { colorWithAlpha } from '../trafficVisuals';
+import { canvasColorWithAlpha as colorWithAlpha, DISPLAY_EVENT, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime } from '../displayPreferences';
 import type { ViewportProjector } from '../audio';
 import {
   DESTINATION_BLOOM_MS,
   RELAY_SPARK_MS,
-  RESIDUE_MS,
   SOURCE_IGNITION_MS,
   capNewest,
   interpolateScreenPoint,
@@ -204,7 +203,19 @@ export class NetgraphRenderer implements ViewportProjector {
       window.addEventListener('resize', this.handleResize);
     }
     this.handleResize();
+    window.addEventListener(DISPLAY_EVENT, this.refreshAppearance);
   }
+
+  private refreshAppearance = (): void => {
+    this.glowSprites.clear();
+    this.regionLabelSprites.clear();
+    this.nodesDirty = true;
+    this.residueDirty = true;
+    this.residueProjectionDirty = true;
+    this.stage.dataset.routePreset = displayPreferences().preset;
+    this.requestStaticDraw();
+    this.requestMotionFrame();
+  };
 
   render(state: Readonly<StateV2>, changes: MapChanges | null): void {
     if (!changes) return;
@@ -464,6 +475,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   destroy(): void {
+    window.removeEventListener(DISPLAY_EVENT, this.refreshAppearance);
     this.clearPointers();
     this.stage.removeEventListener('pointerdown', this.handlePointerDown);
     this.stage.removeEventListener('pointermove', this.handlePointerMove);
@@ -628,17 +640,17 @@ export class NetgraphRenderer implements ViewportProjector {
       context.lineWidth = 0.8;
       context.stroke();
       roundRect(context, x, y, width, height, 7);
-      context.fillStyle = 'rgba(4, 17, 22, 0.88)';
+      context.fillStyle = lightScene() ? 'rgba(247, 249, 241, 0.95)' : 'rgba(4, 17, 22, 0.88)';
       context.fill();
       context.strokeStyle = 'rgba(119, 225, 219, 0.2)';
       context.stroke();
       context.textAlign = 'center';
       context.textBaseline = 'middle';
       context.font = '750 11px Inter, ui-sans-serif, system-ui, sans-serif';
-      context.fillStyle = 'rgba(220, 250, 247, 0.92)';
+      context.fillStyle = lightScene() ? '#24474d' : 'rgba(220, 250, 247, 0.92)';
       context.fillText(title, labelCenterX, y + 11);
       context.font = '600 8px Inter, ui-sans-serif, system-ui, sans-serif';
-      context.fillStyle = 'rgba(116, 158, 166, 0.92)';
+      context.fillStyle = lightScene() ? '#3e5c61' : 'rgba(116, 158, 166, 0.92)';
       context.fillText(detail, labelCenterX, y + 23);
     }
     context.restore();
@@ -673,21 +685,21 @@ export class NetgraphRenderer implements ViewportProjector {
     context.save();
     context.lineCap = 'round';
     for (const group of groups.values()) {
-      context.setLineDash(group.interArea ? [3, 5] : []);
+      context.setLineDash(lineDash());
       context.beginPath();
       for (const route of group.routes) this.appendRoute(context, route);
-      context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], selected ? 0.005 : group.interArea ? 0.09 : 0.16);
-      context.lineWidth = selected ? 0.6 : group.interArea ? 0.7 : 0.8;
+      context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], (selected ? 0.1 : lightScene() ? 0.95 : 0.5) * displayPreferences().opacity);
+      context.lineWidth = displayPreferences().width;
       context.stroke();
     }
 
     for (const group of recentGroups.values()) {
-      context.setLineDash(group.interArea ? [4, 6] : []);
+      context.setLineDash(lineDash());
       context.beginPath();
       for (const route of group.routes) this.appendRoute(context, route);
       const ageStrength = 1 - (group.ageBucket + 0.5) / 4;
       context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], ageStrength * (selected ? 0.08 : group.interArea ? 0.19 : 0.3));
-      context.lineWidth = (group.interArea ? 0.72 : 0.9) + group.intensity * 0.34;
+      context.lineWidth = displayPreferences().width + group.intensity * 0.12;
       context.stroke();
     }
 
@@ -699,13 +711,13 @@ export class NetgraphRenderer implements ViewportProjector {
         const color = PACKET_KIND_COLORS[normalizePacketKind(route.lastKind)];
         context.beginPath();
         this.appendRoute(context, route);
-        context.strokeStyle = colorWithAlpha(color, 0.18);
+        context.strokeStyle = colorWithAlpha(color, 0.18 * displayPreferences().glow);
         context.lineWidth = 7;
         context.stroke();
         context.beginPath();
         this.appendRoute(context, route);
         context.strokeStyle = colorWithAlpha(color, 0.86);
-        context.lineWidth = 2.1;
+        context.lineWidth = displayPreferences().width + 0.5;
         context.stroke();
       }
     }
@@ -811,10 +823,10 @@ export class NetgraphRenderer implements ViewportProjector {
       const width = context.measureText(label).width;
       const x = point.x + radius + 6;
       const y = point.y;
-      context.fillStyle = 'rgba(4, 14, 19, 0.78)';
+      context.fillStyle = lightScene() ? 'rgba(247, 249, 241, 0.9)' : 'rgba(4, 14, 19, 0.78)';
       roundRect(context, x - 3, y - 8, width + 6, 16, 5);
       context.fill();
-      context.fillStyle = node.id === this.selectedNodeID ? '#f2ffff' : 'rgba(205, 229, 234, 0.78)';
+      context.fillStyle = lightScene() ? '#24474d' : node.id === this.selectedNodeID ? '#f2ffff' : 'rgba(205, 229, 234, 0.9)';
       context.fillText(label, x, y + 0.5);
     }
     context.restore();
@@ -864,7 +876,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.activeRoutes = this.activeRoutes.filter((route) => now - route.started <= route.duration + DESTINATION_BLOOM_MS);
     this.observerWakes = this.observerWakes.filter((wake) => now - wake.started <= 6_000);
     const residueCount = this.residue.length;
-    this.residue = this.residue.filter((item) => now - item.addedAt < RESIDUE_MS);
+    this.residue = this.residue.filter((item) => now - item.addedAt < residueLifetime());
     if (residueCount !== this.residue.length) this.residueProjectionDirty = true;
     this.regionActivityCues = this.regionActivityCues.filter((cue) => now < cue.startedAt + cue.duration);
     this.drawResidue(context, now);
@@ -984,7 +996,7 @@ export class NetgraphRenderer implements ViewportProjector {
       const to = this.screenPoint(residue.toId);
       if (!segmentNearViewport(from, to, this.width, this.height, 12)) continue;
       const age = now - residue.addedAt;
-      const style = residueStyle(age);
+      const style = residueStyle(displayResidueAge(age));
       for (let index = 0; index < sparkleCount; index += 1) {
         const progress = residueSparkleProgress(residue.routeId, age, index);
         const spark = interpolateScreenPoint(from, to, progress);
@@ -1005,11 +1017,11 @@ export class NetgraphRenderer implements ViewportProjector {
       const to = this.screenPoint(residue.toId);
       if (!segmentNearViewport(from, to, this.width, this.height, 12)) continue;
       const age = now - residue.addedAt;
-      const style = residueStyle(age);
+      const style = residueStyle(displayResidueAge(age));
       context.beginPath();
       context.moveTo(from.x, from.y);
       context.lineTo(to.x, to.y);
-      context.strokeStyle = colorWithAlpha(residue.color, style.bloomOpacity);
+      context.strokeStyle = colorWithAlpha(residue.color, style.bloomOpacity * displayPreferences().glow);
       context.lineWidth = style.bloomWidth;
       context.stroke();
       context.beginPath();
@@ -1056,7 +1068,7 @@ export class NetgraphRenderer implements ViewportProjector {
     const head = interpolateScreenPoint(from, to, easeInOut(motion.localProgress));
     const emphasis = this.selectedNodeID && active.packet.segments.some((hop) => hop.from.id === this.selectedNodeID || hop.to.id === this.selectedNodeID) ? 1.3 : 1;
     if (emphasis > 1) this.stage.dataset.focusedPacketEmphasis = String(emphasis);
-    const trail = packetTrail(from, head, clamp(Math.hypot(to.x - from.x, to.y - from.y) * 0.28, 18, 68));
+    const trail = packetTrail(from, head, clamp(Math.hypot(to.x - from.x, to.y - from.y) * 0.28, 18, 68) * displayPreferences().trailLength);
     if (this.quality.mode === 'low') {
       context.beginPath();
       context.moveTo(trail.tail.x, trail.tail.y);
@@ -1065,8 +1077,8 @@ export class NetgraphRenderer implements ViewportProjector {
       context.lineWidth = (active.longHaul ? 3.2 : 2.2) * emphasis;
       context.stroke();
       context.beginPath();
-      context.arc(head.x, head.y, 3.25 * emphasis, 0, Math.PI * 2);
-      context.fillStyle = active.color;
+      context.arc(head.x, head.y, 3.25 * emphasis * displayPreferences().packetSize, 0, Math.PI * 2);
+      context.fillStyle = displayColor(active.color);
       context.fill();
       return;
     }
@@ -1089,7 +1101,7 @@ export class NetgraphRenderer implements ViewportProjector {
     context.lineTo(head.x - px, head.y - py);
     context.closePath();
     context.fillStyle = gradient;
-    context.globalAlpha = 0.3;
+    context.globalAlpha = 0.3 * displayPreferences().glow;
     context.fill();
     context.globalAlpha = 1;
     context.beginPath();
@@ -1108,10 +1120,12 @@ export class NetgraphRenderer implements ViewportProjector {
       context.fill();
     }
     const glowRadius = (active.longHaul ? 15 : active.crossRegion ? 12 : 10) * emphasis;
+    context.globalAlpha = displayPreferences().glow;
     context.drawImage(this.glowSprite(active.color), head.x - glowRadius, head.y - glowRadius, glowRadius * 2, glowRadius * 2);
+    context.globalAlpha = 1;
     context.beginPath();
-    context.arc(head.x, head.y, 3.25 * emphasis, 0, Math.PI * 2);
-    context.fillStyle = active.color;
+    context.arc(head.x, head.y, 3.25 * emphasis * displayPreferences().packetSize, 0, Math.PI * 2);
+    context.fillStyle = displayColor(active.color);
     context.fill();
     if (this.quality.mode === 'full') this.drawSignature(context, head, from, to, active.color, active.signature, age);
     context.restore();
@@ -1235,7 +1249,7 @@ export class NetgraphRenderer implements ViewportProjector {
     if (this.residueCleanupTimer) return;
     const expiries = [
       ...this.activeRoutes.map((route) => route.started + route.duration + DESTINATION_BLOOM_MS),
-      ...this.residue.map((item) => item.addedAt + RESIDUE_MS),
+      ...this.residue.map((item) => item.addedAt + residueLifetime()),
       ...this.observerWakes.map((wake) => wake.started + 6_000),
       ...this.regionActivityCues.map((cue) => cue.startedAt + cue.duration),
       ...this.regionActivityCues.filter((cue) => cue.startedAt > now).map((cue) => cue.startedAt),
@@ -1309,7 +1323,7 @@ export class NetgraphRenderer implements ViewportProjector {
     canvas.height = Math.ceil(30 * this.dpr);
     context.scale(this.dpr, this.dpr);
     roundRect(context, 1, 1, width - 2, 28, 8);
-    context.fillStyle = 'rgba(3, 13, 18, 0.96)';
+    context.fillStyle = lightScene() ? 'rgba(247, 249, 241, 0.96)' : 'rgba(3, 13, 18, 0.96)';
     context.fill();
     context.strokeStyle = colorWithAlpha(color, 0.92);
     context.lineWidth = 1.5;
@@ -1322,7 +1336,7 @@ export class NetgraphRenderer implements ViewportProjector {
     context.stroke();
     context.textBaseline = 'middle';
     context.font = '800 11px Inter, ui-sans-serif, system-ui, sans-serif';
-    context.fillStyle = color;
+    context.fillStyle = displayColor(color);
     context.fillText(title, 9, 15);
     context.textAlign = 'center';
     context.font = '850 9px Inter, ui-sans-serif, system-ui, sans-serif';

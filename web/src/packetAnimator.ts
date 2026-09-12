@@ -1,4 +1,5 @@
-import { stableHash as stableVisualHash, colorWithAlpha as withAlpha } from './trafficVisuals';
+import { stableHash as stableVisualHash } from './trafficVisuals';
+import { canvasColorWithAlpha as withAlpha, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime } from './displayPreferences';
 import type * as maplibregl from 'maplibre-gl';
 import type { EndpointV2, ObserverPacketEventV2, PacketView, RoutePacketView, RouteSegmentView } from './types';
 import { TerrainProjector, surfaceArc, surfacePathPoint, surfaceTrail, traceSurfacePath, type SurfacePoint } from './terrainProjection';
@@ -398,6 +399,13 @@ export class PacketAnimator {
     }
   }
 
+  refreshAppearance(): void {
+    this.residueContentDirty = true;
+    this.residueProjectionDirty = true;
+    this.canvas.dataset.routePreset = displayPreferences().preset;
+    this.requestFrame();
+  }
+
   destroy(): void {
     this.setPaused(true);
     this.reducedMotionQuery.removeEventListener('change', this.handleReducedMotionChange);
@@ -481,7 +489,7 @@ export class PacketAnimator {
     if (this.residue.length > 0) {
       const redraw = this.qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS;
       delay = Math.max(0, this.residueCacheUpdatedAt + redraw - now);
-      for (const item of this.residue) delay = Math.min(delay, Math.max(0, item.addedAt + RESIDUE_MS - now));
+      for (const item of this.residue) delay = Math.min(delay, Math.max(0, item.addedAt + residueLifetime() - now));
     }
     if (this.nodeWakes.length > 0) {
       const redraw = this.qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS;
@@ -516,7 +524,7 @@ export class PacketAnimator {
     if (!this.reducedMotion) {
       for (const route of this.activeRoutes) this.completeRoute(route, now);
     }
-    const liveResidue = this.residue.filter((item) => now - item.addedAt < RESIDUE_MS);
+    const liveResidue = this.residue.filter((item) => now - item.addedAt < residueLifetime());
     if (liveResidue.length !== this.residue.length) {
       this.residue = liveResidue;
       this.residueContentDirty = true;
@@ -572,7 +580,7 @@ export class PacketAnimator {
   }
 
   private drawResidue(context: CanvasRenderingContext2D, item: Residue, now: number): void {
-    const style = residueStyle(now - item.addedAt);
+    const style = residueStyle(displayResidueAge(now - item.addedAt));
     const rangeBoost = item.longHaul ? 1.28 : 1;
     const detail = Math.max(0.3, Math.min(1, (this.map.getZoom() - 3) / 7));
     const bloomOpacity = this.reducedMotion ? style.life * 0.12 : style.bloomOpacity;
@@ -581,24 +589,24 @@ export class PacketAnimator {
     const coreWidth = this.reducedMotion ? 1.8 : style.coreWidth;
     const coreColor = this.reducedMotion ? item.color : blendWithWhite(item.color, style.hot * 0.16);
     traceSurfacePath(context, this.projection.projectSegment(item.segment));
-    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost * detail));
+    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost * detail) * displayPreferences().glow);
     context.lineWidth = bloomWidth * rangeBoost * detail;
     context.stroke();
-    context.setLineDash(item.signature === 'echo' ? [6, 5] : []);
+    context.setLineDash(lineDash());
     context.strokeStyle = withAlpha(coreColor, Math.min(0.96, coreOpacity * rangeBoost));
-    context.lineWidth = Math.max(0.65, coreWidth * detail) * (item.longHaul ? 1.18 : 1);
+    context.lineWidth = Math.max(1, coreWidth * detail) * (displayPreferences().width / 1.6) * (item.longHaul ? 1.18 : 1);
     context.stroke();
     context.setLineDash([]);
   }
 
   private drawResidueSparkles(now: number): void {
-    if (this.map.getZoom() < 5) return;
+    if (this.map.getZoom() < 5 || displayPreferences().glow < 0.25) return;
     const quality = this.qualityMode();
     const count = quality === 'full' ? 3 : quality === 'balanced' ? 2 : 1;
     const limit = quality === 'full' ? 160 : quality === 'balanced' ? 120 : 96;
     for (const item of this.residue.slice(-limit)) {
       const path = this.projection.projectSegment(item.segment);
-      const style = residueStyle(now - item.addedAt);
+      const style = residueStyle(displayResidueAge(now - item.addedAt));
       if (style.life <= 0.025) continue;
       const age = Math.max(0, now - item.addedAt);
       const sparkleCount = Math.min(4, count + (item.longHaul ? 1 : 0));
@@ -680,7 +688,7 @@ export class PacketAnimator {
     if (segment && elapsed <= item.duration) {
       const path = this.projection.projectSegment(segment);
       const head = surfacePathPoint(path, motion.localProgress);
-      const points = surfaceTrail(path, motion.localProgress, (quality === 'full' ? 46 : quality === 'balanced' ? 38 : 28) * (head.scale ?? 1));
+      const points = surfaceTrail(path, motion.localProgress, (quality === 'full' ? 46 : quality === 'balanced' ? 38 : 28) * (head.scale ?? 1) * displayPreferences().trailLength);
       const trail: PacketTrail = { points, tail: points[0]!, head, length: points.slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - points[index]!.x, point.y - points[index]!.y), 0) };
       const before = surfacePathPoint(path, Math.max(0, motion.localProgress - 0.01));
       const after = surfacePathPoint(path, Math.min(1, motion.localProgress + 0.01));
@@ -749,13 +757,15 @@ export class PacketAnimator {
     const width = quality === 'full' ? 7.2 : quality === 'balanced' ? 5.8 : 3.8;
     this.context.lineWidth = width * (longHaul ? 1.42 : 1) * (trail.head.scale ?? 1);
     traceSurfacePath(this.context, trail.points ?? [trail.tail, trail.head]);
+    this.context.globalAlpha = displayPreferences().glow;
     this.context.stroke();
+    this.context.globalAlpha = 1;
     const core = this.context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
     core.addColorStop(0, withAlpha(color, 0));
     core.addColorStop(0.58, withAlpha(color, longHaul ? 0.5 : 0.36));
     core.addColorStop(1, withAlpha(color, 0.98));
     this.context.strokeStyle = core;
-    this.context.lineWidth = (quality === 'low' ? 1.3 : 1.65) * (longHaul ? 1.2 : 1) * (trail.head.scale ?? 1);
+    this.context.lineWidth = (quality === 'low' ? 1.3 : 1.65) * (longHaul ? 1.2 : 1) * (trail.head.scale ?? 1) * displayPreferences().packetSize;
     this.context.stroke();
   }
 
@@ -809,14 +819,14 @@ export class PacketAnimator {
     if (last) this.endpointGlow(this.point(last.to), item.color, opacity);
   }
 
-  private drawStaticSegment(points: readonly ScreenPoint[], color: string, opacity: number, signature: PacketSignature): void {
-    this.context.strokeStyle = withAlpha(color, opacity * 0.2);
+  private drawStaticSegment(points: readonly ScreenPoint[], color: string, opacity: number, _signature: PacketSignature): void {
+    this.context.strokeStyle = withAlpha(color, opacity * 0.2 * displayPreferences().glow);
     this.context.lineWidth = 7;
     traceSurfacePath(this.context, points);
     this.context.stroke();
     this.context.strokeStyle = withAlpha(color, opacity * 0.75);
-    this.context.lineWidth = 1.8;
-    this.context.setLineDash(signature === 'echo' ? [6, 5] : []);
+    this.context.lineWidth = displayPreferences().width;
+    this.context.setLineDash(lineDash());
     this.context.stroke();
     this.context.setLineDash([]);
   }
@@ -842,7 +852,7 @@ export class PacketAnimator {
   }
 
   private drawPacketCore(point: ScreenPoint, color: string, quality: VisualQuality, longHaul = false): void {
-    const scale = point.scale ?? 1;
+    const scale = (point.scale ?? 1) * displayPreferences().packetSize;
     const radius = (quality === 'low' ? 4 : 6.5) * (longHaul ? 1.38 : 1) * scale;
     const glow = this.context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     glow.addColorStop(0, withAlpha(color, 0.86));
@@ -851,8 +861,10 @@ export class PacketAnimator {
     this.context.fillStyle = glow;
     this.context.beginPath();
     this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    this.context.globalAlpha = displayPreferences().glow;
     this.context.fill();
-    this.context.fillStyle = color;
+    this.context.globalAlpha = 1;
+    this.context.fillStyle = displayColor(color);
     this.context.beginPath();
     this.context.arc(point.x, point.y, (quality === 'low' ? 1.5 : 1.85) * (longHaul ? 1.18 : 1) * scale, 0, Math.PI * 2);
     this.context.fill();
@@ -958,8 +970,8 @@ export class PacketAnimator {
       return;
     }
     const gradient = this.context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-    gradient.addColorStop(0, withAlpha(blendWithWhite(color, 0.3), timing.opacity * 0.62));
-    gradient.addColorStop(0.2, withAlpha(color, timing.opacity * 0.5));
+    gradient.addColorStop(0, withAlpha(blendWithWhite(color, 0.3), timing.opacity * 0.62 * displayPreferences().glow));
+    gradient.addColorStop(0.2, withAlpha(color, timing.opacity * 0.5 * displayPreferences().glow));
     gradient.addColorStop(1, withAlpha(color, 0));
     this.context.fillStyle = gradient;
     this.context.beginPath();
@@ -1117,11 +1129,12 @@ function easeOutCubic(value: number): number {
 }
 
 function blendWithWhite(color: string, amount: number): string {
+  color = displayColor(color);
   const value = color.startsWith('#') ? color.slice(1) : 'ffffff';
   const blend = clamp(amount);
   const channels = [0, 2, 4].map((start) => {
     const channel = Number.parseInt(value.slice(start, start + 2), 16);
-    return Math.round(channel + (255 - channel) * blend)
+    return Math.round(channel + ((lightScene() ? 0 : 255) - channel) * blend)
       .toString(16)
       .padStart(2, '0');
   });

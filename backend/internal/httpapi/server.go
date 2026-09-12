@@ -22,6 +22,12 @@ import (
 //go:embed static/*
 var embeddedStatic embed.FS
 
+// Only intentionally browser-visible map settings belong in this response.
+type PublicBasemapConfig struct {
+	Provider        string `json:"provider"`
+	CartoBrowserKey string `json:"cartoBrowserKey,omitempty"`
+}
+
 type Server struct {
 	engine    *engine.Engine
 	hub       *Hub
@@ -29,9 +35,19 @@ type Server struct {
 	static    fs.FS
 	version   string
 	gitSHA    string
+	basemap   PublicBasemapConfig
 }
 
-func New(engineState *engine.Engine, hub *Hub, mqttReady func() bool, version, gitSHA string) (*Server, error) {
+func New(engineState *engine.Engine, hub *Hub, mqttReady func() bool, version, gitSHA string, basemap PublicBasemapConfig) (*Server, error) {
+	if basemap.Provider == "" {
+		basemap.Provider = "openfreemap"
+	}
+	if basemap.Provider != "openfreemap" && basemap.Provider != "carto" {
+		return nil, fmt.Errorf("unsupported basemap provider")
+	}
+	if basemap.Provider == "openfreemap" {
+		basemap.CartoBrowserKey = ""
+	}
 	assets, err := fs.Sub(embeddedStatic, "static")
 	if err != nil {
 		return nil, fmt.Errorf("open embedded frontend: %w", err)
@@ -39,7 +55,7 @@ func New(engineState *engine.Engine, hub *Hub, mqttReady func() bool, version, g
 	if _, err := fs.Stat(assets, "index.html"); err != nil {
 		return nil, fmt.Errorf("embedded frontend has no index.html: %w", err)
 	}
-	return &Server{engine: engineState, hub: hub, mqttReady: mqttReady, static: assets, version: version, gitSHA: gitSHA}, nil
+	return &Server{engine: engineState, hub: hub, mqttReady: mqttReady, static: assets, version: version, gitSHA: gitSHA, basemap: basemap}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -48,8 +64,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /readyz", s.ready)
 	mux.HandleFunc("GET /api/state", s.state)
 	mux.HandleFunc("GET /api/events", s.events)
+	mux.HandleFunc("GET /api/config", s.publicConfig)
 	mux.HandleFunc("/", s.frontend)
 	return securityHeaders(mux)
+}
+
+func (s *Server) publicConfig(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, struct {
+		SchemaVersion int                 `json:"schemaVersion"`
+		Basemap       PublicBasemapConfig `json:"basemap"`
+	}{SchemaVersion: 1, Basemap: s.basemap})
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -270,7 +294,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		w.Header().Set("Permissions-Policy", "accelerometer=(), bluetooth=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), serial=(), usb=()")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.basemaps.cartocdn.com https://tiles.mapterhorn.com; worker-src 'self' blob:; child-src blob:")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.basemaps.cartocdn.com https://tiles.mapterhorn.com https://tiles.openfreemap.org; worker-src 'self' blob:; child-src blob:")
 		next.ServeHTTP(w, r)
 	})
 }

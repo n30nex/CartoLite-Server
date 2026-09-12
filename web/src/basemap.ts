@@ -1,21 +1,42 @@
 import type { StyleSpecification } from 'maplibre-gl';
 import type { BasemapStyle } from './preferences';
+import type { PublicMapConfig } from './types';
+import { OPENFREEMAP_TILEJSON } from './buildings';
 
 const CARTO_VECTOR_TILEJSON = 'https://tiles.basemaps.cartocdn.com/vector/carto.streets/v1/tiles.json';
 const CARTO_GLYPHS = 'https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf';
-const CARTO_BASEMAP_API_KEY = import.meta.env.VITE_CARTO_BASEMAP_API_KEY?.trim() ?? '';
+let basemap: PublicMapConfig['basemap'] = { provider: 'openfreemap' };
+export function basemapProvider(): 'openfreemap' | 'carto' { return basemap.provider; }
+export function basemapFontStack(): string[] { return [basemap.provider === 'carto' ? 'Open Sans Regular' : 'Noto Sans Regular']; }
 
-export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapStyle = 'dark'): StyleSpecification {
+export async function loadBasemapConfiguration(): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch('/api/config', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
+    if (!response.ok) throw new Error('Map configuration is unavailable');
+    const value = await response.json() as Partial<PublicMapConfig> | null;
+    if (value?.schemaVersion !== 1 || !value.basemap || !['openfreemap', 'carto'].includes(value.basemap.provider)) throw new Error('Map configuration is invalid');
+    const key = value.basemap.cartoBrowserKey;
+    if (value.basemap.provider === 'carto' && (typeof key !== 'string' || key.length === 0 || key.length > 8192 || /\s/.test(key))) throw new Error('CARTO browser configuration is invalid');
+    basemap = value.basemap.provider === 'carto' ? { provider: 'carto', cartoBrowserKey: key } : { provider: 'openfreemap' };
+  } finally { clearTimeout(timeout); }
+}
+
+export function cartoVectorStyle(apiKey?: string, style: BasemapStyle = 'dark'): StyleSpecification {
+  const carto = apiKey !== undefined || basemap.provider === 'carto';
+  const key = apiKey ?? basemap.cartoBrowserKey ?? '';
+  const fonts = [carto ? 'Open Sans Regular' : 'Noto Sans Regular'];
   const color = (value: string): string => BASEMAP_COLORS[style][value] ?? value;
   return {
     version: 8,
     name: `CartoLite ${style}`,
-    glyphs: withKey(CARTO_GLYPHS, apiKey),
+    glyphs: carto ? withKey(CARTO_GLYPHS, key) : 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       carto: {
         type: 'vector',
-        url: withKey(CARTO_VECTOR_TILEJSON, apiKey),
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        url: carto ? withKey(CARTO_VECTOR_TILEJSON, key) : OPENFREEMAP_TILEJSON,
+        attribution: carto ? '&copy; OpenStreetMap contributors &copy; CARTO' : '<a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://openmaptiles.org">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       }
     },
     layers: [
@@ -146,7 +167,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapS
         filter: ['has', 'name'],
         layout: {
           'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-          'text-font': ['Open Sans Regular'],
+          'text-font': fonts,
           'text-size': ['interpolate', ['linear'], ['zoom'], 5.5, 9.5, 10, 11.5, 14, 13],
           'text-letter-spacing': 0.04,
           'text-max-width': 10,
@@ -171,7 +192,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapS
         filter: ['==', ['get', 'class'], 'country'],
         layout: {
           'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-          'text-font': ['Open Sans Regular'],
+          'text-font': fonts,
           'text-size': ['interpolate', ['linear'], ['zoom'], 2, 10, 6, 13.5],
           'text-letter-spacing': 0.1,
           'text-transform': 'uppercase',
@@ -196,7 +217,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapS
         filter: ['==', ['get', 'class'], 'state'],
         layout: {
           'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-          'text-font': ['Open Sans Regular'],
+          'text-font': fonts,
           'text-size': ['interpolate', ['linear'], ['zoom'], 3.5, 8.5, 9, 11],
           'text-letter-spacing': 0.05,
           'text-max-width': 9,
@@ -220,7 +241,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapS
         filter: ['==', ['get', 'class'], 'city'],
         layout: {
           'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-          'text-font': ['Open Sans Regular'],
+          'text-font': fonts,
           'text-size': [
             'interpolate', ['linear'], ['zoom'],
             3.25, 9.5,
@@ -250,7 +271,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapS
         filter: ['in', ['get', 'class'], ['literal', ['town', 'village']]],
         layout: {
           'text-field': ['coalesce', ['get', 'name_en'], ['get', 'name']],
-          'text-font': ['Open Sans Regular'],
+          'text-font': fonts,
           'text-size': ['interpolate', ['linear'], ['zoom'], 6, 8.5, 11, 10.5, 15, 12],
           'text-max-width': 9,
           'text-padding': 6,
@@ -270,7 +291,7 @@ export function cartoVectorStyle(apiKey = CARTO_BASEMAP_API_KEY, style: BasemapS
   } as StyleSpecification;
 }
 
-export function cartoVectorRequestURL(url: string, apiKey = CARTO_BASEMAP_API_KEY): string {
+export function cartoVectorRequestURL(url: string, apiKey = basemap.cartoBrowserKey ?? ''): string {
   const key = apiKey.trim();
   if (!key) return url;
   try {

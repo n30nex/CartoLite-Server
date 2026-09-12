@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  packages: write
+  attestations: read
+  actions: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/n30nex/cartolite-server
+
+jobs:
+  promote:
+    name: Promote tested digest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout tag history
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+      - name: Verify version, main ancestry, and successful CI
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          sha="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          test "$sha" = "$GITHUB_SHA"
+          version="${GITHUB_REF_NAME#v}"
+          test "$version" = "$(tr -d '\r\n' < VERSION)"
+          git fetch origin main --depth=200
+          git merge-base --is-ancestor "$sha" origin/main
+
+          runs="$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$sha" -f status=completed -f per_page=100)"
+          jq -e --arg sha "$sha" --arg repo "$GITHUB_REPOSITORY" '
+            any(.workflow_runs[];
+              .head_sha == $sha and .conclusion == "success" and .event == "push" and
+              .head_branch == "main" and .head_repository.full_name == $repo)
+          ' <<<"$runs" >/dev/null
+
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "series=${version%.*}" >> "$GITHUB_OUTPUT"
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve and verify tested candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          candidate="${IMAGE_NAME}:sha-${{ steps.release.outputs.sha }}"
+          digest="$(docker buildx imagetools inspect "$candidate" | awk '$1 == "Digest:" {print $2; exit}')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          gh attestation verify "oci://${IMAGE_NAME}@${digest}" --repo "$GITHUB_REPOSITORY"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Build release manifest and checksums
+        shell: bash
+        run: |
+          mkdir -p artifacts/release
+          cp compose.yml artifacts/release/
+          cp compose.carto.yml compose.build.yml artifacts/release/
+          cp .env.example artifacts/release/default.env.example
+          version="${{ steps.release.outputs.version }}"
+          git archive --format=zip --prefix="CartoLite-Server-v${version}/" "${{ steps.release.outputs.sha }}" > "artifacts/release/CartoLite-Server-v${version}.zip"
+          git archive --format=tar.gz --prefix="CartoLite-Server-v${version}/" "${{ steps.release.outputs.sha }}" > "artifacts/release/CartoLite-Server-v${version}.tar.gz"
+          jq -n \
+            --arg version "${{ steps.release.outputs.version }}" \
+            --arg gitSha "${{ steps.release.outputs.sha }}" \
+            --arg image "${IMAGE_NAME}@${{ steps.candidate.outputs.digest }}" \
+            --arg candidateTag "sha-${{ steps.release.outputs.sha }}" \
+            '{schemaVersion:1,version:$version,gitSha:$gitSha,image:$image,candidateTag:$candidateTag,platforms:["linux/amd64","linux/arm64"]}' \
+            > artifacts/release/release-manifest.json
+          (cd artifacts/release && sha256sum default.env.example compose.yml compose.carto.yml compose.build.yml release-manifest.json CartoLite-Server-v* > SHA256SUMS)
+          (cd artifacts/release && sha256sum --check SHA256SUMS)
+      - name: Promote the exact digest without rebuilding
+        shell: bash
+        run: |
+          source="${IMAGE_NAME}@${{ steps.candidate.outputs.digest }}"
+          docker buildx imagetools create --prefer-index=false \
+            --tag "${IMAGE_NAME}:${{ steps.release.outputs.version }}" \
+            --tag "${IMAGE_NAME}:${{ steps.release.outputs.series }}" \
+            --tag "${IMAGE_NAME}:latest" \
+            "$source"
+          for tag in "${{ steps.release.outputs.version }}" "${{ steps.release.outputs.series }}" latest; do
+            actual="$(docker buildx imagetools inspect "${IMAGE_NAME}:$tag" | awk '$1 == "Digest:" {print $2; exit}')"
+            test "$actual" = "${{ steps.candidate.outputs.digest }}"
+          done
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            artifacts/release/default.env.example \
+            artifacts/release/compose.yml \
+            artifacts/release/compose.carto.yml \
+            artifacts/release/compose.build.yml \
+            artifacts/release/CartoLite-Server-v* \
+            artifacts/release/release-manifest.json \
+            artifacts/release/SHA256SUMS \
+            --verify-tag \
+            --title "CartoLite Server ${{ steps.release.outputs.version }}" \
+            --generate-notes

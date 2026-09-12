@@ -1,0 +1,11 @@
+# Optional: docker compose -f compose.yml -f compose.carto.yml up -d
+services:
+  cartolite:
+    environment:
+      BASEMAP_PROVIDER: carto
+      CARTO_BASEMAP_API_KEY_FILE: /run/secrets/carto_basemap_api_key
+    secrets:
+      - carto_basemap_api_key
+secrets:
+  carto_basemap_api_key:
+    file: ${CARTO_BASEMAP_API_KEY_FILE:-./.secrets/carto-basemap-api-key}

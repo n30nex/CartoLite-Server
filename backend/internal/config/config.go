@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -9,18 +10,20 @@ import (
 )
 
 type Config struct {
-	HTTPAddr      string
-	Checkpoint    string
-	MQTTEnabled   bool
-	MQTTBrokerURL string
-	MQTTTopic     string
-	MQTTClientID  string
-	MQTTUsername  string
-	MQTTPassword  string
-	Regions       map[string]struct{}
-	QueueSize     int
-	Version       string
-	GitSHA        string
+	HTTPAddr        string
+	Checkpoint      string
+	MQTTEnabled     bool
+	MQTTBrokerURL   string
+	MQTTTopic       string
+	MQTTClientID    string
+	MQTTUsername    string
+	MQTTPassword    string
+	Regions         map[string]struct{}
+	QueueSize       int
+	Version         string
+	GitSHA          string
+	MapProvider     string
+	CartoBrowserKey string
 }
 
 func Load(version, gitSHA string) (Config, error) {
@@ -36,12 +39,35 @@ func Load(version, gitSHA string) (Config, error) {
 		QueueSize:     envInt("MQTT_INGEST_QUEUE_SIZE", 4096),
 		Version:       cleanBuildValue(version, "dev"),
 		GitSHA:        cleanBuildValue(gitSHA, "unknown"),
+		MapProvider:   strings.ToLower(env("BASEMAP_PROVIDER", "openfreemap")),
 	}
 	regions, err := regionAllowlist()
 	if err != nil {
 		return Config{}, err
 	}
 	c.Regions = regions
+	if c.MapProvider != "openfreemap" && c.MapProvider != "carto" {
+		return Config{}, fmt.Errorf("BASEMAP_PROVIDER must be openfreemap or carto")
+	}
+	if c.MapProvider == "carto" {
+		keyPath := strings.TrimSpace(os.Getenv("CARTO_BASEMAP_API_KEY_FILE"))
+		if keyPath == "" {
+			return Config{}, fmt.Errorf("CARTO_BASEMAP_API_KEY_FILE is required for the carto provider")
+		}
+		file, err := os.Open(keyPath)
+		if err != nil {
+			return Config{}, fmt.Errorf("CARTO browser key file could not be opened")
+		}
+		key, readErr := io.ReadAll(io.LimitReader(file, 8193))
+		file.Close()
+		if readErr != nil || len(key) > 8192 {
+			return Config{}, fmt.Errorf("CARTO browser key file could not be read or is too large")
+		}
+		c.CartoBrowserKey = strings.TrimSpace(string(key))
+		if c.CartoBrowserKey == "" || strings.ContainsAny(c.CartoBrowserKey, "\r\n\t ") {
+			return Config{}, fmt.Errorf("CARTO browser key file must contain one browser key")
+		}
+	}
 	if c.MQTTEnabled && strings.TrimSpace(c.MQTTBrokerURL) == "" {
 		return Config{}, fmt.Errorf("MQTT_BROKER_URL is required")
 	}

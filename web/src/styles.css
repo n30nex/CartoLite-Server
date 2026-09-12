@@ -687,7 +687,7 @@ button { font: inherit; }
 :root[data-theme="light"] :is(.find-panel input, .node-inspector, .maplibregl-popup-content, .node-inspector-sheet, .about-dialog) { color: var(--ink); background: var(--panel-solid); }
 :root[data-theme="light"] :is(.tooltip strong, .tooltip span, .node-inspector header strong, .node-inspector header span, .node-inspector h3, .node-inspector dt, .node-inspector dd, .about-dialog h1, .about-dialog p, .about-dialog dd, .about-dialog dt) { color: var(--ink); }
 :root[data-basemap="light"] .map-grade, :root[data-basemap="streets"] .map-grade { opacity: 0; }
-:root:not([data-basemap="dark"]) #packet-canvas { filter: brightness(0.72) saturate(1.2); }
+:root:not([data-basemap="dark"]) #packet-canvas { filter: none; }
 :root[data-view-class="mobile"] .controls { backdrop-filter: none; -webkit-backdrop-filter: none; }
 :root[data-view-class="mobile"] #layers-panel { position: fixed; top: max(108px, calc(env(safe-area-inset-top) + 100px)); right: 8px; }
 :root[data-view-class="mobile"] .find-panel { position: fixed; top: max(108px, calc(env(safe-area-inset-top) + 100px)); right: 8px; width: min(320px, calc(100vw - 16px)); }

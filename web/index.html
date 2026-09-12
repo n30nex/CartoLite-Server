@@ -98,6 +98,7 @@
               <span>3D</span>
             </button>
             <button id="map-labels-button" class="control-button" type="button" aria-label="Place labels" aria-pressed="true"><span>Place labels</span></button>
+            <button id="buildings-button" class="control-button" type="button" aria-label="Buildings" aria-pressed="false"><span>Buildings</span></button>
             <button id="node-labels-button" class="control-button" type="button" aria-label="Node labels" aria-pressed="true"><span>Node labels</span></button>
             <button id="roads-button" class="control-button" type="button" aria-label="Roads" aria-pressed="true"><span>Roads</span></button>
             <button id="live-packets-button" class="control-button" type="button" aria-label="Live packets" aria-pressed="true"><span>Live packets</span></button>
@@ -113,7 +114,13 @@
               </select>
             </label>
             <label class="map-slider" for="route-opacity"><span>Route strength</span><output id="route-opacity-output" for="route-opacity">80%</output><input id="route-opacity" type="range" min="20" max="100" step="5" value="80" /></label>
-            <label class="map-slider" for="terrain-relief"><span>Topo relief</span><output id="terrain-relief-output" for="terrain-relief">75%</output><input id="terrain-relief" type="range" min="0" max="100" step="5" value="75" /></label>
+            <label class="map-slider" for="terrain-relief"><span>Topo shading</span><output id="terrain-relief-output" for="terrain-relief">75%</output><input id="terrain-relief" type="range" min="0" max="100" step="5" value="75" /></label>
+            <details class="camera-settings"><summary>Desktop 3D camera</summary>
+              <button id="north-button" class="control-button reset-appearance" type="button">↑ Reset north</button>
+              <label class="map-slider" for="camera-pitch"><span>Camera pitch</span><output id="camera-pitch-output" for="camera-pitch">50°</output><input id="camera-pitch" type="range" min="0" max="65" step="1" value="50" /></label>
+              <label class="map-slider" for="terrain-height"><span>Terrain height</span><output id="terrain-height-output" for="terrain-height">1×</output><input id="terrain-height" type="range" min="0.5" max="2" step="0.1" value="1" /></label>
+              <p class="display-note">Height changes the terrain’s visual scale. Buildings use approximate mapped heights, not antenna heights.</p>
+            </details>
             <button id="reset-appearance" class="control-button reset-appearance" type="button">Restore display defaults</button>
           </div>
         </div>

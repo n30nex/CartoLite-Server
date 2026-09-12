@@ -87,3 +87,8 @@ export type HelloV2 = { seq: number; bootId: string };
 export type NodeEventV2 = { seq: number; node: NodeV2 };
 export type StatusEventV2 = { seq: number; status: StatusV2 };
 export type ResetV2 = { seq: number; bootId: string };
+
+export interface PublicMapConfig {
+  schemaVersion: 1;
+  basemap: { provider: 'openfreemap' | 'carto'; cartoBrowserKey?: string };
+}
