@@ -93,6 +93,13 @@ test('shows matching region colors in a viewport legend only when Regions is ena
   await expect(page.locator('.region-legend-list > span').first()).toBeVisible();
   const colors = await page.locator('.region-legend-list i').evaluateAll((items) => items.map((item) => getComputedStyle(item).backgroundColor));
   expect(colors.every((color) => color !== 'rgba(0, 0, 0, 0)')).toBe(true);
+  const regionBounds = await page.locator('.region-legend-list').boundingBox();
+  const packetBounds = await page.locator('#route-legend').boundingBox();
+  if (regionBounds && packetBounds) {
+    const overlap = Math.max(0, Math.min(regionBounds.x + regionBounds.width, packetBounds.x + packetBounds.width) - Math.max(regionBounds.x, packetBounds.x))
+      * Math.max(0, Math.min(regionBounds.y + regionBounds.height, packetBounds.y + packetBounds.height) - Math.max(regionBounds.y, packetBounds.y));
+    expect(overlap, 'packet and region legends must not cover each other').toBe(0);
+  }
   await page.screenshot({ path: info.outputPath('region-colors-legend.png') });
   await openMapOptions(page);
   await page.locator('#regions-button').click();

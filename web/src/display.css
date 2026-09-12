@@ -32,7 +32,8 @@
 #map .maplibregl-ctrl-attrib { color: var(--muted); background: var(--panel-solid); opacity: 1; font-size: 10px; }
 #map .maplibregl-ctrl-attrib a { color: var(--ink); }
 :root[data-theme="light"] .route-legend, :root[data-theme="light"] .route-legend-label { color: var(--ink); }
-:root[data-view-class="mobile"] #app:has(.region-legend:not([hidden])) .route-legend { bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); }
+:root[data-view-class="mobile"] #app:has(.region-legend:not([hidden])) .route-legend { top: max(112px, calc(env(safe-area-inset-top) + 104px)); bottom: auto; }
+@media (orientation: landscape) and (max-height: 520px) { :root[data-view-class="mobile"] #app:has(.region-legend:not([hidden])) .route-legend { top: max(62px, calc(env(safe-area-inset-top) + 54px)); } }
 :root[data-theme="dark"] #map .maplibregl-ctrl-attrib-button { filter: invert(1); }
 .netgraph-app .packet-legend i[data-kind] { background: var(--route-color); box-shadow: none; }
 .route-legend-swatch, .netgraph-app .packet-legend i[data-kind]:not([data-kind="inter-area"]) { position: relative; width: 18px; height: 10px; background: var(--scene-background) !important; border: 1px solid var(--panel-border); border-radius: 3px; box-shadow: none; }
