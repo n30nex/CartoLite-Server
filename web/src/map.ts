@@ -171,7 +171,6 @@ export class LiveMap {
   private lastRouteHydrationAt = 0;
   private routeSourceRevision = 0;
   private routeClock = 0;
-  private routeCollections?: RouteSourceCollections;
   private routeDetailFeatures = new Map<string, Feature<LineString>>();
   private dirtyRouteIDs = new Set<string>();
   private rebuildAllRoutes = true;
@@ -428,7 +427,6 @@ export class LiveMap {
       active
     ).then((collections) => {
       if (!collections || !active()) return;
-      this.routeCollections = collections;
       this.container.dataset.exactRoutesLoaded = 'true';
       this.container.dataset.trunkRepresentationsLoaded = '';
       this.container.dataset.routeBuildMaxSliceMs = collections.maxSliceMS.toFixed(1);
