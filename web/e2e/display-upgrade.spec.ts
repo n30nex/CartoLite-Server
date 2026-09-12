@@ -106,7 +106,7 @@ test('shows matching region colors in a viewport legend only when Regions is ena
   await expect(page.locator('#region-legend')).toBeHidden();
 });
 
-test('renders buildings in desktop 3D and preserves controllable camera orientation', async ({ page }, info) => {
+test('renders buildings in desktop 3D', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop 3D feature; mobile controls are covered separately');
   await visualFixture(page, 15);
   await page.goto('/');
@@ -130,7 +130,18 @@ test('renders buildings in desktop 3D and preserves controllable camera orientat
   await page.keyboard.press('Escape');
   const withBuildings = await page.screenshot({ clip, path: info.outputPath('synthetic-buildings.png') });
   expect(await changedPixels(page, without, withBuildings), 'synthetic building geometry must actually draw').toBeGreaterThan(300);
+});
+
+test('preserves controllable desktop camera orientation', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop camera controls');
+  await visualFixture(page, 15);
+  await page.goto('/');
+  const map = page.locator('#map');
+  await expect(map).toHaveAttribute('data-render-state', 'idle');
   await openMapOptions(page);
+  await page.locator('#routes-button').click();
+  await page.locator('#terrain-button').click();
+  await expect(map).toHaveAttribute('data-camera-moving', 'false');
   await page.locator('.camera-settings > summary').click();
   await page.locator('#camera-pitch').press('End');
   await page.locator('#camera-pitch').press('ArrowLeft');
@@ -142,6 +153,21 @@ test('renders buildings in desktop 3D and preserves controllable camera orientat
   await expect(map).toHaveAttribute('data-camera-pitch', '64');
   await expect(map).toHaveAttribute('data-buildings-visible', 'true');
   await expect(page.locator('#map-notice')).toBeHidden();
+});
+
+test('switches buildings between desktop extrusions and mobile footprints on resize', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'crosses the desktop breakpoint in both directions');
+  await visualFixture(page, 15);
+  await page.goto('/');
+  const map = page.locator('#map');
+  await expect(map).toHaveAttribute('data-render-state', 'idle');
+  await openMapOptions(page);
+  await page.locator('#routes-button').click();
+  await page.locator('#terrain-button').click();
+  await expect(map).toHaveAttribute('data-building-extrusions', 'true');
+  await expect(map).toHaveAttribute('data-buildings-loaded', 'true');
+  await page.keyboard.press('Escape');
+  const size = page.viewportSize()!;
   await page.setViewportSize({ width: 800, height: 1000 });
   await expect(map).toHaveAttribute('data-building-extrusions', 'false');
   await expect(map).toHaveAttribute('data-buildings-visible', 'true');
