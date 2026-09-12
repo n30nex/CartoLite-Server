@@ -9,6 +9,7 @@ describe('historical route WebGL geometry', () => {
     expect(routeMayIntersectView([-179, 40], [-177, 41], [175, 39, 185, 42])).toBe(true);
     expect(routeMayIntersectView([179, 40], [180, 41], [-185, 39, -175, 42])).toBe(true);
     expect(routeMayIntersectView([0, 40], [1, 41], [175, 39, -175, 42])).toBe(false);
+    expect(routeMayIntersectView([10, 40], [-169, 40], [170, 39, -160, 41])).toBe(true);
   });
   it('keeps one exact line segment for every route', () => {
     const routes: Feature<LineString>[] = [

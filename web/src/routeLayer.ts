@@ -259,7 +259,8 @@ export function routeMayIntersectView(a: Coordinate, b: Coordinate, view: readon
   const padX = Math.max(0.025, span * 0.15);
   const padY = Math.max(0.025, (north - south) * 0.15);
   if (Math.max(a[1], b[1]) < south - padY || Math.min(a[1], b[1]) > north + padY) return false;
-  return span >= 360 || !(Math.max(x1, x2) < west - padX || Math.min(x1, x2) > west + span + padX);
+  return span >= 360 || [-360, 0, 360].some(offset =>
+    !(Math.max(x1, x2) + offset < west - padX || Math.min(x1, x2) + offset > west + span + padX));
 }
 
 function strokeVertices(segments: readonly StrokeSegment[], origin: [number, number, number] = [0, 0, 0]): Float32Array {
