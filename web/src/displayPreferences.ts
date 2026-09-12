@@ -127,10 +127,10 @@ export function applyDisplayChrome(): void {
   root.dataset.basemap = current.basemap;
   root.dataset.routePreset = current.preset;
   for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--kind-${kind.toLowerCase()}`, color);
-  for (const [kind, color] of Object.entries(packetPalette(root.dataset.theme === 'light'))) root.style.setProperty(`--ui-kind-${kind.toLowerCase()}`, color);
+  for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--ui-kind-${kind.toLowerCase()}`, color);
   root.style.setProperty('--scene-background', current.basemap === 'dark' ? '#071319' : current.basemap === 'streets' ? '#f0eadb' : '#eef1ee');
   for (const el of document.querySelectorAll<HTMLElement>('[data-kind]')) {
-    const color = packetPalette(root.dataset.theme === 'light')[el.dataset.kind as keyof typeof DARK_KINDS];
+    const color = packetPalette()[el.dataset.kind as keyof typeof DARK_KINDS];
     if (color) el.style.setProperty('--route-color', color);
   }
 }

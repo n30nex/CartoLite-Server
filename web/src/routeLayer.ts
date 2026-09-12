@@ -9,7 +9,7 @@ export const ROUTE_WEBGL_LAYER_ID = 'route-exact-webgl';
 export const STROKE_VERTEX_FLOATS = 13;
 type GL = WebGLRenderingContext | WebGL2RenderingContext;
 interface StrokeSegment { from: [number, number, number]; to: [number, number, number]; color: string; opacity: number; band: number }
-interface HitPath { id: string; band: number; points: readonly SurfacePoint[] }
+interface HitPath { id: string; band: number; positions: readonly [number, number, number][] }
 interface Resources { program: WebGLProgram; buffer: WebGLBuffer; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
@@ -29,6 +29,9 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private opacity = 0.8;
   private lightBackground = false;
   private origin: [number, number, number] = [0, 0, 0];
+  private lastUploadAt = -Infinity;
+  private refreshTimer?: ReturnType<typeof setTimeout>;
+  private hitMatrix?: Float32Array;
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.map = map;
@@ -49,27 +52,38 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     });
     this.resources = { program, buffer, uniforms, attributes };
     map.on('move', this.cameraChanged);
+    map.on('moveend', this.cameraChanged);
     map.on('terrain', this.invalidate);
     map.on('sourcedata', this.sourceChanged);
     this.dirty = true;
   }
   onRemove(map: MapLibreMap, gl: GL): void {
     map.off('move', this.cameraChanged);
+    map.off('moveend', this.cameraChanged);
     map.off('terrain', this.invalidate);
     map.off('sourcedata', this.sourceChanged);
     if (this.resources) { gl.deleteBuffer(this.resources.buffer); gl.deleteProgram(this.resources.program); }
     this.resources = undefined;
     this.map = undefined;
     this.gl = undefined;
+    if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
+    this.refreshTimer = undefined;
   }
   private cameraChanged = (): void => {
     if (!this.map) return;
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter());
-    if (this.map.getTerrain() || Math.abs(center.x - this.origin[0]) > 1 / 256 || Math.abs(center.y - this.origin[1]) > 1 / 256) this.invalidate();
+    if (this.map.getTerrain() || Math.abs(center.x - this.origin[0]) > 1 / 256 || Math.abs(center.y - this.origin[1]) > 1 / 256) this.scheduleResample();
   };
   private sourceChanged = (event: { sourceId?: string }): void => {
-    if (event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.invalidate();
+    if (event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.scheduleResample();
   };
+  private scheduleResample(): void {
+    if (!this.visible) { this.dirty = true; return; }
+    const delay = Math.max(0, 200 - (performance.now() - this.lastUploadAt));
+    if (delay === 0) { this.invalidate(); return; }
+    if (this.refreshTimer !== undefined) return;
+    this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
+  }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
   setRoutes(routes: readonly Feature<LineString>[]): void { this.routes = routes; this.invalidate(); }
   setOpacity(opacity: number): void { this.opacity = clamp(opacity, 0.2, 1); this.map?.triggerRepaint(); }
@@ -89,13 +103,24 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
 
   pick(point: { x: number; y: number }, allowed: (id: string) => boolean): string | undefined {
     if (!this.visible || !this.map?.getTerrain()) return undefined;
-    if (this.dirty) this.upload();
+    if (!this.hitMatrix) return undefined;
+    const matrix = this.hitMatrix;
+    const width = this.map.getCanvas().clientWidth; const height = this.map.getCanvas().clientHeight;
+    const project = (position: readonly number[]): SurfacePoint | undefined => {
+      const x = position[0]! - this.origin[0]; const y = position[1]! - this.origin[1]; const z = position[2]!;
+      const w = matrix[3]! * x + matrix[7]! * y + matrix[11]! * z + matrix[15]!;
+      if (w <= 0) return undefined;
+      return { x: ((matrix[0]! * x + matrix[4]! * y + matrix[8]! * z + matrix[12]!) / w + 1) * width / 2,
+        y: (1 - (matrix[1]! * x + matrix[5]! * y + matrix[9]! * z + matrix[13]!) / w) * height / 2 };
+    };
     let best = 7 + displayPreferences().width / 2;
     let found: string | undefined;
     for (const path of this.hitPaths) {
       if (path.band > this.maximumBand || !allowed(path.id)) continue;
-      for (let i = 1; i < path.points.length; i += 1) {
-        const a = path.points[i - 1]!; const b = path.points[i]!;
+      const points = path.positions.map(project);
+      for (let i = 1; i < points.length; i += 1) {
+        const a = points[i - 1]; const b = points[i];
+        if (!a || !b) continue;
         const dx = b.x - a.x; const dy = b.y - a.y;
         const t = clamp(((point.x - a.x) * dx + (point.y - a.y) * dy) / Math.max(0.001, dx * dx + dy * dy), 0, 1);
         const distance = Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
@@ -132,7 +157,6 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
             || seeds.every((p) => p.y < -160) || seeds.every((p) => p.y > height + 160)) continue;
           const points = adaptiveSurfacePath(project, pieces.length > 1 ? 3 : 4);
           fractions = points.map((p) => p.progress!);
-          this.hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, points });
         }
         const positions = fractions.map((t) => {
           const point = routeCoordinate(pair[0], pair[1], t);
@@ -141,6 +165,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
           const mercator = MercatorCoordinate.fromLngLat(point, Number.isFinite(elevation) ? elevation : 0);
           return [mercator.x, mercator.y, mercator.z] as [number, number, number];
         });
+        if (terrain) this.hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
         for (let i = 1; i < positions.length; i += 1) segments.push({ from: positions[i - 1]!, to: positions[i]!, color, opacity, band });
       }
     }
@@ -149,6 +174,9 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.resources.buffer);
     this.gl.bufferData(this.gl.ARRAY_BUFFER, data, this.gl.DYNAMIC_DRAW);
     this.dirty = false;
+    this.lastUploadAt = performance.now();
+    if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
+    this.refreshTimer = undefined;
   }
   render(gl: GL, options: CustomRenderMethodInput): void {
     if (!this.resources || !this.map || !this.visible) return;
@@ -176,7 +204,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     // Rebase in double precision before uploading floats, keeping close-zoom endpoints aligned.
     const matrix = Array.from(options.defaultProjectionData.mainMatrix);
     for (let row = 0; row < 4; row += 1) matrix[12 + row] = matrix[12 + row]! + matrix[row]! * this.origin[0] + matrix[4 + row]! * this.origin[1];
-    gl.uniformMatrix4fv(uniforms.matrix!, false, new Float32Array(matrix));
+    this.hitMatrix = new Float32Array(matrix);
+    gl.uniformMatrix4fv(uniforms.matrix!, false, this.hitMatrix);
     gl.uniform2f(uniforms.viewport!, Math.max(1, this.map.getCanvas().clientWidth), Math.max(1, this.map.getCanvas().clientHeight));
     gl.uniform1f(uniforms.width!, settings.width);
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));

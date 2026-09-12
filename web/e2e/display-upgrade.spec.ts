@@ -12,6 +12,9 @@ test('shares presets and custom styling across Map and Netgraph without losing c
   await expect(page.locator('#map')).toHaveAttribute('data-selected-node-id', 'visual-a');
   const source = await page.locator('#map').getAttribute('data-route-source-revision');
   await openMapOptions(page);
+  await page.locator('#interface-theme').selectOption('light');
+  expect(await page.locator('.route-legend-item[aria-label="Trace"] i').evaluate((element) => getComputedStyle(element, '::after').backgroundColor)).toBe('rgb(255, 209, 90)');
+  await page.locator('#interface-theme').selectOption('map');
   for (const preset of ['crisp', 'neon', 'dashed', 'dotted', 'ribbon', 'comet']) {
     await page.getByLabel('Route style', { exact: true }).selectOption(preset);
     await expect(page.locator('#map')).toHaveAttribute('data-route-preset', preset);
@@ -132,6 +135,11 @@ test('renders buildings in desktop 3D and preserves controllable camera orientat
   await expect(map).toHaveAttribute('data-camera-pitch', '64');
   await expect(map).toHaveAttribute('data-buildings-visible', 'true');
   await expect(page.locator('#map-notice')).toBeHidden();
+  await page.setViewportSize({ width: 800, height: 1000 });
+  await expect(map).toHaveAttribute('data-building-extrusions', 'false');
+  await expect(map).toHaveAttribute('data-buildings-visible', 'true');
+  await page.setViewportSize(size);
+  await expect(map).toHaveAttribute('data-building-extrusions', 'true');
 });
 
 test('can disable lingering trails without disabling live packets', async ({ page }, info) => {

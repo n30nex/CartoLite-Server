@@ -35,6 +35,8 @@
 :root[data-view-class="mobile"] #app:has(.region-legend:not([hidden])) .route-legend { bottom: max(66px, calc(env(safe-area-inset-bottom) + 62px)); }
 :root[data-theme="dark"] #map .maplibregl-ctrl-attrib-button { filter: invert(1); }
 .netgraph-app .packet-legend i[data-kind] { background: var(--route-color); box-shadow: none; }
+.route-legend-swatch, .netgraph-app .packet-legend i[data-kind]:not([data-kind="inter-area"]) { position: relative; width: 18px; height: 10px; background: var(--scene-background) !important; border: 1px solid var(--panel-border); border-radius: 3px; box-shadow: none; }
+.route-legend-swatch::after, .netgraph-app .packet-legend i[data-kind]:not([data-kind="inter-area"])::after { content: ''; position: absolute; left: 2px; right: 2px; top: 3px; height: 2px; background: var(--route-color); }
 .netgraph-app .role-legend i[data-role="repeater"] { background: var(--ui-kind-advert); }
 .netgraph-app .role-legend i[data-role="companion"] { background: var(--ui-kind-ack); }
 .netgraph-app .role-legend i[data-role="room_server"] { background: var(--ui-kind-control); }

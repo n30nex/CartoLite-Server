@@ -855,6 +855,7 @@ export class LiveMap {
 
   private updateBuildingLayer(): void {
     this.container.dataset.buildingsVisible = String(this.appearance.buildings);
+    this.container.dataset.buildingExtrusions = String(this.appearance.buildings && this.terrain3D && viewClass() === 'desktop');
     if (!this.layersReady) return;
     this.buildingSourceID = updateBuildings(this.map, this.appearance.buildings, this.terrain3D, viewClass() === 'desktop', this.appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
   }
@@ -1776,6 +1777,7 @@ export class LiveMap {
   }
 
   private handleInspectorResize = (): void => {
+    this.updateBuildingLayer();
     if (this.selectedNodeID) this.renderNodeInspector(true);
   };
 
