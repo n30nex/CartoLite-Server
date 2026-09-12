@@ -1,5 +1,5 @@
 import type { EndpointV2, RouteSegmentView } from './types';
-import { routeCoordinate } from './worldGeometry';
+import { longitudeDelta, routeCoordinate } from './worldGeometry';
 
 export interface SurfacePoint {
   x: number;
@@ -7,6 +7,7 @@ export interface SurfacePoint {
   scale?: number;
   /** Geographic progress, independent of adaptive sample spacing. */
   progress?: number;
+  breakBefore?: boolean;
   ground?: readonly [number, number, number, number];
 }
 
@@ -63,8 +64,30 @@ export class TerrainProjector {
     const key = `${from.lng}:${from.lat}:${to.lng}:${to.lat}`;
     const cached = this.paths.get(key);
     if (cached) return cached;
+    const delta = longitudeDelta(from.lng, to.lng);
+    const endLongitude = from.lng + delta;
+    if (Math.abs(endLongitude) > 180) {
+      const boundary = Math.sign(endLongitude) * 180;
+      const crossing = (boundary - from.lng) / delta;
+      const section = (start: number, end: number, wrapped: boolean): SurfacePoint[] => {
+        const sample = (local: number): SurfacePoint => {
+          const t = start + (end - start) * local;
+          const [lng, lat] = geographicSegmentPoint(from, to, t);
+          return this.projectEndpoint({ ...from, lng: wrapped ? lng - Math.sign(boundary) * 360 : lng, lat });
+        };
+        const points = this.enabled() ? adaptiveSurfacePath(sample, 3) : [{ ...sample(0), progress: 0 }, { ...sample(1), progress: 1 }];
+        return points.map((point) => ({ ...point, progress: start + (end - start) * point.progress! }));
+      };
+      const left = section(0, crossing, false);
+      const right = section(crossing, 1, true);
+      if (right[0]) right[0].breakBefore = true;
+      const points = [...left, ...right];
+      if (this.paths.size >= 1024) this.paths.delete(this.paths.keys().next().value!);
+      this.paths.set(key, points);
+      return points;
+    }
     const first = this.projectEndpoint(from);
-    const last = this.projectEndpoint(to);
+    const last = this.projectEndpoint({ ...to, lng: endLongitude });
     const points = this.enabled() ? adaptiveSurfacePath((t) => {
       const point = t === 0 ? first : t === 1 ? last : this.project(geographicSegmentPoint(from, to, t));
       return { ...point, progress: t, scale: (first.scale ?? 1) + ((last.scale ?? 1) - (first.scale ?? 1)) * t };
@@ -76,13 +99,14 @@ export class TerrainProjector {
 }
 
 /** Four seed intervals catch relief away from the midpoint; subdivision is capped at 65 vertices. */
-export function adaptiveSurfacePath(project: (progress: number) => SurfacePoint): SurfacePoint[] {
+export function adaptiveSurfacePath(project: (progress: number) => SurfacePoint, maxDepth = 4): SurfacePoint[] {
+  const depthLimit = Number.isFinite(maxDepth) ? Math.max(0, Math.min(4, Math.floor(maxDepth))) : 4;
   const sample = (t: number): SurfacePoint => ({ ...project(t), progress: t });
   const points: SurfacePoint[] = [];
   const split = (a: SurfacePoint, b: SurfacePoint, depth: number): void => {
     const m = sample((a.progress! + b.progress!) / 2);
     const error = Math.hypot(m.x - (a.x + b.x) / 2, m.y - (a.y + b.y) / 2);
-    if (depth < 4 && Number.isFinite(error) && (error > 1.5 || Math.hypot(b.x - a.x, b.y - a.y) > 160)) {
+    if (depth < depthLimit && Number.isFinite(error) && (error > 1.5 || Math.hypot(b.x - a.x, b.y - a.y) > 160)) {
       split(a, m, depth + 1);
       split(m, b, depth + 1);
     } else points.push(b);
@@ -128,8 +152,13 @@ export function surfaceTrail(points: readonly SurfacePoint[], progress: number, 
   for (let index = start; index >= 0 && remaining > 0; index -= 1) {
     const next = points[index]!;
     const previous = trail[trail.length - 1]!;
+    if (previous.breakBefore) {
+      if (Number.isFinite(maxLength)) break;
+      trail.push(next);
+      continue;
+    }
     const distance = Math.hypot(next.x - previous.x, next.y - previous.y);
-    if (distance < 0.001) continue;
+    if (distance < 0.001) { previous.breakBefore ||= next.breakBefore; continue; }
     trail.push(distance > remaining ? interpolatePoint(previous, next, remaining / distance) : next);
     remaining -= distance;
   }
@@ -144,7 +173,7 @@ export function surfaceTrail(points: readonly SurfacePoint[], progress: number, 
 export function traceSurfacePath(context: CanvasRenderingContext2D, points: readonly SurfacePoint[]): void {
   context.beginPath();
   points.forEach((point, index) => {
-    if (index === 0) context.moveTo(point.x, point.y);
+    if (index === 0 || point.breakBefore) context.moveTo(point.x, point.y);
     else context.lineTo(point.x, point.y);
   });
 }

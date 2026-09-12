@@ -563,7 +563,7 @@ export class NetgraphRenderer implements ViewportProjector {
     const offsetX = modulo(this.width / 2 - this.centerX * this.scale, spacing);
     const offsetY = modulo(this.height / 2 - this.centerY * this.scale, spacing);
     context.save();
-    context.strokeStyle = 'rgba(93, 176, 183, 0.055)';
+    context.strokeStyle = lightScene() ? 'rgba(35, 82, 88, 0.1)' : 'rgba(93, 176, 183, 0.075)';
     context.lineWidth = 1;
     context.beginPath();
     for (let x = offsetX; x <= this.width; x += spacing) {
@@ -594,14 +594,14 @@ export class NetgraphRenderer implements ViewportProjector {
       if (radius < 5) continue;
       const edge = Math.max(8, radius);
       const glow = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, edge);
-      glow.addColorStop(0, 'rgba(69, 220, 202, 0.055)');
-      glow.addColorStop(0.72, 'rgba(39, 139, 150, 0.022)');
+      glow.addColorStop(0, lightScene() ? 'rgba(0, 105, 87, 0.055)' : 'rgba(69, 220, 202, 0.055)');
+      glow.addColorStop(0.72, lightScene() ? 'rgba(0, 105, 87, 0.022)' : 'rgba(39, 139, 150, 0.022)');
       glow.addColorStop(1, 'rgba(39, 139, 150, 0)');
       context.beginPath();
       context.arc(point.x, point.y, edge, 0, Math.PI * 2);
       context.fillStyle = glow;
       context.fill();
-      context.strokeStyle = 'rgba(110, 220, 217, 0.12)';
+      context.strokeStyle = lightScene() ? 'rgba(35, 85, 90, 0.36)' : 'rgba(110, 220, 217, 0.25)';
       context.lineWidth = 0.8;
       context.stroke();
     }
@@ -688,6 +688,11 @@ export class NetgraphRenderer implements ViewportProjector {
       context.setLineDash(lineDash());
       context.beginPath();
       for (const route of group.routes) this.appendRoute(context, route);
+      context.strokeStyle = lightScene() ? 'rgba(249, 252, 245, 0.85)' : 'rgba(3, 14, 19, 0.8)';
+      context.lineWidth = displayPreferences().width + 1.5;
+      context.globalAlpha = selected ? 0.1 : displayPreferences().opacity;
+      context.stroke();
+      context.globalAlpha = 1;
       context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], (selected ? 0.1 : lightScene() ? 0.95 : 0.5) * displayPreferences().opacity);
       context.lineWidth = displayPreferences().width;
       context.stroke();

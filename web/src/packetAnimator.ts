@@ -693,7 +693,7 @@ export class PacketAnimator {
       const before = surfacePathPoint(path, Math.max(0, motion.localProgress - 0.01));
       const after = surfacePathPoint(path, Math.min(1, motion.localProgress + 0.01));
       let tangent = { x: after.x - before.x, y: after.y - before.y };
-      if (path[0]!.progress !== undefined) {
+      if (path[0]?.progress !== undefined) {
         for (let index = 1; index < path.length; index += 1) {
           const from = path[index - 1]!;
           const to = path[index]!;

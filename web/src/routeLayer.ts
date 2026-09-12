@@ -37,7 +37,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const buffer = gl.createBuffer();
     if (!buffer) throw new Error('Unable to create route stroke buffer');
     const uniforms: Record<string, WebGLUniformLocation> = {};
-    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern']) {
+    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing']) {
       const location = gl.getUniformLocation(program, `u_${name}`);
       if (location === null) throw new Error(`Missing route uniform: ${name}`);
       uniforms[name] = location;
@@ -121,7 +121,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       const rawOpacity = clamp(Number(route.properties?.opacity ?? 0.4), 0, 1);
       if (rawOpacity === 0) continue;
       const opacity = Math.max(this.lightBackground ? 0.95 : 0.55, rawOpacity);
-      for (const pair of splitWorldRoute([rawFrom[0]!, rawFrom[1]!], [rawTo[0]!, rawTo[1]!])) {
+      const pieces = splitWorldRoute([rawFrom[0]!, rawFrom[1]!], [rawTo[0]!, rawTo[1]!]);
+      for (const pair of pieces) {
         let fractions = [0, 1];
         if (terrain) {
           const project = (t: number): SurfacePoint => map.project(routeCoordinate(pair[0], pair[1], t));
@@ -129,7 +130,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
           const width = map.getCanvas().clientWidth; const height = map.getCanvas().clientHeight;
           if (seeds.every((p) => p.x < -160) || seeds.every((p) => p.x > width + 160)
             || seeds.every((p) => p.y < -160) || seeds.every((p) => p.y > height + 160)) continue;
-          const points = adaptiveSurfacePath(project);
+          const points = adaptiveSurfacePath(project, pieces.length > 1 ? 3 : 4);
           fractions = points.map((p) => p.progress!);
           this.hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, points });
         }
@@ -181,6 +182,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.opacity!, this.opacity);
     gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
+    if (this.lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
+    else gl.uniform3f(uniforms.casing!, 0.025, 0.055, 0.075);
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
     gl.depthMask(depthMask);
     if (depth) gl.enable(gl.DEPTH_TEST);
@@ -240,6 +243,7 @@ function createProgram(gl: GL): WebGLProgram {
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, `
     precision highp float;
     uniform float u_width; uniform float u_glow; uniform float u_opacity; uniform float u_maximum_band; uniform float u_pattern;
+    uniform vec3 u_casing;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
     void main() {
       if (v_band > u_maximum_band + 0.1 || v_alpha <= 0.0) discard;
@@ -249,7 +253,9 @@ function createProgram(gl: GL): WebGLProgram {
       else if (u_pattern > 0.5 && mod(max(0.0, x), u_width * 7.0) > u_width * 4.0) discard;
       float core = 1.0 - smoothstep(u_width * 0.5 - 0.45, u_width * 0.5 + 0.55, distance);
       float glow = (1.0 - smoothstep(u_width * 0.5, u_width * 0.5 + 1.0 + u_glow * 5.0, distance)) * u_glow * 0.18;
-      gl_FragColor = vec4(v_color, max(core, glow) * v_alpha * u_opacity);
+      float rim = (1.0 - smoothstep(u_width * 0.5 + 0.25, u_width * 0.5 + 1.0, distance)) * (1.0 - core);
+      vec3 ink = core + rim > 0.001 ? (v_color * core + u_casing * rim) / (core + rim) : v_color;
+      gl_FragColor = vec4(ink, max(core + rim * 0.8, glow) * v_alpha * u_opacity);
     }
   `);
   const program = gl.createProgram();

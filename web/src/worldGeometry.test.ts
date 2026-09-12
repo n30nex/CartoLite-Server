@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { longitudeDelta, routeCoordinate, splitWorldRoute } from './worldGeometry';
 import { surfacePathPoint, surfaceTrail, TerrainProjector, traceSurfacePath } from './terrainProjection';
 import { routeSoundPlan } from './audio';
-import { historicalRouteVertices } from './routeLayer';
+import { historicalRouteVertices, STROKE_VERTEX_FLOATS } from './routeLayer';
 import type { RoutePacketView } from './types';
 
 describe('worldwide routes at the date line', () => {
@@ -40,10 +40,10 @@ describe('worldwide routes at the date line', () => {
 
   it('keeps historical route vertices at the two map edges', () => {
     const vertices = historicalRouteVertices([{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[179, 0], [181, 0]] } }]);
-    expect(vertices.length).toBe(28);
+    expect(vertices.length).toBe(12 * STROKE_VERTEX_FLOATS);
     expect(vertices[0]).toBeGreaterThan(0.99);
-    expect(vertices[7]).toBe(1);
-    expect(vertices[14]).toBe(0);
-    expect(vertices[21]).toBeLessThan(0.01);
+    expect(vertices[3]).toBe(1);
+    expect(vertices[6 * STROKE_VERTEX_FLOATS]).toBe(0);
+    expect(vertices[6 * STROKE_VERTEX_FLOATS + 3]).toBeLessThan(0.01);
   });
 });

@@ -5,7 +5,7 @@ export const BUILDING_FOOTPRINTS = 'building-footprints';
 export const BUILDING_EXTRUSIONS = 'building-extrusions';
 export const OPENFREEMAP_TILEJSON = 'https://tiles.openfreemap.org/planet';
 
-export function updateBuildings(map: MapLibreMap, visible: boolean, terrain: boolean, desktop: boolean, light: boolean, existingSource?: string): void {
+export function updateBuildings(map: MapLibreMap, visible: boolean, terrain: boolean, desktop: boolean, light: boolean, existingSource?: string): string | undefined {
   if (!visible && !map.getLayer(BUILDING_FOOTPRINTS)) return;
   const source = existingSource ?? BUILDING_SOURCE;
   if (!map.getSource(source)) map.addSource(source, { type: 'vector', url: OPENFREEMAP_TILEJSON });
@@ -29,4 +29,5 @@ export function updateBuildings(map: MapLibreMap, visible: boolean, terrain: boo
   map.setLayoutProperty(BUILDING_EXTRUSIONS, 'visibility', visible && terrain && desktop ? 'visible' : 'none');
   map.setPaintProperty(BUILDING_FOOTPRINTS, 'fill-color', light ? '#a8b8b2' : '#405b61');
   map.setPaintProperty(BUILDING_EXTRUSIONS, 'fill-extrusion-color', light ? '#bbc9c1' : '#506c73');
+  return source;
 }

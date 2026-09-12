@@ -64,7 +64,7 @@ export function mountNetgraphDisplay(): void {
   const controls = document.querySelector<HTMLElement>('.controls')!;
   const host = document.createElement('div');
   host.className = 'display-disclosure popover-control';
-  host.innerHTML = '<button id="display-button" class="control-button" type="button" aria-expanded="false" aria-controls="display-panel">◐ <span>Display</span></button><section id="display-panel" class="display-panel glass" aria-label="Display settings" hidden><header><strong>Display</strong><button type="button" aria-label="Close display settings">×</button></header></section>';
+  host.innerHTML = '<button id="display-button" class="control-button" type="button" aria-label="Display settings" title="Display settings" aria-expanded="false" aria-controls="display-panel">◐ <span>Display</span></button><section id="display-panel" class="display-panel glass" aria-label="Display settings" hidden><header><strong>Display</strong><button type="button" aria-label="Close display settings">×</button></header></section>';
   controls.prepend(host);
   const button = host.querySelector<HTMLButtonElement>('#display-button')!;
   const panel = host.querySelector<HTMLElement>('#display-panel')!;
@@ -72,6 +72,9 @@ export function mountNetgraphDisplay(): void {
   button.addEventListener('click', () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); });
   panel.querySelector('button')!.addEventListener('click', () => close(true));
   document.addEventListener('pointerdown', (event) => { if (event.target instanceof Node && !host.contains(event.target)) close(); });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !panel.hidden) close(true); });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || panel.hidden) return;
+    event.preventDefault(); event.stopImmediatePropagation(); close(true);
+  });
   mountDisplayControls(panel, true);
 }

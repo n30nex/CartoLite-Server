@@ -20,6 +20,7 @@ test('map options are compact, persistent, and preserve live layers through styl
   await page.locator('#node-labels-button').click();
   await page.locator('#map-labels-button').click();
   await page.locator('#roads-button').click();
+  await page.locator('.display-advanced > summary').click();
   await page.locator('#route-opacity').press('Home');
   for (let step = 0; step < 6; step++) await page.locator('#route-opacity').press('ArrowRight');
   await page.locator('#terrain-relief').press('Home');

@@ -203,9 +203,11 @@ document.addEventListener('pointerdown', (event) => {
 });
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  const activeMenu = layersDisclosure.hasAttribute('open') ? layersSummary : !soundPanel.hidden ? soundButton : !findPanel.hidden ? findButton : undefined;
   closeSoundPanel();
   closeFindPanel();
-  if (layersDisclosure.hasAttribute('open')) { setLayersOpen(false); layersSummary.focus(); }
+  setLayersOpen(false);
+  if (activeMenu) { event.preventDefault(); event.stopImmediatePropagation(); activeMenu.focus(); }
 });
 required<HTMLButtonElement>('layers-close').addEventListener('click', () => { setLayersOpen(false); layersSummary.focus(); });
 
@@ -541,6 +543,7 @@ async function start(): Promise<void> {
         applyAppearanceChrome();
       }
     });
+    liveMap.map.on('rotate', () => updateCompass(liveMap.map.getBearing()));
     let resizeTimer: number | undefined;
     window.addEventListener('resize', () => {
       if (resizeTimer !== undefined) window.clearTimeout(resizeTimer);
@@ -744,6 +747,7 @@ function applyAppearanceChrome(): void {
   terrainHeight.value = String(uiPreferences.terrainExaggeration);
   required<HTMLOutputElement>('camera-pitch-output').value = `${cameraPitch.value}°`;
   required<HTMLOutputElement>('terrain-height-output').value = `${terrainHeight.value}×`;
+  updateCompass(uiPreferences.terrainBearing);
   required<HTMLOutputElement>('route-opacity-output').value = `${routeOpacity.value}%`;
   required<HTMLOutputElement>('terrain-relief-output').value = `${terrainRelief.value}%`;
 }
@@ -751,6 +755,13 @@ function applyAppearanceChrome(): void {
 function persistUiPreference(update: Partial<UiPreferences>): void {
   uiPreferences = { ...uiPreferences, ...update };
   saveUiPreferences(localStorage, uiPreferences);
+}
+
+function updateCompass(bearing: number): void {
+  const button = required<HTMLButtonElement>('north-button');
+  button.style.setProperty('--bearing', `${-bearing}deg`);
+  button.title = `Reset north · bearing ${Math.round(bearing)}°`;
+  required<HTMLOutputElement>('camera-bearing').value = `${Math.round(bearing)}°`;
 }
 
 function wireLayerToggle(

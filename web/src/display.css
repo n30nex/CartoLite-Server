@@ -52,6 +52,8 @@
 :root[data-theme="light"] :is(#app, .netgraph-app)[data-traffic-kind="control"] { --traffic-rgb: 103, 64, 160; }
 .camera-settings { border-top: 1px solid var(--panel-border); font-size: 12px; }
 .camera-settings summary { min-height: 44px; padding-block: 14px; cursor: pointer; }
+.compass-needle { display: inline-block; transform: rotate(var(--bearing, 0deg)); }
+#camera-bearing { margin-left: auto; font-variant-numeric: tabular-nums; }
 :root[data-view-class="mobile"] .camera-settings { display: none; }
 .region-legend { position: relative; color: var(--ink); font-size: 11px; }
 .region-legend[hidden] { display: none; }

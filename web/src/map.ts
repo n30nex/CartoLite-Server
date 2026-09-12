@@ -205,6 +205,7 @@ export class LiveMap {
   private followedPacket?: PacketView;
   private appearance: UiPreferences = { ...DEFAULT_UI_PREFERENCES };
   private readonly originalOverlayColors = new Map<string, unknown>();
+  private buildingSourceID?: string;
   private directorTimer?: number;
   private readonly reducedMotion = prefersReducedMotion();
   private freshnessTimer: number;
@@ -229,6 +230,7 @@ export class LiveMap {
     this.container.dataset.terrain3d = 'false';
     this.container.dataset.terrainReady = 'false';
     this.container.dataset.cameraPitch = '0';
+    this.container.dataset.cameraMoving = 'false';
     this.container.dataset.selectedNodeId = '';
     this.container.dataset.neighborRouteCount = '0';
     this.container.dataset.focusedRouteCount = '0';
@@ -261,10 +263,18 @@ export class LiveMap {
     this.updateRouteRepresentation();
     this.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     this.map.on('load', () => this.installLayers());
+    this.map.on('movestart', () => { this.container.dataset.cameraMoving = 'true'; });
+    this.map.on('sourcedata', (event) => {
+      if (this.buildingSourceID && event.sourceId === this.buildingSourceID) {
+        this.container.dataset.buildingsLoaded = String(this.map.isSourceLoaded(this.buildingSourceID));
+      }
+    });
     this.map.on('moveend', () => {
+      this.container.dataset.cameraMoving = 'false';
       if (this.terrain3D && viewClass() === 'desktop') {
         this.appearance.terrainPitch = this.map.getPitch();
         this.appearance.terrainBearing = this.map.getBearing();
+        this.container.dataset.cameraPitch = String(Math.round(this.map.getPitch() * 10) / 10);
       }
     });
     this.map.on('zoom', this.updateRouteRepresentation);
@@ -836,7 +846,10 @@ export class LiveMap {
 
   setCameraPitch(pitch: number): void {
     this.appearance.terrainPitch = clamp(pitch, 0, 65);
-    if (this.terrain3D) this.map.jumpTo({ pitch: this.appearance.terrainPitch });
+    if (this.terrain3D) {
+      this.map.jumpTo({ pitch: this.appearance.terrainPitch });
+      this.container.dataset.cameraPitch = String(this.appearance.terrainPitch);
+    }
   }
 
   resetNorth(): void {
@@ -848,7 +861,7 @@ export class LiveMap {
   private updateBuildingLayer(): void {
     this.container.dataset.buildingsVisible = String(this.appearance.buildings);
     if (!this.layersReady) return;
-    updateBuildings(this.map, this.appearance.buildings, this.terrain3D, viewClass() === 'desktop', this.appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
+    this.buildingSourceID = updateBuildings(this.map, this.appearance.buildings, this.terrain3D, viewClass() === 'desktop', this.appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
   }
 
   private updateSky(): void {
