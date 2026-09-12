@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { geographicSegmentPoint, surfaceArc, surfacePathPoint, surfaceTrail, TerrainProjector } from './terrainProjection';
+import { adaptiveSurfacePath, geographicSegmentPoint, surfaceArc, surfacePathPoint, surfaceTrail, TerrainProjector } from './terrainProjection';
 import type { EndpointV2 } from './types';
 
 const endpoint = (lng: number, lat: number): EndpointV2 => ({ id: `${lng}:${lat}`, label: 'Synthetic', lng, lat });
@@ -18,10 +18,21 @@ describe('terrain-aware packet geometry', () => {
     terrain = true;
     projection.reset();
     const path = projection.projectSegment(segment);
-    expect(path).toHaveLength(17);
+    expect(path.length).toBeGreaterThanOrEqual(5);
+    expect(path.length).toBeLessThanOrEqual(65);
     expect(surfacePathPoint(path, 0.5)).toMatchObject({ x: 50, y: 21 });
     expect(path[0]).toMatchObject({ x: 0, y: 51 });
     expect(path.at(-1)!.y).toBeCloseTo(51);
+  });
+  it('keeps packet timing independent of adaptive spacing and caps pathological relief', () => {
+    const uneven = [{ x: 0, y: 0, progress: 0 }, { x: 10, y: 0, progress: 0.1 }, { x: 100, y: 0, progress: 1 }];
+    expect(surfacePathPoint(uneven, 0.5).x).toBeCloseTo(50);
+    const trail = surfaceTrail(uneven, 0.5, 20);
+    expect(trail[0]!.x).toBeCloseTo(30);
+    expect(trail.at(-1)!.x).toBeCloseTo(50);
+    expect(trail.every((point) => point.progress === undefined)).toBe(true);
+    expect(adaptiveSurfacePath((t) => ({ x: t * 100_000, y: Math.sin(t * 500) * 900 })).length).toBeLessThanOrEqual(65);
+    expect(adaptiveSurfacePath(() => ({ x: NaN, y: 0 }))).toEqual([]);
   });
 
   it('reuses samples until the camera or DEM changes, and keys moved endpoints separately', () => {

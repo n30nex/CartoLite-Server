@@ -5,10 +5,8 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/ ./
-# CARTO issues this key for direct browser tile URLs. The secret mount keeps its
-# value out of source, build logs, and image metadata; it remains client-visible.
-RUN --mount=type=secret,id=carto_basemap_api_key,required=false \
-    VITE_CARTO_BASEMAP_API_KEY="$(cat /run/secrets/carto_basemap_api_key 2>/dev/null || true)" npm run build
+# Published images contain no operator or CI browser credentials.
+RUN npm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.25.13-bookworm AS go-build
 ARG APP_VERSION=dev

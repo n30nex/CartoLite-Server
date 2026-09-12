@@ -1,44 +1,68 @@
 # Deployment
 
-## Build and start
+## Install the published image
 
-Copy `.env.example` to `.env`, create `.secrets/carto-basemap-api-key`, and configure your MQTT broker. Then run:
+Docker Engine and Compose v2 are required. Published images support `linux/amd64` and `linux/arm64`, including 64-bit Raspberry Pi hosts. No Node, Go, source build or map-provider account is required.
+
+In a new directory, download `compose.yml` and `default.env.example` from the latest release. Save the environment example as `.env`, then set your MQTT broker, topic and any required username/password. Choose a unique `MQTT_CLIENT_ID` for each instance.
 
 ```sh
-docker compose build --pull
-docker compose up -d
+docker compose pull
+docker compose up -d --no-build
 docker compose ps
 curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/readyz
 ```
 
-The BuildKit secret injects the browser-visible CARTO project key into the compiled client without placing it in source, Compose, image labels, or build logs. Verify that TileJSON, vector PBF, and glyph requests authorize from the final public origin.
+The map is at `http://localhost:8080/`; Netgraph is at `/netgraph/`. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains only public map-provider settings; the traffic API remains schema v2.
 
 ## Configuration
 
 | Variable | Default | Purpose |
-|---|---:|---|
-| `CARTOLITE_BIND_ADDR` | `127.0.0.1` | Published host address |
-| `CARTOLITE_PORT` | `8080` | Published host port |
-| `MQTT_BROKER_URL` | required | `tcp`, `ssl`, `ws`, or `wss` broker URL |
-| `MQTT_TOPIC` | `meshcore/#` | Broker subscription |
-| `MQTT_CLIENT_ID` | `cartolite-server` | Unique MQTT client ID |
-| `MQTT_USERNAME` / `MQTT_PASSWORD` | empty | Optional credentials; set both or neither |
-| `REGION_ALLOWLIST` | empty | Accept all regions, or exact comma-separated labels |
-| `MQTT_INGEST_QUEUE_SIZE` | `4096` | Bounded queue, from 64 through 65536 |
-| `STATE_PATH` | `/data/state-v1.json` | Atomic checkpoint path |
-| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+|---|---|---|
+| `CARTOLITE_IMAGE` | versioned `ghcr.io/n30nex/cartolite-server` image | Published tag or exact release-manifest digest |
+| `CARTOLITE_BIND_ADDR` | `127.0.0.1` | Host bind address |
+| `CARTOLITE_PORT` | `8080` | Host HTTP port |
+| `MQTT_BROKER_URL` | required | Your MeshCore broker URL (`tcp`, `ssl`, `ws`, or `wss`) |
+| `MQTT_TOPIC` | `meshcore/#` | Subscription filter |
+| `MQTT_CLIENT_ID` | `cartolite-server` | Must be unique per instance |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | empty | Configure both when authentication is required |
+| `REGION_ALLOWLIST` | empty | Accept all valid regions, or exact comma-separated labels |
+| `MQTT_INGEST_QUEUE_SIZE` | `4096` | Bounded ingest queue |
+| `STATE_PATH` | `/data/state-v1.json` | Atomic checkpoint |
+| `LOG_LEVEL` | `info` | Application logging |
 
-`CARTO_BASEMAP_API_KEY_FILE` points Compose at the BuildKit secret file. Do not place the key in `.env`.
+Use the loopback bind behind a TLS reverse proxy for public operation. Set `CARTOLITE_BIND_ADDR=0.0.0.0` explicitly for appropriate LAN access. Keep the non-root user, read-only filesystem, dropped capabilities, data volume, health checks and resource/log limits supplied by Compose.
 
-## Public operation
+## Optional CARTO provider
 
-Use a TLS reverse proxy and forward to the loopback port. Do not expose `.env`, `.secrets`, or the data volume. Keep the supplied read-only filesystem, non-root user, dropped capabilities, memory limit, process limit, healthcheck, and bounded logs.
+Download `compose.carto.yml` from the same release. Store your site-restricted CARTO browser key in `.secrets/carto-basemap-api-key`. The file must be readable by the container’s UID 65532; on Linux, give that UID ownership and mode 0400. A custom host path can be set with `CARTO_BASEMAP_API_KEY_FILE` in `.env`.
 
-`/healthz` reports liveness. `/readyz` requires a healthy checkpoint, connected and subscribed MQTT client, healthy queue, and zero drops. Normal RF silence is ready.
+```sh
+docker compose -f compose.yml -f compose.carto.yml up -d --no-build
+```
 
-Before an upgrade, copy the checkpoint and record the current image ID. Build the new source revision, recreate only the `cartolite` service, and verify health, readiness, schema v2 privacy, SSE traffic, vector resources, desktop/mobile layout, and container hardening. Roll back to the recorded image and checkpoint if any gate fails.
+The override mounts the file at `/run/secrets/carto_basemap_api_key` and selects `BASEMAP_PROVIDER=carto`. The key is read at startup; restart the service after changing it. It is intentionally visible in browser configuration/tile requests, just as with the previous compiled browser key. It is never included in the published image. MQTT credentials are never returned by `/api/config`. OpenFreeMap remains the building source when CARTO is selected.
 
-## Upgrade to 0.2.0
+## Upgrades
 
-Use the v0.2.0 source tag and set CARTOLITE_VERSION=0.2.0 in your existing .env. Keep your broker settings and secret files. Rebuild with your own existing BuildKit basemap secret, retain the MQTT and optional region configuration, and preserve the checkpoint and previous image before recreating the service. Both the map and /netgraph/ use the same public API v2 feed. Verify 3D enables Topo, world locations remain available, and Netgraph groups nodes by global grid squares.
+Record the current image/digest and keep a private, verified checkpoint backup before upgrading. Retain the current `.env`, project name and `cartolite-data` volume. Download the new Compose file without replacing your environment file, set `CARTOLITE_IMAGE` to the new version or release-manifest digest, then run `docker compose pull` and `docker compose up -d --no-build`.
+
+When upgrading from the 0.4.x source distribution, replace `cartolite-server:local` in `.env` with the published image. The default becomes key-free OpenFreeMap; add the CARTO override above to keep your existing provider. Old build-only version variables are no longer required. The checkpoint format is unchanged.
+
+Verify health/readiness, retained nodes and routes, live traffic, Map and Netgraph after the upgrade. Roll back by selecting the recorded image and recreating only the CartoLite service; use the verified checkpoint recovery copy if state recovery is necessary. Never run `docker compose down -v` against an installation you intend to keep.
+
+## Source builds
+
+A source checkout can use `compose.build.yml` explicitly:
+
+```sh
+docker compose -f compose.yml -f compose.build.yml build --pull
+docker compose -f compose.yml -f compose.build.yml up -d --no-build
+```
+
+Runtime provider configuration is identical for source-built and published images. Maintainer builds, tests and releases run only in GitHub Actions; no workstation build is used for a release.
+
+## Release verification
+
+Actions tests native amd64 and arm64 images, including synthetic MQTT/privacy/load checks and a checkpoint-preserving upgrade from 0.4.1. Browser checks run against the same frontend on amd64. Main publishes and attests the tested platform digests, assembles their index without rebuilding, and verifies anonymous pulls and the Compose recipe on both architectures. Tag releases promote that exact index and publish Compose files, source archives, a release manifest and SHA256SUMS.

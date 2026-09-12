@@ -13,9 +13,9 @@ import type {
   Point
 } from 'geojson';
 import { colorWithAlpha as alphaColor } from './trafficVisuals';
-import { cartoVectorRequestURL, cartoVectorStyle } from './basemap';
+import { basemapFontStack, basemapProvider, cartoVectorRequestURL, cartoVectorStyle } from './basemap';
 import { longitudeDelta } from './worldGeometry';
-import { DEFAULT_UI_PREFERENCES, type UiPreferences } from './preferences';
+import { DEFAULT_UI_PREFERENCES, viewClass, type UiPreferences } from './preferences';
 import { FOLLOW_DWELL_MS, followEndpoints } from './liveFollow';
 import {
   buildNodeInspectorModel,
@@ -25,6 +25,9 @@ import {
   type NodeSearchResult,
 } from './nodeInspector';
 import { HistoricalRouteLayer, ROUTE_WEBGL_LAYER_ID } from './routeLayer';
+import { applyOverlayPalette } from './overlayPalette';
+import { updateBuildings } from './buildings';
+import { displayPreferences } from './displayPreferences';
 import { isRecentNeighborRoute, recentNeighborRoutes } from './routeFocus';
 import type { MapChanges } from './state';
 import {
@@ -64,7 +67,6 @@ const TERRAIN_SOURCE_ID = 'mapterhorn-dem';
 const HILLSHADE_SOURCE_ID = 'mapterhorn-hillshade-dem';
 const TERRAIN_TILEJSON_URL = 'https://tiles.mapterhorn.com/tilejson.json';
 const ROUTE_DETAIL_SOURCE_ID = 'route-details';
-const ROUTE_TERRAIN_LAYER_ID = 'route-terrain';
 const ROUTE_FOCUS_SOURCE_ID = 'route-focus';
 const FOLLOW_SOURCE_ID = 'live-follow-activity';
 export const HEATMAP_LAYER_IDS = PACKET_KINDS.map((kind) => `activity-heat-${kind.toLowerCase()}`);
@@ -100,7 +102,7 @@ const UNCLUSTERED_NODE_LAYER_IDS = [
   NODE_HIT_LAYER_ID,
 ] as const;
 const NODE_BASE_FILTER = ['!', ['has', 'point_count']] as ActiveLayerFilter;
-const LOCAL_FONTS = ['Open Sans Regular'];
+
 export const HEAT_RENDER_BUDGET = 600;
 const ROUTE_REPRESENTATION_EXACT = 'exact';
 const ROUTE_REPRESENTATION_NATIONAL = 'national';
@@ -169,7 +171,6 @@ export class LiveMap {
   private lastRouteHydrationAt = 0;
   private routeSourceRevision = 0;
   private routeClock = 0;
-  private routeCollections?: RouteSourceCollections;
   private routeDetailFeatures = new Map<string, Feature<LineString>>();
   private dirtyRouteIDs = new Set<string>();
   private rebuildAllRoutes = true;
@@ -181,7 +182,6 @@ export class LiveMap {
   private hillshadeVisible = false;
   private terrain3D = false;
   private terrainLayersReady = false;
-  private terrainRoutesVisible = false;
   private selectedNodeID: string | null = null;
   private selectedNodeLabel = '';
   private neighborNodeIDs: string[] = [];
@@ -201,6 +201,8 @@ export class LiveMap {
   private followZoom = DEFAULT_ZOOM;
   private followedPacket?: PacketView;
   private appearance: UiPreferences = { ...DEFAULT_UI_PREFERENCES };
+  private readonly originalOverlayColors = new Map<string, unknown>();
+  private buildingSourceID?: string;
   private directorTimer?: number;
   private readonly reducedMotion = prefersReducedMotion();
   private freshnessTimer: number;
@@ -225,6 +227,7 @@ export class LiveMap {
     this.container.dataset.terrain3d = 'false';
     this.container.dataset.terrainReady = 'false';
     this.container.dataset.cameraPitch = '0';
+    this.container.dataset.cameraMoving = 'false';
     this.container.dataset.selectedNodeId = '';
     this.container.dataset.neighborRouteCount = '0';
     this.container.dataset.focusedRouteCount = '0';
@@ -239,12 +242,12 @@ export class LiveMap {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       minZoom: 1,
-      maxZoom: 16,
+      maxZoom: 18,
       attributionControl: false,
       pitchWithRotate: true,
       dragRotate: true,
       touchPitch: true,
-      maxPitch: 75,
+      maxPitch: 65,
       cooperativeGestures: false,
       reduceMotion: this.reducedMotion,
       pixelRatio: mapPixelRatio(window.devicePixelRatio, lowPower),
@@ -257,6 +260,20 @@ export class LiveMap {
     this.updateRouteRepresentation();
     this.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     this.map.on('load', () => this.installLayers());
+    this.map.on('movestart', () => { this.container.dataset.cameraMoving = 'true'; });
+    this.map.on('sourcedata', (event) => {
+      if (this.buildingSourceID && event.sourceId === this.buildingSourceID) {
+        this.container.dataset.buildingsLoaded = String(this.map.isSourceLoaded(this.buildingSourceID));
+      }
+    });
+    this.map.on('moveend', () => {
+      this.container.dataset.cameraMoving = 'false';
+      if (this.terrain3D && viewClass() === 'desktop') {
+        this.appearance.terrainPitch = this.map.getPitch();
+        this.appearance.terrainBearing = this.map.getBearing();
+        this.container.dataset.cameraPitch = String(Math.round(this.map.getPitch() * 10) / 10);
+      }
+    });
     this.map.on('zoom', this.updateRouteRepresentation);
     this.map.on('zoomend', this.handleZoomEnd);
     this.map.on('resize', this.handleInspectorResize);
@@ -410,13 +427,12 @@ export class LiveMap {
       active
     ).then((collections) => {
       if (!collections || !active()) return;
-      this.routeCollections = collections;
       this.container.dataset.exactRoutesLoaded = 'true';
       this.container.dataset.trunkRepresentationsLoaded = '';
       this.container.dataset.routeBuildMaxSliceMs = collections.maxSliceMS.toFixed(1);
       const sourceStarted = performance.now();
       this.historicalRouteLayer.setRoutes(collections.individual.features);
-      this.updateTerrainRoutes(true);
+      this.updateTerrainRoutes();
       this.routeDetailFeatures.clear();
       for (const feature of collections.individual.features) {
         if (feature.id !== undefined) this.routeDetailFeatures.set(String(feature.id), feature);
@@ -692,8 +708,8 @@ export class LiveMap {
       }
       const light = preferences.basemap !== 'dark';
       this.historicalRouteLayer.setLightBackground(light);
-      this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-color', light ? '#27464c' : '#c8d9df');
-      this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-halo-color', light ? '#f4f6ee' : '#07121a');
+      applyOverlayPalette(this.map, this.originalOverlayColors, light);
+      if (this.terrain3D) this.updateSky();
     }
     if (force || previous.basemap !== preferences.basemap || previous.mapLabels !== preferences.mapLabels || previous.roads !== preferences.roads) {
       for (const layer of cartoVectorStyle().layers) {
@@ -703,9 +719,14 @@ export class LiveMap {
     }
     this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'visibility', preferences.nodeLabels ? 'visible' : 'none');
     this.historicalRouteLayer.setOpacity(preferences.routeOpacity);
-    this.map.setPaintProperty(ROUTE_TERRAIN_LAYER_ID, 'line-opacity', ['*', ['get', 'opacity'], preferences.routeOpacity]);
+    this.historicalRouteLayer.refreshAppearance();
+    this.container.dataset.routePreset = displayPreferences().preset;
+    if (this.terrain3D && previous.terrainExaggeration !== preferences.terrainExaggeration) {
+      this.map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: preferences.terrainExaggeration });
+    }
+    this.updateBuildingLayer();
     if (this.map.getLayer(HILLSHADE_LAYER_ID)) {
-      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', preferences.relief);
+      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', this.hillshadeStrength());
       const light = preferences.basemap !== 'dark';
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', light ? 'rgba(47, 64, 61, 0.55)' : 'rgba(2, 9, 18, 0.86)');
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', light ? 'rgba(255, 255, 244, 0.6)' : 'rgba(177, 211, 175, 0.64)');
@@ -740,14 +761,14 @@ export class LiveMap {
     const started = performance.now();
     this.routesVisible = visible;
     this.container.dataset.routesVisible = String(visible);
-    this.historicalRouteLayer.setVisible(visible && !this.terrain3D);
+    this.historicalRouteLayer.setVisible(visible);
     if (!this.layersReady) {
       this.container.dataset.routeToggleApplyMs = (performance.now() - started).toFixed(1);
       return;
     }
     const detailSource = this.map.getSource(ROUTE_DETAIL_SOURCE_ID) as GeoJSONSource | undefined;
     const needsHydration = visible && this.routeDataDirty && Boolean(detailSource);
-    this.updateTerrainRoutes(true);
+    this.updateTerrainRoutes();
     const maxAge = this.effectiveRouteAgeMS();
     const visualApplied = detailSource
       ? applyRouteVisibilityForZoom(this.map, visible, maxAge, this.map.getZoom())
@@ -800,14 +821,54 @@ export class LiveMap {
     this.container.dataset.terrain3d = String(enabled);
     if (!this.layersReady) return;
     if (enabled) this.ensureTerrainLayers();
-    this.map.setTerrain(enabled ? { source: TERRAIN_SOURCE_ID, exaggeration: 1.35 } : null);
-    this.updateTerrainRoutes(true);
+    this.map.setTerrain(enabled ? { source: TERRAIN_SOURCE_ID, exaggeration: this.appearance.terrainExaggeration } : null);
+    this.updateSky();
+    this.map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.3, position: [1.5, 195, 50] });
+    this.updateBuildingLayer();
+    this.updateTerrainRoutes();
     this.setTerrainGestures(enabled);
     const camera = this.cameraOrientation();
     this.container.dataset.cameraPitch = String(camera.pitch);
     if (this.reducedMotion) this.map.jumpTo(camera);
     else this.map.easeTo({ ...camera, duration: 680, essential: false });
     this.markRendering();
+  }
+
+  setBuildingsVisible(visible: boolean): void {
+    this.appearance.buildings = visible;
+    this.updateBuildingLayer();
+  }
+
+  setCameraPitch(pitch: number): void {
+    this.appearance.terrainPitch = clamp(pitch, 0, 65);
+    if (this.terrain3D) {
+      this.map.jumpTo({ pitch: this.appearance.terrainPitch });
+      this.container.dataset.cameraPitch = String(this.appearance.terrainPitch);
+    }
+  }
+
+  resetNorth(): void {
+    this.appearance.terrainBearing = 0;
+    if (this.reducedMotion) this.map.jumpTo({ bearing: 0 });
+    else this.map.easeTo({ bearing: 0, duration: 400 });
+  }
+
+  private updateBuildingLayer(): void {
+    this.container.dataset.buildingsVisible = String(this.appearance.buildings);
+    this.container.dataset.buildingExtrusions = String(this.appearance.buildings && this.terrain3D && viewClass() === 'desktop');
+    if (!this.layersReady) return;
+    this.buildingSourceID = updateBuildings(this.map, this.appearance.buildings, this.terrain3D, viewClass() === 'desktop', this.appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
+  }
+
+  private updateSky(): void {
+    const light = this.appearance.basemap !== 'dark';
+    this.map.setSky(this.terrain3D ? { 'sky-color': light ? '#cfe1e8' : '#14242e', 'horizon-color': light ? '#eef1ee' : '#29424a', 'fog-color': light ? '#dce7e5' : '#14242e', 'horizon-fog-blend': 0.15 } : {});
+  }
+
+
+  private hillshadeStrength(): ExpressionSpecification {
+    const strength = this.appearance.relief;
+    return ['interpolate', ['linear'], ['zoom'], 3, strength * 0.8, 10, strength * 0.85, 14, strength * 0.42, 18, strength * 0.28];
   }
 
   setRouteWindow(window: RouteWindow): void {
@@ -871,7 +932,7 @@ export class LiveMap {
           'hillshade-method': 'multidirectional',
           'hillshade-illumination-direction': [270, 315, 0, 45],
           'hillshade-illumination-altitude': [35, 35, 35, 35],
-          'hillshade-exaggeration': this.appearance.relief,
+          'hillshade-exaggeration': this.hillshadeStrength(),
           'hillshade-shadow-color': this.appearance.basemap === 'dark' ? 'rgba(2, 9, 18, 0.86)' : 'rgba(47, 64, 61, 0.55)',
           'hillshade-highlight-color': this.appearance.basemap === 'dark' ? 'rgba(177, 211, 175, 0.64)' : 'rgba(255, 255, 244, 0.6)',
           'hillshade-accent-color': 'rgba(47, 86, 75, 0.54)'
@@ -895,23 +956,12 @@ export class LiveMap {
   }
 
   private cameraOrientation(): { bearing: number; pitch: number } {
-    return this.terrain3D ? { bearing: -12, pitch: 52 } : { bearing: 0, pitch: 0 };
+    return this.terrain3D ? { bearing: this.appearance.terrainBearing, pitch: this.appearance.terrainPitch } : { bearing: 0, pitch: 0 };
   }
 
-  private updateTerrainRoutes(refreshData = false): void {
-    if (!this.map.getLayer(ROUTE_TERRAIN_LAYER_ID)) return;
-    const visible = this.terrain3D && this.routesVisible;
+  private updateTerrainRoutes(): void {
     this.container.dataset.routeSurface = this.terrain3D ? 'terrain' : 'flat';
-    if (!visible && !this.terrainRoutesVisible) return;
-    this.terrainRoutesVisible = visible;
-    this.historicalRouteLayer.setVisible(this.routesVisible && !this.terrain3D);
-    this.map.setLayoutProperty(ROUTE_TERRAIN_LAYER_ID, 'visibility', visible ? 'visible' : 'none');
-    this.map.setFilter(ROUTE_TERRAIN_LAYER_ID, ['<=', ['get', 'windowBand'], routeWindowBand(this.effectiveRouteAgeMS())]);
-    if (refreshData) {
-      (this.map.getSource(ROUTE_DETAIL_SOURCE_ID) as GeoJSONSource).setData(
-        visible ? this.routeCollections?.individual ?? EMPTY_LINES : EMPTY_LINES
-      );
-    }
+    this.historicalRouteLayer.setVisible(this.routesVisible);
   }
 
   private updateRouteRepresentation = (): void => {
@@ -1020,16 +1070,9 @@ export class LiveMap {
     this.map.addSource(ROUTE_FOCUS_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
     this.applyRouteTimeState(Date.now(), true);
     const exactVisibility = this.routesVisible ? 'visible' : 'none';
-    this.historicalRouteLayer.setVisible(this.routesVisible && !this.terrain3D);
+    this.historicalRouteLayer.setVisible(this.routesVisible);
     this.historicalRouteLayer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));
     this.map.addLayer(this.historicalRouteLayer);
-    this.map.addLayer({
-      id: ROUTE_TERRAIN_LAYER_ID,
-      type: 'line',
-      source: ROUTE_DETAIL_SOURCE_ID,
-      layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': routeColorExpression(), 'line-width': ['get', 'width'], 'line-opacity': ['*', ['get', 'opacity'], 0.55] }
-    });
     this.map.addLayer({
       id: ROUTE_FOCUS_LAYER_IDS[0],
       type: 'line',
@@ -1151,7 +1194,7 @@ export class LiveMap {
       filter: ['has', 'point_count'],
       layout: {
         'text-field': ['get', 'point_count_abbreviated'],
-        'text-font': LOCAL_FONTS,
+        'text-font': basemapFontStack(),
         'text-size': ['interpolate', ['linear'], ['zoom'], 3, 8.5, DETAIL_ZOOM, 10.5]
       },
       paint: {
@@ -1256,7 +1299,7 @@ export class LiveMap {
       filter: NODE_BASE_FILTER,
       layout: {
         'text-field': ['get', 'mapLabel'],
-        'text-font': LOCAL_FONTS,
+        'text-font': basemapFontStack(),
         'text-size': ['interpolate', ['linear'], ['zoom'], DETAIL_ZOOM, 8.6, 9, 9.8, 12, 11.2, 16, 12.4],
         'text-variable-anchor': ['top', 'bottom', 'left', 'right'],
         'text-radial-offset': 0.82,
@@ -1274,9 +1317,9 @@ export class LiveMap {
         'text-halo-blur': 0.3,
         'text-opacity': [
           'interpolate', ['linear'], ['zoom'],
-          DETAIL_ZOOM, ['*', ['get', 'opacity'], 0.42],
-          9.5, ['*', ['get', 'opacity'], 0.82],
-          11, ['get', 'opacity']
+          DETAIL_ZOOM, 0.78,
+          9.5, 0.9,
+          11, 0.96
         ]
       }
     });
@@ -1314,6 +1357,10 @@ export class LiveMap {
       if (this.clusterFlashTimer === undefined) this.setHighlightedCluster(null);
     });
     this.map.on('click', (event) => this.handleMapClick(event));
+    this.map.on('mousemove', (event) => {
+      if (!this.terrain3D || !this.selectedNodeID) return;
+      if (!this.showRouteTooltip(event) && this.tooltip.dataset.kind === 'route' && !this.routeInspectionPinned) this.clearRouteInspection();
+    });
     this.map.on('movestart', () => {
       this.hideTooltip();
       this.clearRouteInspection();
@@ -1492,9 +1539,10 @@ export class LiveMap {
     if (this.map.queryRenderedFeatures(event.point, { layers: [NODE_HIT_LAYER_ID] }).length > 0) return false;
     const feature = this.map.queryRenderedFeatures(event.point, { layers: [ROUTE_HIT_LAYER_ID] })
       .find((candidate) => this.isSelectedRouteInspectable(String(candidate.properties?.id ?? candidate.id ?? '')));
-    if (!feature) return false;
-    const properties = feature.properties ?? {};
-    const route = this.routesByID.get(String(properties.id ?? feature.id ?? ''));
+    const terrainRouteID = this.historicalRouteLayer.pick(event.point, (id) => this.isSelectedRouteInspectable(id));
+    if (!feature && !terrainRouteID) return false;
+    const properties = feature?.properties ?? {};
+    const route = this.routesByID.get(terrainRouteID ?? String(properties.id ?? feature?.id ?? ''));
     if (!route) return false;
     const from = this.nodesByID.get(route.fromId);
     const to = this.nodesByID.get(route.toId);
@@ -1729,6 +1777,7 @@ export class LiveMap {
   }
 
   private handleInspectorResize = (): void => {
+    this.updateBuildingLayer();
     if (this.selectedNodeID) this.renderNodeInspector(true);
   };
 
@@ -1744,7 +1793,7 @@ export class LiveMap {
       layer.setOpacity(this.appearance.routeOpacity);
       layer.setLightBackground(this.appearance.basemap !== 'dark');
       layer.setRoutes([...this.routeDetailFeatures.values()]);
-      layer.setVisible(this.routesVisible && !this.terrain3D);
+      layer.setVisible(this.routesVisible);
       layer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));
       this.historicalRouteLayer = layer;
       const before = this.map.getLayer(ROUTE_FOCUS_LAYER_IDS[0]) ? ROUTE_FOCUS_LAYER_IDS[0] : undefined;
@@ -2608,6 +2657,7 @@ function roleColor(role: NodeV2['role']): string {
   if (role === 'sensor') return '#a2ad57';
   return '#8794a6';
 }
+
 
 function freshness(timestamp: number, now: number): number {
   const age = Math.max(0, now - timestamp);

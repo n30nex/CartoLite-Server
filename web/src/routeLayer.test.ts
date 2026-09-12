@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Feature, LineString } from 'geojson';
-import { historicalRouteVertices } from './routeLayer';
+import { historicalRouteVertices, STROKE_VERTEX_FLOATS } from './routeLayer';
 
 describe('historical route WebGL geometry', () => {
   it('keeps one exact line segment for every route', () => {
@@ -11,10 +11,16 @@ describe('historical route WebGL geometry', () => {
 
     const vertices = historicalRouteVertices(routes);
 
-    expect(vertices).toHaveLength(routes.length * 2 * 7);
-    expect(vertices[6]).toBe(0);
-    expect(vertices[20]).toBe(3);
+    expect(vertices).toHaveLength(routes.length * 6 * STROKE_VERTEX_FLOATS);
+    expect(vertices[12]).toBe(0);
+    expect(vertices[6 * STROKE_VERTEX_FLOATS + 12]).toBe(3);
+    expect([...vertices].every(Number.isFinite)).toBe(true);
     expect(routes[0]?.geometry.coordinates).toEqual([[-0.13, 51.51], [18.42, -33.93]]);
+  });
+  it('splits date-line routes into short strokes', () => {
+    const vertices = historicalRouteVertices([route('seam', [[179, 40], [-179, 41]], '#4de7c4', 1)]);
+    expect(vertices).toHaveLength(12 * STROKE_VERTEX_FLOATS);
+    for (let i = 0; i < vertices.length; i += STROKE_VERTEX_FLOATS) expect(Math.abs(vertices[i]! - vertices[i + 3]!)).toBeLessThan(0.01);
   });
 });
 

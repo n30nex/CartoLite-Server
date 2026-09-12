@@ -1,17 +1,33 @@
-# Map appearance and Live Follow
+# Map, Netgraph, and display settings
 
-The toolbar keeps Live Follow, Find, Map, Sound and Home within reach. Map opens a compact, scrollable menu on desktop, tablet and phone. Click outside it, press Escape or use its close button to return to the map. Escape restores keyboard focus to the menu button.
+Map keeps its everyday controls in the toolbar. Open **Map** for layers, appearance and camera settings. Netgraph has a matching **Display** menu. Menus scroll within the viewport; Escape closes them and returns keyboard focus to their button.
 
-Choose Night, Daylight or Streets. These are CartoLite vector styles using the existing CARTO streets tiles and authorization. Colours update in place: the camera, live feed, route sources, terrain, selection and layer choices stay alive. Interface colours can match the map or remain light or dark. Satellite imagery is not bundled because it requires a separately authorized provider; this release introduces no extra map account, external style URL or tile credential.
+## Shared appearance
 
-The menu includes route, heatmap, cluster, Topo, 3D, place-label, node-label, road and live-packet toggles. Route strength and Topo relief have independent sliders. Turning off live packets also pauses their sounds. Display choices stay in this browser; Restore display defaults resets them without losing the current camera view. Turning on 3D still enables Topo automatically.
+Night, Daylight and Streets remain available on Map. Netgraph uses the matching Night, Daylight and warm Paper backgrounds. One browser-local profile carries the scene, interface theme and route styling between both pages, including already-open tabs. Each view keeps its own camera/layout, and changing appearance preserves the current selection and live feed. Interface panels may follow the scene or stay explicitly light/dark. Packet and node ink follows the actual scene background.
 
-Wide-zoom history now uses exact GPU line segments at every flat-map zoom. The previous fixed-resolution texture enlarged and softened those lines as the camera moved. Removing that texture also removes its canvas allocation and rebuild work. Live residue gets narrower and quieter at wide zooms; terrain routes retain native MapLibre draping. These lines visualize confirmed hops, not propagation or mountain occlusion.
+Choose **Crisp**, **Neon**, **Dashed**, **Dotted**, **Ribbon** or **Comet**. Crisp is the default, with clear strokes and restrained glow. **Advanced route styling** controls pattern, width, opacity, glow, packet size, trail length and after-trail duration (0–45 seconds). Editing a slider selects Custom. The preview is silent. Reset route styling restores Crisp; the map’s full display reset also restores its layer choices without erasing sound preferences or the camera location.
 
-Live Follow holds each packet for ten seconds. A small card shows its public node labels, sanitized packet kind, confirmed hop count and countdown. Observer-only packets say “heard here”; they do not acquire an inferred route. New traffic is queued during the hold, with nearby traffic preferred. Camera transitions are gradual, preserve 3D orientation and avoid further movement when the packet already fits. The starting zoom is retained as the detail limit so repeated long routes cannot permanently ratchet the camera outward.
+Dense overview maps automatically reduce decorative glow and casings while preserving every route, line width and pattern. Historical paths remain still. Only received live packets drive motion and sound. Line strokes stay sharp as the map zooms, and colors distinguish the same sanitized packet categories in every scene. Labels remain readable as nodes age; node appearance and the inspector still communicate freshness.
 
-Dragging, zooming, rotating, inspecting a node or hiding the tab pauses follow. Resume starts with fresh activity. Closing the card stops follow. When the ten-second hold ends with no replacement, the card and its map highlight clear and wait for a new packet instead of retaining stale activity. The card does not display packet IDs, keys, paths, messages or resolver details.
+## Buildings and terrain
 
-Validation uses synthetic fixtures in GitHub Actions: saved settings, keyboard controls, menu bounds, theme changes, route geometry, a ten-second countdown under incoming traffic, pause/resume, terrain and worldwide date-line regressions. Existing performance and privacy budgets remain in place.
+**Buildings** shows mapped footprints at neighborhood zoom. Desktop 3D introduces height where the source provides it, respecting buildings that should not be extruded. Building heights are approximate map data, not radio or antenna heights.
 
-References: [CARTO vector basemaps and authorization](https://carto.com/basemaps/apikey/), [MapLibre layer properties](https://maplibre.org/maplibre-style-spec/layers/), [MapLibre camera options](https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/CameraForBoundsOptions/).
+Entering **3D** enables **Topo** and **Buildings**; either can then be switched off independently. Returning to 2D retains building footprints if Buildings remains enabled. Desktop camera settings offer a compass/reset north, pitch and terrain-height adjustment. New 3D views start near 50° pitch and 1× terrain height. Desktop orientation is remembered. Phones keep their existing optional terrain mode and fast 2D defaults; detailed camera controls and extrusions target the desktop layout.
+
+Topo shading and terrain height have separate controls. Shading becomes gentler at close urban zooms. Packet paths and ground rings follow the terrain/camera projection; bounded adaptive sampling keeps travel timing independent of sample spacing. Paths remain readable through hills and buildings. Terrain and building data do not establish radio coverage, obstruction or line of sight.
+
+## Live Follow
+
+Live Follow holds each activity for ten seconds. Its card shows public node labels, sanitized packet kind, confirmed hop count and countdown. Observer-only activity says “heard here” and gains no inferred route. New traffic queues during the hold, with nearby activity preferred. Camera moves remain gradual and preserve 3D orientation.
+
+Dragging, zooming, rotating, inspecting a node or hiding the tab pauses follow. Resume starts with fresh activity. When no replacement arrives, the card clears and waits. Closing it stops follow. No packet IDs, keys, messages or resolver details appear in the card.
+
+## Availability and validation
+
+A map notice explains unavailable tile details and offers Retry; traffic data and Netgraph remain usable independently. Display settings are optional browser-local storage. No accounts, analytics or server-side preference database are added.
+
+Synthetic Actions checks cover themes, presets, storage migration and cross-tab updates, keyboard/menu behavior, actual building pixels, terrain/date-line projection, route/packet visibility, bounded performance and the public privacy contract.
+
+OpenFreeMap supplies the default geography and building layer. Optional CARTO configuration is described in [Deployment](deployment.md). Netgraph areas remain coordinate-derived global grid squares.

@@ -1,0 +1,11 @@
+# Optional source build. Published-image installs only need compose.yml.
+services:
+  cartolite:
+    image: ${CARTOLITE_BUILD_IMAGE:-cartolite-server:local}
+    pull_policy: never
+    build:
+      context: .
+      args:
+        APP_VERSION: ${CARTOLITE_VERSION:-0.5.0}
+        GIT_SHA: ${CARTOLITE_GIT_SHA:-local}
+        BUILD_TIME: ${CARTOLITE_BUILD_TIME:-unknown}

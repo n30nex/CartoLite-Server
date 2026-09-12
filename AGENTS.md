@@ -15,7 +15,9 @@ CartoLite Server is a compact worldwide MeshCore map and Netgraph: a Go MQTT/HTT
 ## Delivery
 
 - Preserve the scratch, non-root, read-only, capability-free container.
-- Supply browser basemap credentials only through a BuildKit secret.
+- Published images must contain no operator or CI map key. The default provider is key-free; optional browser-visible CARTO keys are read from a mounted runtime secret and exposed only in the explicit public map configuration.
+- Build/test/release only in GitHub Actions; do not build or run containers on the shared workstation.
+- Promote tested amd64/arm64 image digests without rebuilding. The default Compose install must consume a published image.
 - Keep `REGION_ALLOWLIST` optional and exact when configured.
 - Run frontend tests/build, Go tests/vet/race, integration/privacy smoke tests, and `git diff --check` before release.
 - Preserve unrelated work and never force-push shared branches.

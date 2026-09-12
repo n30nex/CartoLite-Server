@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 - 2026-09-12
+
+- Add shared Map/Netgraph themes, six route presets, advanced styling controls and readable light/dark palettes.
+- Add desktop buildings and camera controls, sharp configurable route strokes and adaptive date-line-safe terrain animation.
+- Default to key-free OpenFreeMap; provide optional CARTO browser configuration at runtime without embedding keys in images.
+- Publish tested and attested amd64/arm64 Docker images, a pull-only Compose installation, source archives and checksum manifests.
+- Validate native installations, checkpoint-preserving upgrades, anonymous image pulls, privacy, performance and browser behavior in Actions.
+
 ## 0.4.1 - 2026-09-12
 
 - Keep desktop node details above live packet trails and map shading so traffic cannot obscure the card. Preserve the toolbar and phone sheet layer order.

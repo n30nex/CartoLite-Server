@@ -41,7 +41,8 @@ test('3D enables Topo and projects live and reduced-motion traffic over syntheti
   await expect(map).toHaveAttribute('data-render-state', 'idle', { timeout: 15_000 });
   await emitPacket(page);
   await expect(packets).toHaveAttribute('data-projection-mode', 'terrain');
-  await expect(packets).toHaveAttribute('data-projection-samples', '17');
+  await expect.poll(async () => Number(await packets.getAttribute('data-projection-samples'))).toBeGreaterThanOrEqual(5);
+  expect(Number(await packets.getAttribute('data-projection-samples'))).toBeLessThanOrEqual(65);
   await expect.poll(() => packets.getAttribute('data-test-ground-rings').then(Number)).toBeGreaterThan(0);
   await page.screenshot({ path: testInfo.outputPath('synthetic-relief-3d.png') });
 
@@ -52,7 +53,8 @@ test('3D enables Topo and projects live and reduced-motion traffic over syntheti
   await page.mouse.up({ button: 'right' });
   await expect(map).toHaveAttribute('data-render-state', 'idle', { timeout: 15_000 });
   await emitPacket(page);
-  await expect(packets).toHaveAttribute('data-projection-samples', '17');
+  await expect.poll(async () => Number(await packets.getAttribute('data-projection-samples'))).toBeGreaterThanOrEqual(5);
+  expect(Number(await packets.getAttribute('data-projection-samples'))).toBeLessThanOrEqual(65);
   const wakesBeforeStatic = Number(await packets.getAttribute('data-wakes-scheduled'));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await emitPacket(page);

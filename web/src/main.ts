@@ -1,4 +1,8 @@
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from './soundScenes';
+import { mountDisplayControls } from './displayControls';
+import { loadBasemapConfiguration } from './basemap';
+import { attachMapNotice } from './mapNotice';
+import { DEFAULT_DISPLAY, DISPLAY_EVENT, displayPreferences, initializeDisplay, updateDisplay, applyDisplayChrome } from './displayPreferences';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './styles.css';
 import { fetchState, LiveFeed } from './api';
@@ -41,6 +45,9 @@ const heatmapButton = required<HTMLButtonElement>('heatmap-button');
 const clustersButton = required<HTMLButtonElement>('clusters-button');
 const hillshadeButton = required<HTMLButtonElement>('hillshade-button');
 const terrainButton = required<HTMLButtonElement>('terrain-button');
+const buildingsButton = required<HTMLButtonElement>('buildings-button');
+const cameraPitch = required<HTMLInputElement>('camera-pitch');
+const terrainHeight = required<HTMLInputElement>('terrain-height');
 const soundButton = required<HTMLButtonElement>('sound-button');
 const soundControl = required<HTMLElement>('sound-button').parentElement as HTMLElement;
 const soundPanel = required<HTMLElement>('sound-panel');
@@ -83,7 +90,9 @@ const followCountdown = required<HTMLOutputElement>('follow-countdown');
 const followProgress = required<HTMLProgressElement>('follow-progress');
 const followPause = required<HTMLButtonElement>('follow-pause');
 
-let uiPreferences: UiPreferences = loadUiPreferences(localStorage);
+initializeDisplay();
+let uiPreferences: UiPreferences = { ...loadUiPreferences(localStorage), basemap: displayPreferences().basemap, theme: displayPreferences().theme, routeOpacity: displayPreferences().opacity };
+mountDisplayControls(layersPanel);
 let legendExpanded = uiPreferences.legendExpanded;
 let lastTrafficPulseAt = -Infinity;
 let soundPulseTimer: number | undefined;
@@ -194,9 +203,11 @@ document.addEventListener('pointerdown', (event) => {
 });
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
+  const activeMenu = layersDisclosure.hasAttribute('open') ? layersSummary : !soundPanel.hidden ? soundButton : !findPanel.hidden ? findButton : undefined;
   closeSoundPanel();
   closeFindPanel();
-  if (layersDisclosure.hasAttribute('open')) { setLayersOpen(false); layersSummary.focus(); }
+  setLayersOpen(false);
+  if (activeMenu) { event.preventDefault(); event.stopImmediatePropagation(); activeMenu.focus(); }
 });
 required<HTMLButtonElement>('layers-close').addEventListener('click', () => { setLayersOpen(false); layersSummary.focus(); });
 
@@ -212,6 +223,8 @@ async function start(): Promise<void> {
   let followTimer: number | undefined;
   let pauseLiveFollow = (): void => {};
   try {
+    let configUnavailable = false;
+    await loadBasemapConfiguration().catch(() => { configUnavailable = true; });
     // Construct MapLibre before the state request so the basemap can paint while
     // the initial snapshot is in flight.
     const liveMap = new LiveMap(
@@ -228,6 +241,8 @@ async function start(): Promise<void> {
       },
     );
     mapView = liveMap;
+    const showMapNotice = attachMapNotice(liveMap.map, mapElement);
+    if (configUnavailable) showMapNotice('Map settings could not load. Showing the default map.');
     const packetCanvas = required<HTMLCanvasElement>('packet-canvas');
     const liveAnimator = new PacketAnimator(liveMap.map, packetCanvas);
     animator = liveAnimator;
@@ -266,14 +281,20 @@ async function start(): Promise<void> {
       liveMap.setHillshadeVisible(visible);
       persistUiPreference({ hillshade: visible });
     });
+    wireLayerToggle(buildingsButton, uiPreferences.buildings, 'buildings', (visible) => {
+      liveMap.setBuildingsVisible(visible);
+      persistUiPreference({ buildings: visible });
+    });
     wireLayerToggle(terrainButton, uiPreferences.terrain3D, '3D terrain', (visible) => {
       if (visible && !uiPreferences.hillshade) hillshadeButton.click();
+      if (visible && !uiPreferences.buildings) buildingsButton.click();
       liveMap.setTerrain3D(visible);
       persistUiPreference({ terrain3D: visible });
     });
     const applyAppearance = (): void => {
       applyAppearanceChrome();
       liveMap.setAppearance(uiPreferences);
+      liveAnimator.refreshAppearance();
       liveAnimator.setPaused(document.hidden || !uiPreferences.livePackets);
       routeSonifier.setPaused(document.hidden || !uiPreferences.livePackets);
       packetCanvas.hidden = !uiPreferences.livePackets;
@@ -290,24 +311,42 @@ async function start(): Promise<void> {
       applyAppearance();
     });
     basemapStyle.addEventListener('change', () => {
-      persistUiPreference({ basemap: basemapStyle.value as BasemapStyle });
-      applyAppearance();
+      updateDisplay({ basemap: basemapStyle.value as BasemapStyle });
     });
     interfaceTheme.addEventListener('change', () => {
-      persistUiPreference({ theme: interfaceTheme.value as InterfaceTheme });
-      applyAppearance();
+      updateDisplay({ theme: interfaceTheme.value as InterfaceTheme });
     });
     routeOpacity.addEventListener('input', () => {
-      persistUiPreference({ routeOpacity: Number(routeOpacity.value) / 100 });
+      updateDisplay({ opacity: Number(routeOpacity.value) / 100, preset: 'custom' });
+    });
+    window.addEventListener(DISPLAY_EVENT, () => {
+      const display = displayPreferences();
+      persistUiPreference({ basemap: display.basemap, theme: display.theme, routeOpacity: display.opacity });
       applyAppearance();
+      renderRouteLegend(routeLegend);
     });
     terrainRelief.addEventListener('input', () => {
       persistUiPreference({ relief: Number(terrainRelief.value) / 100 });
       applyAppearance();
     });
+    cameraPitch.addEventListener('input', () => {
+      pauseLiveFollow();
+      persistUiPreference({ terrainPitch: Number(cameraPitch.value) });
+      liveMap.setCameraPitch(uiPreferences.terrainPitch);
+      applyAppearanceChrome();
+    });
+    terrainHeight.addEventListener('input', () => {
+      persistUiPreference({ terrainExaggeration: Number(terrainHeight.value) });
+      applyAppearance();
+    });
+    required<HTMLButtonElement>('north-button').addEventListener('click', () => {
+      pauseLiveFollow();
+      liveMap.resetNorth();
+      persistUiPreference({ terrainBearing: 0 });
+    });
     required<HTMLButtonElement>('reset-appearance').addEventListener('click', () => {
       const toggles = [
-        ['terrain-button', 'terrain3D'], ['hillshade-button', 'hillshade'], ['routes-button', 'routes'],
+        ['terrain-button', 'terrain3D'], ['hillshade-button', 'hillshade'], ['buildings-button', 'buildings'], ['routes-button', 'routes'],
         ['heatmap-button', 'heatmap'], ['clusters-button', 'clusters'],
         ...extraLayers.map(([id, key]) => [id, key] as const),
       ] as const;
@@ -316,7 +355,8 @@ async function start(): Promise<void> {
         if (button && uiPreferences[key] !== DEFAULT_UI_PREFERENCES[key]) button.click();
       }
       if (legendExpanded) legendToggle.click();
-      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, relief: 0.75, routeWindow: 'auto' });
+      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, relief: 0.75, routeWindow: 'auto', terrainExaggeration: 1, terrainPitch: 50, terrainBearing: 0 });
+      updateDisplay({ ...DEFAULT_DISPLAY });
       routeWindow.value = 'auto';
       liveMap.setRouteWindow('auto');
       applyAppearance();
@@ -498,7 +538,12 @@ async function start(): Promise<void> {
 
     liveMap.map.on('moveend', () => {
       if (!liveFollow) saveView(localStorage, activeViewClass, liveMap.view());
+      if (uiPreferences.terrain3D && activeViewClass === 'desktop') {
+        persistUiPreference({ terrainPitch: liveMap.map.getPitch(), terrainBearing: liveMap.map.getBearing() });
+        applyAppearanceChrome();
+      }
     });
+    liveMap.map.on('rotate', () => updateCompass(liveMap.map.getBearing()));
     let resizeTimer: number | undefined;
     window.addEventListener('resize', () => {
       if (resizeTimer !== undefined) window.clearTimeout(resizeTimer);
@@ -693,13 +738,16 @@ function required<T extends HTMLElement>(id: string): T {
 }
 
 function applyAppearanceChrome(): void {
-  const theme = uiPreferences.theme === 'map' ? (uiPreferences.basemap === 'dark' ? 'dark' : 'light') : uiPreferences.theme;
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.dataset.basemap = uiPreferences.basemap;
+  applyDisplayChrome();
   basemapStyle.value = uiPreferences.basemap;
   interfaceTheme.value = uiPreferences.theme;
   routeOpacity.value = String(Math.round(uiPreferences.routeOpacity * 100));
   terrainRelief.value = String(Math.round(uiPreferences.relief * 100));
+  cameraPitch.value = String(Math.round(uiPreferences.terrainPitch));
+  terrainHeight.value = String(uiPreferences.terrainExaggeration);
+  required<HTMLOutputElement>('camera-pitch-output').value = `${cameraPitch.value}°`;
+  required<HTMLOutputElement>('terrain-height-output').value = `${terrainHeight.value}×`;
+  updateCompass(uiPreferences.terrainBearing);
   required<HTMLOutputElement>('route-opacity-output').value = `${routeOpacity.value}%`;
   required<HTMLOutputElement>('terrain-relief-output').value = `${terrainRelief.value}%`;
 }
@@ -707,6 +755,13 @@ function applyAppearanceChrome(): void {
 function persistUiPreference(update: Partial<UiPreferences>): void {
   uiPreferences = { ...uiPreferences, ...update };
   saveUiPreferences(localStorage, uiPreferences);
+}
+
+function updateCompass(bearing: number): void {
+  const button = required<HTMLButtonElement>('north-button');
+  button.style.setProperty('--bearing', `${-bearing}deg`);
+  button.title = `Reset north · bearing ${Math.round(bearing)}°`;
+  required<HTMLOutputElement>('camera-bearing').value = `${Math.round(bearing)}°`;
 }
 
 function wireLayerToggle(
@@ -742,7 +797,7 @@ function renderRouteLegend(container: HTMLElement): void {
     const swatch = document.createElement('i');
     swatch.className = 'route-legend-swatch';
     swatch.setAttribute('aria-hidden', 'true');
-    swatch.style.setProperty('--route-color', PACKET_KIND_COLORS[item.kind]);
+    swatch.style.setProperty('--route-color', `var(--ui-kind-${item.kind.toLowerCase()}, ${PACKET_KIND_COLORS[item.kind]})`);
 
     const label = document.createElement('span');
     label.className = 'route-legend-label';

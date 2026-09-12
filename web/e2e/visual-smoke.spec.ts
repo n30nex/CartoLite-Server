@@ -12,7 +12,7 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   await instrumentAudioContext(page);
   const mapStyleErrors = captureMapStyleErrors(page);
   const consoleErrors = captureConsoleErrors(page);
-  const cartoResponses = { tileJSON: 0, vector: 0, glyph: 0 };
+  const basemapResponses = { tileJSON: 0, vector: 0, glyph: 0 };
   const terrainResponses = { tileJSON: 0, dem: 0 };
   const rasterRequests: string[] = [];
   page.on('request', (request) => {
@@ -21,9 +21,9 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   page.on('response', (response) => {
     if (!response.ok()) return;
     const url = response.url();
-    if (url.includes('/vector/carto.streets/v1/tiles.json')) cartoResponses.tileJSON += 1;
-    else if (url.includes('/vectortiles/carto.streets/') && url.includes('.mvt')) cartoResponses.vector += 1;
-    else if (url.includes('/fonts/') && url.includes('.pbf')) cartoResponses.glyph += 1;
+    if (new URL(url).hostname === 'tiles.openfreemap.org' && new URL(url).pathname === '/planet') basemapResponses.tileJSON += 1;
+    else if (new URL(url).hostname === 'tiles.openfreemap.org' && new URL(url).pathname.startsWith('/planet/')) basemapResponses.vector += 1;
+    else if (url.includes('/fonts/') && url.includes('.pbf')) basemapResponses.glyph += 1;
     else if (url.includes('tiles.mapterhorn.com/tilejson.json')) terrainResponses.tileJSON += 1;
     else if (url.includes('tiles.mapterhorn.com/') && !url.includes('/tilejson.json')) terrainResponses.dem += 1;
   });
@@ -37,9 +37,9 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   await expect(page.locator('.map-grade')).toHaveCSS('pointer-events', 'none');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state', 'idle', { timeout: 10_000 });
   expect(mapStyleErrors, 'MapLibre should accept every installed layer expression').toEqual([]);
-  await expect.poll(() => cartoResponses.tileJSON, { message: 'CARTO vector TileJSON should load' }).toBeGreaterThan(0);
-  await expect.poll(() => cartoResponses.vector, { message: 'CARTO vector PBF tiles should load' }).toBeGreaterThan(0);
-  await expect.poll(() => cartoResponses.glyph, { message: 'CARTO glyph PBFs should load' }).toBeGreaterThan(0);
+  await expect.poll(() => basemapResponses.tileJSON, { message: 'OpenFreeMap vector TileJSON should load' }).toBeGreaterThan(0);
+  await expect.poll(() => basemapResponses.vector, { message: 'OpenFreeMap vector PBF tiles should load' }).toBeGreaterThan(0);
+  await expect.poll(() => basemapResponses.glyph, { message: 'OpenFreeMap glyph PBFs should load' }).toBeGreaterThan(0);
   expect(rasterRequests, 'the vector-only release must not request a raster basemap').toEqual([]);
   await expect(page.locator('#route-canvas')).toHaveCount(0);
   await expect(page.locator('#map')).toHaveAttribute('data-route-renderer', 'maplibre-webgl');
@@ -154,7 +154,7 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   await openMapOptions(page);
   await terrainButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-terrain3d', 'true');
-  await expect(page.locator('#map')).toHaveAttribute('data-camera-pitch', '52');
+  await expect(page.locator('#map')).toHaveAttribute('data-camera-pitch', '50');
   await openMapOptions(page);
   await terrainButton.click();
   await expect(page.locator('#map')).toHaveAttribute('data-terrain3d', 'false');
@@ -362,6 +362,7 @@ test('keeps mobile awake and refreshes live state after the page resumes', async
 
 test('keeps a recent packet trail after stable routes are hidden', async ({ page }, testInfo) => {
   test.skip(isMobileProject(testInfo.project.name), 'trail lifetime is covered once on desktop');
+  await page.addInitScript(() => localStorage.setItem('cartolite-server:display:v1', JSON.stringify({ preset: 'custom', residueSeconds: 45 })));
   const now = Date.now();
   const from = { id: 'a', label: 'Alpha', lat: 43.45, lng: -80.42 };
   const to = { id: 'b', label: 'Bravo', lat: 43.5, lng: -80.28 };

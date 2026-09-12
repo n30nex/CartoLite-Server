@@ -14,6 +14,10 @@ export interface UiPreferences {
   clusters: boolean;
   hillshade: boolean;
   terrain3D: boolean;
+  buildings: boolean;
+  terrainExaggeration: number;
+  terrainPitch: number;
+  terrainBearing: number;
   routeWindow: SavedRouteWindow;
   legendExpanded: boolean;
   basemap: BasemapStyle;
@@ -34,6 +38,10 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   clusters: true,
   hillshade: false,
   terrain3D: false,
+  buildings: false,
+  terrainExaggeration: 1,
+  terrainPitch: 50,
+  terrainBearing: 0,
   routeWindow: 'auto',
   legendExpanded: false,
   basemap: 'dark',
@@ -68,7 +76,7 @@ export function loadSavedView(storage: Storage, kind: ViewClass): SavedView | nu
     const lat = Number(value.center[1]);
     const zoom = Number(value.zoom);
     if (!Number.isFinite(lng) || !Number.isFinite(lat)
-      || lng < -180 || lng > 180 || lat < -85.051129 || lat > 85.051129 || zoom < 1 || zoom > 16) return null;
+      || lng < -180 || lng > 180 || lat < -85.051129 || lat > 85.051129 || zoom < 1 || zoom > 18) return null;
     return { center: [lng, lat], zoom };
   } catch {
     return null;
@@ -94,6 +102,10 @@ export function loadUiPreferences(storage: Storage): UiPreferences {
       clusters: typeof value.clusters === 'boolean' ? value.clusters : DEFAULT_UI_PREFERENCES.clusters,
       hillshade: typeof value.hillshade === 'boolean' ? value.hillshade : DEFAULT_UI_PREFERENCES.hillshade,
       terrain3D: typeof value.terrain3D === 'boolean' ? value.terrain3D : DEFAULT_UI_PREFERENCES.terrain3D,
+      buildings: typeof value.buildings === 'boolean' ? value.buildings : Boolean(value.terrain3D),
+      terrainExaggeration: savedRange(value.terrainExaggeration, 1, 0.5, 2),
+      terrainPitch: savedRange(value.terrainPitch, 50, 0, 65),
+      terrainBearing: savedRange(value.terrainBearing, 0, -180, 180),
       routeWindow,
       legendExpanded: typeof value.legendExpanded === 'boolean'
         ? value.legendExpanded
@@ -126,4 +138,8 @@ function isSavedRouteWindow(value: unknown): value is SavedRouteWindow {
 
 function savedAmount(value: unknown, fallback: number, minimum: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(minimum, Math.min(1, value)) : fallback;
+}
+
+function savedRange(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
 }
