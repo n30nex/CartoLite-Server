@@ -916,6 +916,9 @@ export class LiveMap {
         type: 'raster-dem',
         url: TERRAIN_TILEJSON_URL,
         tileSize: 512,
+        // Terrain must not overzoom the lower-resolution vector/GeoJSON
+        // overlays. Hillshade can independently use the provider's finer data.
+        maxzoom: source === TERRAIN_SOURCE_ID ? 12 : 14,
         encoding: 'terrarium',
         attribution: 'Terrain &copy; <a href="https://mapterhorn.com/attribution">Mapterhorn</a>'
       });

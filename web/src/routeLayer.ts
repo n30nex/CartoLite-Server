@@ -1,6 +1,6 @@
 import { MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, LineString } from 'geojson';
-import { splitWorldRoute, routeCoordinate, type Coordinate } from './worldGeometry';
+import { splitWorldRoute, routeCoordinate, longitudeDelta, type Coordinate } from './worldGeometry';
 import { adaptiveSurfacePath, type SurfacePoint } from './terrainProjection';
 import { displayColor, displayPreferences } from './displayPreferences';
 
@@ -97,6 +97,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const next = clamp(Math.round(band), 0, 3);
     if (next === this.maximumBand) return;
     this.maximumBand = next;
+    if (this.map?.getTerrain()) this.dirty = true;
     if (this.visible) this.map?.triggerRepaint();
   }
   refreshAppearance(): void { this.map?.triggerRepaint(); }
@@ -133,15 +134,40 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private upload(): void {
     if (!this.map || !this.gl || !this.resources) return;
     const map = this.map;
+    const started = performance.now();
     const center = MercatorCoordinate.fromLngLat(map.getCenter());
     this.origin = [center.x, center.y, 0];
     const terrain = Boolean(map.getTerrain());
+    const bounds = map.getBounds();
+    const view: [number, number, number, number] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+    const width = map.getCanvas().clientWidth; const height = map.getCanvas().clientHeight;
+    const projections = new Map<string, SurfacePoint>();
+    const elevations = new Map<string, [number, number, number]>();
+    const project = (point: Coordinate): SurfacePoint => {
+      const key = point.join(',');
+      let result = projections.get(key);
+      if (!result) { result = map.project([point[0], point[1]]); projections.set(key, result); }
+      return result;
+    };
+    const position = (point: Coordinate): [number, number, number] => {
+      const key = point.join(',');
+      let result = elevations.get(key);
+      if (!result) {
+        const coordinate: [number, number] = [point[0], point[1]];
+        const elevation = terrain ? map.queryTerrainElevation(coordinate) ?? 0 : 0;
+        const mercator = MercatorCoordinate.fromLngLat(coordinate, Number.isFinite(elevation) ? elevation : 0);
+        result = [mercator.x, mercator.y, mercator.z];
+        elevations.set(key, result);
+      }
+      return result;
+    };
     const segments: StrokeSegment[] = [];
     this.hitPaths = [];
     for (const route of this.routes) {
       const rawFrom = route.geometry.coordinates[0]; const rawTo = route.geometry.coordinates.at(-1);
       if (!rawFrom || !rawTo) continue;
       const band = Number(route.properties?.windowBand ?? 3);
+      if (terrain && band > this.maximumBand) continue;
       const color = displayColor(String(route.properties?.color ?? '#73d9cf'), this.lightBackground);
       const rawOpacity = clamp(Number(route.properties?.opacity ?? 0.4), 0, 1);
       if (rawOpacity === 0) continue;
@@ -150,20 +176,19 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       for (const pair of pieces) {
         let fractions = [0, 1];
         if (terrain) {
-          const project = (t: number): SurfacePoint => map.project(routeCoordinate(pair[0], pair[1], t));
-          const seeds = [0, 0.25, 0.5, 0.75, 1].map(project);
-          const width = map.getCanvas().clientWidth; const height = map.getCanvas().clientHeight;
+          // Reject distant routes before MapLibre's terrain-aware projection,
+          // which otherwise recomputes terrain tile coverage for every sample.
+          if (!routeMayIntersectView(pair[0], pair[1], view)) continue;
+          const sample = (t: number): SurfacePoint => project(routeCoordinate(pair[0], pair[1], t));
+          const seeds = [0, 0.25, 0.5, 0.75, 1].map(sample);
           if (seeds.every((p) => p.x < -160) || seeds.every((p) => p.x > width + 160)
             || seeds.every((p) => p.y < -160) || seeds.every((p) => p.y > height + 160)) continue;
-          const points = adaptiveSurfacePath(project, pieces.length > 1 ? 3 : 4);
+          const points = adaptiveSurfacePath(sample, pieces.length > 1 ? 3 : 4);
           fractions = points.map((p) => p.progress!);
         }
         const positions = fractions.map((t) => {
           const point = routeCoordinate(pair[0], pair[1], t);
-          // MapLibre returns rendered (already exaggerated) terrain elevation.
-          const elevation = terrain ? map.queryTerrainElevation(point) ?? 0 : 0;
-          const mercator = MercatorCoordinate.fromLngLat(point, Number.isFinite(elevation) ? elevation : 0);
-          return [mercator.x, mercator.y, mercator.z] as [number, number, number];
+          return position(point);
         });
         if (terrain) this.hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
         for (let i = 1; i < positions.length; i += 1) segments.push({ from: positions[i - 1]!, to: positions[i]!, color, opacity, band });
@@ -175,6 +200,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.gl.bufferData(this.gl.ARRAY_BUFFER, data, this.gl.DYNAMIC_DRAW);
     this.dirty = false;
     this.lastUploadAt = performance.now();
+    map.getContainer().dataset.routeMeshUploadMs = (this.lastUploadAt - started).toFixed(1);
+    map.getContainer().dataset.routeTerrainSamples = String(terrain ? projections.size : 0);
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
   }
@@ -220,6 +247,19 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (depth) gl.enable(gl.DEPTH_TEST);
     if (cull) gl.enable(gl.CULL_FACE);
   }
+}
+
+/** Conservative geographic culling; lines crossing the view are retained. */
+export function routeMayIntersectView(a: Coordinate, b: Coordinate, view: readonly [number, number, number, number]): boolean {
+  const [west, south, east, north] = view;
+  const span = east >= west ? east - west : east + 360 - west;
+  const center = west + span / 2;
+  const x1 = center + longitudeDelta(center, a[0]);
+  const x2 = x1 + longitudeDelta(a[0], b[0]);
+  const padX = Math.max(0.025, span * 0.15);
+  const padY = Math.max(0.025, (north - south) * 0.15);
+  if (Math.max(a[1], b[1]) < south - padY || Math.min(a[1], b[1]) > north + padY) return false;
+  return span >= 360 || !(Math.max(x1, x2) < west - padX || Math.min(x1, x2) > west + span + padX);
 }
 
 function strokeVertices(segments: readonly StrokeSegment[], origin: [number, number, number] = [0, 0, 0]): Float32Array {
