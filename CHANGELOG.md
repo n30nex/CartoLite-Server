@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 - 2026-09-12
+
+- Keep desktop node details above live packet trails and map shading so traffic cannot obscure the card. Preserve the toolbar and phone sheet layer order.
+- Add a synthetic browser regression that checks the inspector against the actual packet canvas, including when the canvas normally ignores pointer events.
+
 ## 0.4.0 - 2026-09-11
 
 - Expand live packet sounds from 3 to 30 voices: keys, mallets, plucked strings, bells, synths, sonar-like pings and percussion.

@@ -482,6 +482,25 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   const inspector = mobile ? page.locator('#node-inspector-sheet') : page.locator('.node-inspector-popup');
   await expect(inspector).toBeVisible();
   await expect(inspector).toContainText('Alpha');
+  // The traffic canvas normally ignores pointer hits, which can hide a paint-order bug.
+  // Include it in hit testing for one synchronous probe, then restore normal input behavior.
+  await expect(page.locator('#packet-canvas')).toHaveCSS('pointer-events', 'none');
+  const inspectorAboveTraffic = await inspector.evaluate((panel) => {
+    const traffic = document.getElementById('packet-canvas')!;
+    const previous = traffic.style.pointerEvents;
+    const bounds = panel.getBoundingClientRect();
+    traffic.style.pointerEvents = 'auto';
+    try {
+      return panel.contains(document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2,
+      ));
+    } finally {
+      traffic.style.pointerEvents = previous;
+    }
+  });
+  expect(inspectorAboveTraffic, 'node details must paint above live packet graphics').toBe(true);
+  await expect(page.locator('#packet-canvas')).toHaveCSS('pointer-events', 'none');
   await expect(inspector.locator('.neighbor-row')).toHaveCount(1);
   await expect(inspector.locator('.neighbor-row').first()).toContainText('Bravo');
   await expect(map).toHaveAttribute('data-neighbor-route-count', '1');
