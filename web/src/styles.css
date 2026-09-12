@@ -406,6 +406,8 @@ button { font: inherit; }
 .tooltip[hidden] { display: none; }
 
 
+/* Raise the popup wrapper's stacking context above traffic (4), below controls (8). */
+.node-inspector-popup { z-index: 7; }
 .node-inspector-popup .maplibregl-popup-content {
   overflow: hidden;
   border: 1px solid rgba(123, 205, 209, 0.22);
