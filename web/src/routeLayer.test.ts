@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Feature, LineString } from 'geojson';
-import { historicalRouteVertices, STROKE_VERTEX_FLOATS } from './routeLayer';
+import { historicalRouteVertices, routeMayIntersectView, STROKE_VERTEX_FLOATS } from './routeLayer';
 
 describe('historical route WebGL geometry', () => {
+  it('culls distant terrain work but keeps crossing routes and date-line views', () => {
+    expect(routeMayIntersectView([-123, 49], [-122, 49], [-81, 43, -79, 44])).toBe(false);
+    expect(routeMayIntersectView([-82, 43.5], [-78, 43.5], [-81, 43, -79, 44])).toBe(true);
+    expect(routeMayIntersectView([-179, 40], [-177, 41], [175, 39, 185, 42])).toBe(true);
+    expect(routeMayIntersectView([179, 40], [180, 41], [-185, 39, -175, 42])).toBe(true);
+    expect(routeMayIntersectView([0, 40], [1, 41], [175, 39, -175, 42])).toBe(false);
+    expect(routeMayIntersectView([10, 40], [-169, 40], [170, 39, -160, 41])).toBe(true);
+  });
   it('keeps one exact line segment for every route', () => {
     const routes: Feature<LineString>[] = [
       route('a', [[-0.13, 51.51], [18.42, -33.93]], '#54d7c6', 0),

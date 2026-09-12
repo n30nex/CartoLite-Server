@@ -49,7 +49,8 @@ export async function visualFixture(page: Page, zoom = 10.2): Promise<void> {
     const parts = /fixture\/(\d+)\/(\d+)\/(\d+)/.exec(route.request().url())!;
     return route.fulfill({ headers: cors, contentType: 'application/x-protobuf', body: buildingTile(Number(parts[1]), Number(parts[2]), Number(parts[3])) });
   });
-  await page.route('https://tiles.mapterhorn.com/tilejson.json', (route) => route.fulfill({ headers: cors, json: { tilejson: '3.0.0', tiles: ['https://tiles.mapterhorn.com/fixture/{z}/{x}/{y}.webp'], minzoom: 0, maxzoom: 14, encoding: 'terrarium' } }));
+  // The public Mapterhorn TileJSON omits zoom bounds; the application supplies them.
+  await page.route('https://tiles.mapterhorn.com/tilejson.json', (route) => route.fulfill({ headers: cors, json: { tilejson: '3.0.0', tiles: ['https://tiles.mapterhorn.com/fixture/{z}/{x}/{y}.webp'], encoding: 'terrarium' } }));
   const dem = flatTerrain();
   await page.route('https://tiles.mapterhorn.com/fixture/**', (route) => route.fulfill({ headers: cors, contentType: 'image/png', body: dem }));
 }
