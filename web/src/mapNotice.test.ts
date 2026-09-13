@@ -12,6 +12,7 @@ describe('public map diagnostics', () => {
   });
   it('redacts credentials in quoted diagnostic fields', () => {
     expect(safeMapError('{"access_token":"short-secret"}')).not.toContain('short-secret');
+    expect(safeMapError('Authorization: Bearer short-secret')).not.toContain('short-secret');
     expect(safeMapError('x'.repeat(300))).toHaveLength(21);
   });
 });

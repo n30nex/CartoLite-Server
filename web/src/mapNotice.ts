@@ -30,8 +30,8 @@ export function attachMapNotice(map: MapLibreMap, container: HTMLElement): (mess
 export function safeMapError(message: unknown): string {
   return String(message ?? 'Unknown map detail error')
     .replace(/https?:\/\/[^\s"'<>]+/gi, '[map resource]')
-    .replace(/\b(?:api[_-]?key|access[_-]?token|key|token|secret|password|authorization)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '[credential redacted]')
     .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, '[authorization redacted]')
+    .replace(/\b(?:api[_-]?key|access[_-]?token|key|token|secret|password|authorization)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '[credential redacted]')
     .replace(/\b[A-Za-z0-9_-]{32,}(?:\.[A-Za-z0-9_-]+){0,2}\b/g, '[identifier redacted]')
     .slice(0, 240);
 }
