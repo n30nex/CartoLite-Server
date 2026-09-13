@@ -471,9 +471,9 @@ export class PacketAnimator {
     this.requestFrame();
   };
 
-  private handleTerrainData = (event: { sourceId?: string }): void => {
+  private handleTerrainData = (event: { sourceId?: string; sourceDataType?: string }): void => {
     const source = this.map.getTerrain?.()?.source;
-    if (source && event.sourceId === source) this.handleMapMove();
+    if (source && event.sourceId === source && (!event.sourceDataType || event.sourceDataType === 'content')) this.handleMapMove();
   };
 
   private requestFrame = (): void => {

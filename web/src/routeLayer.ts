@@ -36,6 +36,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private building = false;
   private buildEpoch = 0;
   private prepared?: PreparedMesh;
+  private cameraKey = '';
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.map = map;
@@ -76,11 +77,18 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   }
   private cameraChanged = (): void => {
     if (!this.map) return;
-    const center = MercatorCoordinate.fromLngLat(this.map.getCenter());
+    const location = this.map.getCenter();
+    const canvas = this.map.getCanvas();
+    const key = [location.lng.toFixed(7), location.lat.toFixed(7), this.map.getZoom().toFixed(3),
+      this.map.getPitch().toFixed(2), this.map.getBearing().toFixed(2), canvas.clientWidth, canvas.clientHeight,
+      JSON.stringify(this.map.getPadding())].join(':');
+    if (key === this.cameraKey) return;
+    this.cameraKey = key;
+    const center = MercatorCoordinate.fromLngLat(location);
     if (this.map.getTerrain() || Math.abs(center.x - this.origin[0]) > 1 / 256 || Math.abs(center.y - this.origin[1]) > 1 / 256) this.scheduleResample();
   };
-  private sourceChanged = (event: { sourceId?: string }): void => {
-    if (event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.scheduleResample();
+  private sourceChanged = (event: { sourceId?: string; sourceDataType?: string }): void => {
+    if ((!event.sourceDataType || event.sourceDataType === 'content') && event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.scheduleResample();
   };
   private scheduleResample(): void {
     if (!this.visible) { this.dirty = true; return; }
@@ -90,7 +98,10 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
   }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
-  private cancelBuild(): void { this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true; }
+  private cancelBuild(): void {
+    this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true;
+    if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
+  }
   setRoutes(routes: readonly Feature<LineString>[]): void { this.cancelBuild(); this.routes = routes; this.invalidate(); }
   setOpacity(opacity: number): void { this.opacity = clamp(opacity, 0.2, 1); this.map?.triggerRepaint(); }
   setLightBackground(light: boolean): void { if (light !== this.lightBackground) { this.cancelBuild(); this.lightBackground = light; this.invalidate(); } }
@@ -260,7 +271,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.buffer);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
       this.prepared = undefined;
-      this.map.getContainer().dataset.routeMeshBusy = 'false';
+      this.map.getContainer().dataset.routeMeshBusy = String(this.building);
     }
     if (!this.vertexCount) return;
     const { program, buffer, uniforms, attributes } = this.resources;
