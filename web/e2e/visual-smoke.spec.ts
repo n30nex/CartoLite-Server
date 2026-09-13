@@ -526,7 +526,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await expect(map).toHaveAttribute('data-hovered-route-id', 'a-b');
   await expect(tooltip).toHaveAttribute('data-kind', 'route');
   await expect(tooltip).toContainText('Alpha ↔ Bravo');
-  await expect(tooltip).toContainText('12 packets');
+  await expect(tooltip).toContainText('12 total observations');
   await expectTooltipInsideViewport(tooltip, page);
   await page.screenshot({ path: testInfo.outputPath(`cartolite-neighbors-focus-${testInfo.project.name}.png`) });
 
