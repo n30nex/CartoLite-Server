@@ -64,22 +64,18 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
   const map = page.locator('#map');
   await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 10000 });
   await openMapOptions(page);
+  await page.locator('#routes-button').click();
+  const terrainStarted = Date.now();
   await page.locator('#terrain-button').click();
   await page.keyboard.press('Escape');
-  const profileSession = await page.context().newCDPSession(page);
-  const renderingEvents: Array<{ name: string; category: string; duration: number; at: number; process: number; thread: number }> = [];
-  profileSession.on('Tracing.dataCollected', ({ value }) => {
-    for (const event of value) if (typeof event.dur === 'number' && event.dur >= 1000) renderingEvents.push({
-      name: String(event.name), category: String(event.cat), duration: event.dur / 1000,
-      at: event.ts, process: event.pid, thread: event.tid,
-    });
-  });
-  await profileSession.send('Tracing.start', { transferMode: 'ReportEvents', traceConfig: {
-    recordMode: 'recordContinuously', enableArgumentFilter: true,
-    includedCategories: ['devtools.timeline', 'blink', 'cc', 'gpu'],
-  } });
-  await profileSession.send('Profiler.enable');
-  await profileSession.send('Profiler.start');
+  await expect(map).toHaveAttribute('data-render-state', 'idle', { timeout: 10000 });
+  await expect(map).toHaveAttribute('data-camera-moving', 'false');
+  await expect(map).toHaveAttribute('data-buildings-loaded', 'true');
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  expect(Date.now() - terrainStarted, 'the cold terrain scene must meet the startup budget').toBeLessThan(10000);
+  await openMapOptions(page);
+  await page.locator('#routes-button').click();
+  await page.keyboard.press('Escape');
   const loopTiming = await page.evaluate(() => new Promise<{ duration: number; turns: number[]; longTasks: number[]; visible: boolean; focused: boolean }>(resolve => {
     const start = performance.now();
     const turns: number[] = []; const longTasks: number[] = [];
@@ -95,13 +91,6 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
     };
     setTimeout(tick, 0);
   }));
-  const profile = await profileSession.send('Profiler.stop');
-  const traceFinished = new Promise<void>(resolve => profileSession.once('Tracing.tracingComplete', () => resolve()));
-  await profileSession.send('Tracing.end');
-  await traceFinished;
-  await profileSession.detach();
-  await info.attach('dense-rendering-events', { body: JSON.stringify(renderingEvents.sort((a, b) => b.duration - a.duration).slice(0, 100)), contentType: 'application/json' });
-  await info.attach('dense-terrain-cpu-profile', { body: JSON.stringify(profile.profile), contentType: 'application/json' });
   await info.attach('dense-terrain-timing', { body: JSON.stringify({ ...loopTiming, mesh: await map.evaluate(el => ({ ...el.dataset })) }), contentType: 'application/json' });
   expect(loopTiming.duration, 'terrain preparation must leave the event loop responsive').toBeLessThan(2000);
   await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number), { timeout: 15000 }).toBeGreaterThan(100);
