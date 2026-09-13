@@ -83,7 +83,7 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
     for (const name of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
       const original = target[name]!;
       target[name] = (...args: number[]): unknown => {
-        if (records.length >= 160) return original.apply(gl, args);
+        if (records.length >= 3) return original.apply(gl, args);
         const program = gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram;
         let kind = kinds.get(program);
         if (!kind) {
@@ -93,8 +93,10 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
             : /u_dem|u_depth/.test(shader) ? 'terrain' : 'map';
           kinds.set(program, kind);
         }
-        const start = performance.now(); gl.finish(); const ready = performance.now();
-        const result = original.apply(gl, args); gl.finish();
+        if (kind !== 'history') return original.apply(gl, args);
+        const pixel = new Uint8Array(4);
+        const start = performance.now(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel); const ready = performance.now();
+        const result = original.apply(gl, args); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
         records.push({ call: name, kind, count: name.includes('Elements') ? args[1]! : args[2]!,
           before: ready - start, draw: performance.now() - ready,
           viewport: Array.from(gl.getParameter(gl.VIEWPORT) as Int32Array), screen: gl.getParameter(gl.FRAMEBUFFER_BINDING) === null });
