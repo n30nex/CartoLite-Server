@@ -36,6 +36,7 @@ test('keeps close 3D inspection responsive with 7000 retained routes', async ({ 
   await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number)).toBeGreaterThan(0);
   expect(Number(await map.getAttribute('data-route-terrain-samples')), 'distant routes must not request terrain projection').toBeLessThan(100);
   expect(Number(await map.getAttribute('data-route-mesh-upload-ms')), 'close terrain mesh work must stay within 100 ms').toBeLessThan(100);
+  expect(Number(await map.getAttribute('data-route-mesh-duration-ms')), 'the sparse close-view mesh must arrive within one second').toBeLessThan(1000);
   await expect(map).toHaveAttribute('data-eligible-routes', '7000');
   await expect(page.locator('#map-notice')).toBeHidden();
   await page.keyboard.press('Escape');
@@ -71,6 +72,7 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
     const tick = (): void => { if (++turns === 50) resolve(performance.now() - start); else setTimeout(tick, 0); };
     setTimeout(tick, 0);
   }));
+  await info.attach('dense-terrain-timing', { body: JSON.stringify({ eventLoop, mesh: await map.evaluate(el => ({ ...el.dataset })) }), contentType: 'application/json' });
   expect(eventLoop, 'terrain preparation must leave the event loop responsive').toBeLessThan(2000);
   await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number), { timeout: 15000 }).toBeGreaterThan(100);
   await expect(map).toHaveAttribute('data-route-mesh-busy', 'false', { timeout: 15000 });

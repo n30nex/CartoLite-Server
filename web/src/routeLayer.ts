@@ -11,7 +11,10 @@ type GL = WebGLRenderingContext | WebGL2RenderingContext;
 interface StrokeSegment { from: [number, number, number]; to: [number, number, number]; color: string; opacity: number; band: number }
 interface HitPath { id: string; band: number; positions: readonly [number, number, number][] }
 interface Resources { program: WebGLProgram; buffer: WebGLBuffer; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
-interface PreparedMesh { data: Float32Array; origin: [number, number, number]; hitPaths: HitPath[] }
+interface PreparedMesh {
+  data: Float32Array; origin: [number, number, number]; hitPaths: HitPath[];
+  startedAt: number; workMs: number; maximumSliceMs: number; samples: number;
+}
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
   readonly id = ROUTE_WEBGL_LAYER_ID;
@@ -196,6 +199,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const chunks: Float32Array[] = [];
     let sliceStarted = performance.now();
     let maximumSlice = 0;
+    let workMs = 0;
     for (const route of routes) {
       const rawFrom = route.geometry.coordinates[0]; const rawTo = route.geometry.coordinates.at(-1);
       if (!rawFrom || !rawTo) continue;
@@ -231,6 +235,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
           const elapsed = performance.now() - sliceStarted;
           if (elapsed >= 6) {
             maximumSlice = Math.max(maximumSlice, elapsed);
+            workMs += elapsed;
             await new Promise<void>(resolve => setTimeout(resolve, 0));
             if (this.map !== map || this.buildEpoch !== epoch) return;
             sliceStarted = performance.now();
@@ -245,13 +250,11 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
     } else data = strokeVertices(segments, origin);
     if (this.map !== map || this.buildEpoch !== epoch) return;
-    this.prepared = { data, origin, hitPaths };
+    const finalSlice = performance.now() - sliceStarted;
+    workMs += finalSlice;
+    maximumSlice = Math.max(maximumSlice, finalSlice);
+    this.prepared = { data, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0 };
     this.building = false;
-    this.lastUploadAt = performance.now();
-    maximumSlice = Math.max(maximumSlice, this.lastUploadAt - sliceStarted);
-    map.getContainer().dataset.routeMeshUploadMs = (this.lastUploadAt - started).toFixed(1);
-    map.getContainer().dataset.routeMeshMaxSliceMs = maximumSlice.toFixed(1);
-    map.getContainer().dataset.routeTerrainSamples = String(terrain ? projections.size : 0);
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
     if (terrain) map.triggerRepaint();
@@ -264,19 +267,29 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       console.warn('Historical route geometry could not be prepared');
     });
     if (this.prepared) {
-      const { data, origin, hitPaths } = this.prepared;
+      const commitStarted = performance.now();
+      const { data, origin, hitPaths, startedAt, workMs, maximumSliceMs, samples } = this.prepared;
       this.origin = origin;
       this.hitPaths = hitPaths;
       this.vertexCount = data.length / STROKE_VERTEX_FLOATS;
       gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.buffer);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
       this.prepared = undefined;
+      this.lastUploadAt = performance.now();
+      const commitMs = this.lastUploadAt - commitStarted;
+      const container = this.map.getContainer();
+      container.dataset.routeMeshUploadMs = (workMs + commitMs).toFixed(1);
+      container.dataset.routeMeshDurationMs = (this.lastUploadAt - startedAt).toFixed(1);
+      container.dataset.routeMeshMaxSliceMs = Math.max(maximumSliceMs, commitMs).toFixed(1);
+      container.dataset.routeTerrainSamples = String(samples);
       this.map.getContainer().dataset.routeMeshBusy = String(this.building);
     }
     if (!this.vertexCount) return;
     const { program, buffer, uniforms, attributes } = this.resources;
     const settings = displayPreferences();
-    const denseOverview = this.routes.length > 2000 && this.map.getZoom() < 11;
+    // Preserve every core stroke and pattern; omit decorative passes when a
+    // dense close view carries as much geometry as a regional overview.
+    const denseOverview = this.routes.length > 2000 && (this.map.getZoom() < 11 || this.vertexCount > 12000);
     const depth = gl.isEnabled(gl.DEPTH_TEST);
     const cull = gl.isEnabled(gl.CULL_FACE);
     const depthMask = gl.getParameter(gl.DEPTH_WRITEMASK) as boolean;
