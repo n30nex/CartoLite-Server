@@ -73,39 +73,6 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
   await expect(map).toHaveAttribute('data-buildings-loaded', 'true');
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   expect(Date.now() - terrainStarted, 'the cold terrain scene must meet the startup budget').toBeLessThan(10000);
-  await page.evaluate(() => {
-    const canvas = document.querySelector<HTMLCanvasElement>('#map .maplibregl-canvas')!;
-    const gl = canvas.getContext('webgl2')!;
-    const records: Array<{ call: string; kind: string; count: number; before: number; draw: number; viewport: number[]; screen: boolean }> = [];
-    const restore: Array<() => void> = [];
-    const kinds = new WeakMap<WebGLProgram, string>();
-    const target = gl as unknown as Record<string, (...args: number[]) => unknown>;
-    for (const name of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
-      const original = target[name]!;
-      target[name] = (...args: number[]): unknown => {
-        if (records.length >= 3) return original.apply(gl, args);
-        const program = gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram;
-        let kind = kinds.get(program);
-        if (!kind) {
-          const shader = (gl.getAttachedShaders(program) ?? []).map(s => gl.getShaderSource(s) ?? '').join('\n');
-          kind = shader.includes('u_maximum_band') ? 'history' : /circle_radius|u_circle/.test(shader) ? 'circles'
-            : /hillshade/.test(shader) ? 'hillshade' : /extrusion/.test(shader) ? 'buildings'
-            : /u_dem|u_depth/.test(shader) ? 'terrain' : 'map';
-          kinds.set(program, kind);
-        }
-        if (kind !== 'history') return original.apply(gl, args);
-        const pixel = new Uint8Array(4);
-        const start = performance.now(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel); const ready = performance.now();
-        const result = original.apply(gl, args); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        records.push({ call: name, kind, count: name.includes('Elements') ? args[1]! : args[2]!,
-          before: ready - start, draw: performance.now() - ready,
-          viewport: Array.from(gl.getParameter(gl.VIEWPORT) as Int32Array), screen: gl.getParameter(gl.FRAMEBUFFER_BINDING) === null });
-        return result;
-      };
-      restore.push(() => { target[name] = original; });
-    }
-    (window as unknown as { denseGpuProbe: { records: typeof records; restore(): void } }).denseGpuProbe = { records, restore: () => restore.forEach(fn => fn()) };
-  });
   await openMapOptions(page);
   await page.locator('#routes-button').click();
   await page.keyboard.press('Escape');
@@ -124,11 +91,6 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
     };
     setTimeout(tick, 0);
   }));
-  const gpuDraws = await page.evaluate(() => {
-    const probe = (window as unknown as { denseGpuProbe: { records: unknown[]; restore(): void } }).denseGpuProbe;
-    probe.restore(); return probe.records;
-  });
-  await info.attach('dense-gpu-draws', { body: JSON.stringify(gpuDraws), contentType: 'application/json' });
   await info.attach('dense-terrain-timing', { body: JSON.stringify({ ...loopTiming, mesh: await map.evaluate(el => ({ ...el.dataset })) }), contentType: 'application/json' });
   expect(loopTiming.duration, 'terrain preparation must leave the event loop responsive').toBeLessThan(2000);
   await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number), { timeout: 15000 }).toBeGreaterThan(100);
