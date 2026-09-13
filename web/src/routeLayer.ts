@@ -10,10 +10,12 @@ export const STROKE_VERTEX_FLOATS = 13;
 type GL = WebGLRenderingContext | WebGL2RenderingContext;
 interface StrokeSegment { from: [number, number, number]; to: [number, number, number]; color: string; opacity: number; band: number }
 interface HitPath { id: string; band: number; positions: readonly [number, number, number][] }
-interface Resources { program: WebGLProgram; buffer: WebGLBuffer; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
+interface GPUChunk { buffer: WebGLBuffer; count: number }
+interface Resources { program: WebGLProgram; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
+const GPU_CHUNK_FLOATS = STROKE_VERTEX_FLOATS * 6 * 1024;
 interface PreparedMesh {
-  data: Float32Array; origin: [number, number, number]; hitPaths: HitPath[];
-  startedAt: number; workMs: number; maximumSliceMs: number; samples: number;
+  chunks: Float32Array[]; buffers: GPUChunk[]; nextChunk: number; origin: [number, number, number]; hitPaths: HitPath[];
+  startedAt: number; workMs: number; maximumSliceMs: number; samples: number; maximumUploadBytes: number;
 }
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
@@ -40,13 +42,12 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private buildEpoch = 0;
   private prepared?: PreparedMesh;
   private cameraKey = '';
+  private buffers: GPUChunk[] = [];
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.map = map;
     this.gl = gl;
     const program = createProgram(gl);
-    const buffer = gl.createBuffer();
-    if (!buffer) throw new Error('Unable to create route stroke buffer');
     const uniforms: Record<string, WebGLUniformLocation> = {};
     for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline']) {
       const location = gl.getUniformLocation(program, `u_${name}`);
@@ -58,7 +59,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       if (location < 0) throw new Error(`Missing route attribute: ${name}`);
       return location;
     });
-    this.resources = { program, buffer, uniforms, attributes };
+    this.resources = { program, uniforms, attributes };
     map.on('move', this.cameraChanged);
     map.on('moveend', this.cameraChanged);
     map.on('terrain', this.invalidate);
@@ -70,7 +71,9 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.off('moveend', this.cameraChanged);
     map.off('terrain', this.invalidate);
     map.off('sourcedata', this.sourceChanged);
-    if (this.resources) { gl.deleteBuffer(this.resources.buffer); gl.deleteProgram(this.resources.program); }
+    for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
+    this.buffers = [];
+    if (this.resources) gl.deleteProgram(this.resources.program);
     this.resources = undefined;
     this.cancelBuild();
     this.map = undefined;
@@ -102,6 +105,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
   private cancelBuild(): void {
+    if (this.gl && this.prepared) for (const chunk of this.prepared.buffers) this.gl.deleteBuffer(chunk.buffer);
     this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true;
     if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
   }
@@ -197,6 +201,18 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const segments: StrokeSegment[] = [];
     const hitPaths: HitPath[] = [];
     const chunks: Float32Array[] = [];
+    let packed: Float32Array | undefined;
+    let packedOffset = 0;
+    const append = (values: Float32Array): void => {
+      let offset = 0;
+      while (offset < values.length) {
+        packed ??= new Float32Array(GPU_CHUNK_FLOATS);
+        const count = Math.min(GPU_CHUNK_FLOATS - packedOffset, values.length - offset);
+        packed.set(values.subarray(offset, offset + count), packedOffset);
+        packedOffset += count; offset += count;
+        if (packedOffset === GPU_CHUNK_FLOATS) { chunks.push(packed); packed = undefined; packedOffset = 0; }
+      }
+    };
     let sliceStarted = performance.now();
     let maximumSlice = 0;
     let workMs = 0;
@@ -230,7 +246,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
         if (terrain) hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
         for (let i = 1; i < positions.length; i += 1) segments.push({ from: positions[i - 1]!, to: positions[i]!, color, opacity, band });
         if (terrain) {
-          chunks.push(strokeVertices(segments, origin));
+          append(strokeVertices(segments, origin));
           segments.length = 0;
           const elapsed = performance.now() - sliceStarted;
           if (elapsed >= 6) {
@@ -243,17 +259,15 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
         }
       }
     }
-    let data: Float32Array;
     if (terrain) {
-      data = new Float32Array(chunks.reduce((size, chunk) => size + chunk.length, 0));
-      let offset = 0;
-      for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
-    } else data = strokeVertices(segments, origin);
+      const remainder = packed as Float32Array | undefined;
+      if (remainder && packedOffset) chunks.push(remainder.subarray(0, packedOffset));
+    } else chunks.push(strokeVertices(segments, origin));
     if (this.map !== map || this.buildEpoch !== epoch) return;
     const finalSlice = performance.now() - sliceStarted;
     workMs += finalSlice;
     maximumSlice = Math.max(maximumSlice, finalSlice);
-    this.prepared = { data, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0 };
+    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0 };
     this.building = false;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
@@ -261,31 +275,49 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   }
   render(gl: GL, options: CustomRenderMethodInput): void {
     if (!this.resources || !this.map || !this.visible) return;
-    if (this.dirty && !this.building) void this.upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
+    if (this.dirty && !this.building && !this.prepared) void this.upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
       this.building = false;
       if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
       console.warn('Historical route geometry could not be prepared');
     });
     if (this.prepared) {
       const commitStarted = performance.now();
-      const { data, origin, hitPaths, startedAt, workMs, maximumSliceMs, samples } = this.prepared;
-      this.origin = origin;
-      this.hitPaths = hitPaths;
-      this.vertexCount = data.length / STROKE_VERTEX_FLOATS;
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-      this.prepared = undefined;
-      this.lastUploadAt = performance.now();
-      const commitMs = this.lastUploadAt - commitStarted;
+      const mesh = this.prepared;
+      do {
+        const data = mesh.chunks[mesh.nextChunk];
+        if (!data) break;
+        const buffer = gl.createBuffer();
+        if (!buffer) { this.cancelBuild(); return; }
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+        mesh.maximumUploadBytes = Math.max(mesh.maximumUploadBytes, data.byteLength);
+        mesh.buffers.push({ buffer, count: data.length / STROKE_VERTEX_FLOATS });
+        mesh.chunks[mesh.nextChunk] = new Float32Array(0);
+        mesh.nextChunk += 1;
+      } while (mesh.nextChunk < mesh.chunks.length && performance.now() - commitStarted < 6);
+      const commitMs = performance.now() - commitStarted;
+      mesh.workMs += commitMs;
+      mesh.maximumSliceMs = Math.max(mesh.maximumSliceMs, commitMs);
       const container = this.map.getContainer();
-      container.dataset.routeMeshUploadMs = (workMs + commitMs).toFixed(1);
-      container.dataset.routeMeshDurationMs = (this.lastUploadAt - startedAt).toFixed(1);
-      container.dataset.routeMeshMaxSliceMs = Math.max(maximumSliceMs, commitMs).toFixed(1);
-      container.dataset.routeTerrainSamples = String(samples);
-      this.map.getContainer().dataset.routeMeshBusy = String(this.building);
+      if (mesh.nextChunk === mesh.chunks.length) {
+        for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
+        this.buffers = mesh.buffers;
+        this.origin = mesh.origin;
+        this.hitPaths = mesh.hitPaths;
+        this.vertexCount = this.buffers.reduce((count, chunk) => count + chunk.count, 0);
+        this.prepared = undefined;
+        this.lastUploadAt = performance.now();
+        container.dataset.routeMeshUploadMs = mesh.workMs.toFixed(1);
+        container.dataset.routeMeshDurationMs = (this.lastUploadAt - mesh.startedAt).toFixed(1);
+        container.dataset.routeMeshMaxSliceMs = mesh.maximumSliceMs.toFixed(1);
+        container.dataset.routeMeshMaxUploadBytes = String(mesh.maximumUploadBytes);
+        container.dataset.routeTerrainSamples = String(mesh.samples);
+        container.dataset.routeMeshBusy = 'false';
+      }
+      if (this.prepared || this.dirty) this.map.triggerRepaint();
     }
     if (!this.vertexCount) return;
-    const { program, buffer, uniforms, attributes } = this.resources;
+    const { program, uniforms, attributes } = this.resources;
     const settings = displayPreferences();
     // Preserve every core stroke and pattern; omit decorative passes when a
     // dense close view carries as much geometry as a regional overview.
@@ -299,13 +331,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.useProgram(program);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    let offset = 0;
-    [3, 3, 2, 3, 1, 1].forEach((size, index) => {
-      gl.enableVertexAttribArray(attributes[index]!);
-      gl.vertexAttribPointer(attributes[index]!, size, gl.FLOAT, false, STROKE_VERTEX_FLOATS * 4, offset * 4);
-      offset += size;
-    });
+    for (const attribute of attributes) gl.enableVertexAttribArray(attribute);
     // Rebase in double precision before uploading floats, keeping close-zoom endpoints aligned.
     const matrix = Array.from(options.defaultProjectionData.mainMatrix);
     for (let row = 0; row < 4; row += 1) matrix[12 + row] = matrix[12 + row]! + matrix[row]! * this.origin[0] + matrix[4 + row]! * this.origin[1];
@@ -320,7 +346,15 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
     if (this.lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
     else gl.uniform3f(uniforms.casing!, 0.025, 0.055, 0.075);
-    gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+    for (const chunk of this.buffers) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, chunk.buffer);
+      let offset = 0;
+      [3, 3, 2, 3, 1, 1].forEach((size, index) => {
+        gl.vertexAttribPointer(attributes[index]!, size, gl.FLOAT, false, STROKE_VERTEX_FLOATS * 4, offset * 4);
+        offset += size;
+      });
+      gl.drawArrays(gl.TRIANGLES, 0, chunk.count);
+    }
     gl.depthMask(depthMask);
     if (depth) gl.enable(gl.DEPTH_TEST);
     if (cull) gl.enable(gl.CULL_FACE);

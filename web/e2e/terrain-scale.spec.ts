@@ -77,6 +77,7 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
   await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number), { timeout: 15000 }).toBeGreaterThan(100);
   await expect(map).toHaveAttribute('data-route-mesh-busy', 'false', { timeout: 15000 });
   expect(Number(await map.getAttribute('data-route-mesh-max-slice-ms')), 'each terrain work slice stays within 100 ms').toBeLessThan(100);
+  expect(Number(await map.getAttribute('data-route-mesh-max-upload-bytes')), 'terrain transfers stay within one 1024-segment buffer').toBeLessThanOrEqual(13 * 6 * 1024 * 4);
   await expect(map).toHaveAttribute('data-eligible-routes', '7000');
   await expect(page.locator('#map-notice')).toBeHidden();
   await page.screenshot({ path: info.outputPath('terrain-scale-dense.png') });

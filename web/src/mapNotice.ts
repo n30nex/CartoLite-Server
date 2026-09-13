@@ -26,12 +26,17 @@ export function attachMapNotice(map: MapLibreMap, container: HTMLElement): (mess
   return show;
 }
 
-/** Provider diagnostics must never include browser credentials or resource URLs. */
+/** Only fixed categories may leave this function; provider text is uncontrolled. */
 export function safeMapError(message: unknown): string {
-  return String(message ?? 'Unknown map detail error')
-    .replace(/https?:\/\/[^\s"'<>]+/gi, '[map resource]')
-    .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9+/_=.-]+/gi, '[authorization redacted]')
-    .replace(/\b(?:api[_-]?key|access[_-]?token|key|token|secret|password|authorization)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '[credential redacted]')
-    .replace(/\b[A-Za-z0-9_-]{32,}(?:\.[A-Za-z0-9_-]+){0,2}\b/g, '[identifier redacted]')
-    .slice(0, 240);
+  const text = typeof message === 'string' ? message : '';
+  if (/\b(?:401|403)\b|unauthori[sz]ed|forbidden/i.test(text)) return 'Map resource access was denied.';
+  if (/\b429\b|rate.limit/i.test(text)) return 'The map provider is temporarily limiting requests.';
+  if (/glyph|fontstack|font/i.test(text)) return 'Map labels could not be loaded.';
+  if (/webgl|shader|context.lost|buffer/i.test(text)) return 'The map renderer reported an error.';
+  if (/terrain|elevation/i.test(text)) return 'Terrain data could not be rendered.';
+  if (/geojson|promote.?id|update.?data|feature/i.test(text)) return 'Map overlay data could not be updated.';
+  if (/layer|paint|layout|expression|style/i.test(text)) return 'Map style or layer setup failed.';
+  if (/image|bitmap|decod/i.test(text)) return 'Map imagery could not be decoded.';
+  if (/tile|fetch|network|request|ajax|http/i.test(text)) return 'Map tiles or resources could not be loaded.';
+  return 'Map details could not be rendered.';
 }
