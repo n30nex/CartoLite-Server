@@ -50,7 +50,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.gl = gl;
     const program = createProgram(gl);
     const uniforms: Record<string, WebGLUniformLocation> = {};
-    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline']) {
+    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline', 'simple']) {
       const location = gl.getUniformLocation(program, `u_${name}`);
       if (location === null) throw new Error(`Missing route uniform: ${name}`);
       uniforms[name] = location;
@@ -365,6 +365,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.width!, settings.width);
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
+    gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
     gl.uniform1f(uniforms.opacity!, this.opacity);
     gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
@@ -486,7 +487,7 @@ export function historicalRouteVertices(routes: readonly Feature<LineString>[]):
 function createProgram(gl: GL): WebGLProgram {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, `
     precision highp float;
-    uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; uniform float u_glow; uniform float u_outline;
+    uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; uniform float u_glow; uniform float u_outline; uniform float u_simple;
     attribute vec3 a_from; attribute vec3 a_to; attribute vec2 a_corner;
     attribute vec3 a_color; attribute float a_alpha; attribute float a_band;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
@@ -494,7 +495,7 @@ function createProgram(gl: GL): WebGLProgram {
       vec4 a = u_matrix * vec4(a_from, 1.0); vec4 b = u_matrix * vec4(a_to, 1.0);
       vec2 delta = (b.xy / b.w - a.xy / a.w) * u_viewport * 0.5;
       float len = max(0.001, length(delta)); vec2 direction = delta / len;
-      float extent = u_width * 0.5 + max(0.55, u_outline) + u_glow * 5.0;
+      float extent = u_width * 0.5 + (u_simple > 0.5 ? 0.0 : max(0.55, u_outline) + u_glow * 5.0);
       vec4 point = mix(a, b, a_corner.x);
       vec2 shift = (direction * (a_corner.x * 2.0 - 1.0) + vec2(-direction.y, direction.x) * a_corner.y) * extent;
       point.xy += shift * 2.0 / u_viewport * point.w;
@@ -506,10 +507,18 @@ function createProgram(gl: GL): WebGLProgram {
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, `
     precision highp float;
     uniform float u_width; uniform float u_glow; uniform float u_opacity; uniform float u_maximum_band; uniform float u_pattern;
-    uniform vec3 u_casing; uniform float u_outline;
+    uniform vec3 u_casing; uniform float u_outline; uniform float u_simple;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
     void main() {
       if (v_band > u_maximum_band + 0.1 || v_alpha <= 0.0) discard;
+      if (u_simple > 0.5) {
+        if (u_pattern > 1.5) {
+          float period = u_width * 2.7;
+          if (length(vec2(mod(max(0.0, v_local.x), period) - period * 0.5, v_local.y)) > u_width * 0.5) discard;
+        } else if (u_pattern > 0.5 && mod(max(0.0, v_local.x), u_width * 7.0) > u_width * 4.0) discard;
+        gl_FragColor = vec4(v_color, v_alpha * u_opacity);
+        return;
+      }
       float x = v_local.x; float outside = max(-x, x - v_length);
       float distance = abs(v_local.y);
       if (outside > 0.0) distance = length(vec2(outside, v_local.y));
