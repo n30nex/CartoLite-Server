@@ -70,3 +70,12 @@
 .map-notice { position: absolute; right: 12px; bottom: 72px; z-index: 6; display: flex; gap: 10px; align-items: center; max-width: min(390px, calc(100vw - 24px)); padding: 8px 12px; border-radius: 10px; font-size: 12px; color: var(--ink); }
 .map-notice[hidden] { display: none; }
 .map-notice button { min-height: 44px; min-width: 44px; color: var(--ink-strong); background: var(--field-bg); border: 1px solid var(--panel-border); border-radius: 7px; cursor: pointer; }
+.map-grade { contain: paint; }
+/* Avoid repeated backdrop readback over a moving WebGL terrain surface. */
+#app:has(> #map[data-terrain3d="true"]) :is(.glass, .maplibregl-popup-content) {
+  background: var(--panel-solid);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+#map[data-terrain3d="true"] + .map-grade { background: none; box-shadow: none; }
+#map[data-terrain3d="true"] + .map-grade::after { display: none; }
