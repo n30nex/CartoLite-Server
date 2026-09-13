@@ -85,6 +85,11 @@ export function searchNodes(nodes: Iterable<NodeV2>, rawQuery: string, limit = 8
   )).slice(0, Math.floor(limit));
 }
 
+export function observationTotal(count: number): string {
+  const total = Math.max(0, count);
+  return `${total.toLocaleString()} total ${total === 1 ? 'observation' : 'observations'}`;
+}
+
 export function relativeTime(timestamp: number, now = Date.now()): string {
   const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
   if (seconds < 60) return 'now';
@@ -158,7 +163,7 @@ export function createNodeInspectorContent(
     const role = ownerDocument.createElement('span');
     role.textContent = roleLabel(neighbor.role);
     const traffic = ownerDocument.createElement('span');
-    const packets = neighbor.packetCount === 1 ? '1 observation total' : `${neighbor.packetCount.toLocaleString()} total observations`;
+    const packets = observationTotal(neighbor.packetCount);
     traffic.textContent = `${neighbor.lastKind} · ${packets} · ${relativeTime(neighbor.lastHeard, now)}`;
     button.append(label, role, traffic);
     button.addEventListener('click', () => options.onSelectNeighbor(neighbor.id));

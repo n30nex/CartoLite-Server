@@ -331,3 +331,12 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   .graph-summary .summary-full { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .graph-summary .summary-compact { display: block; }
 }
+@media (orientation: landscape) and (max-height: 520px) {
+  .graph-summary { display: flex; top: auto; bottom: max(8px, env(safe-area-inset-bottom)); left: 8px; right: auto; }
+  .graph-summary .summary-full { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .graph-summary .summary-compact { display: block; }
+}
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 600px) {
+  .graph-summary { display: grid; grid-template-columns: repeat(2, max-content); gap: 3px 12px; }
+  .graph-summary div + div { border: 0; padding-left: 0; }
+}

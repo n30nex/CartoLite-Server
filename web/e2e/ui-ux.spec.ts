@@ -64,17 +64,20 @@ test('explains zoom-dependent buildings and enables camera controls only in 3D',
   await expect(page.locator('#camera-pitch')).toBeDisabled();
   await expect(page.locator('#terrain-height')).toBeDisabled();
   await expect(page.locator('#terrain-relief')).toBeDisabled();
-  await page.locator('#terrain-button').click();
-  await expect(page.locator('#hillshade-button')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#camera-pitch')).toBeEnabled();
-  await expect(page.locator('#terrain-height')).toBeEnabled();
-  await expect(page.locator('#terrain-relief')).toBeEnabled();
+  // Exercise the zoom hint without repeatedly loading cold terrain tiles.
+  // Dedicated terrain tests retain the rendering and responsiveness gates.
   await page.keyboard.press('Escape');
   for (let step = 0; step < 3; step++) {
     await page.locator('.maplibregl-canvas').press('Equal');
     await expect(map).toHaveAttribute('data-camera-moving', 'false');
   }
   await openMapOptions(page);
+  await expect(page.locator('#building-status')).toHaveText('Building footprints are enabled.');
+  await page.locator('#terrain-button').click();
+  await expect(page.locator('#hillshade-button')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#camera-pitch')).toBeEnabled();
+  await expect(page.locator('#terrain-height')).toBeEnabled();
+  await expect(page.locator('#terrain-relief')).toBeEnabled();
   await expect(page.locator('#building-status')).toHaveText(info.project.name === 'desktop'
     ? 'Mapped building heights are shown where available.' : 'Building footprints are enabled.');
 });
@@ -102,12 +105,19 @@ test('Netgraph menus are exclusive for keyboard users and its camera supports ke
     await expect.poll(async () => Number(await stage.getAttribute('data-view-scale'))).toBeGreaterThan(scale);
     await stage.press('Home');
     await expect(page.locator('#connected-count')).toHaveText('2');
+    await page.setViewportSize({ width: 568, height: 320 });
   }
-  if (page.viewportSize()!.width <= 480) {
+  const size = page.viewportSize()!;
+  if (size.width <= 480 || size.height <= 520) {
     for (const label of ['nodes', 'links', 'areas', 'groups']) await expect(page.locator('.summary-compact').filter({ hasText: label })).toBeVisible();
     const summary = await page.locator('#graph-summary').boundingBox();
     const controls = await page.locator('.controls').boundingBox();
     expect(summary!.y).toBeGreaterThanOrEqual(controls!.y + controls!.height);
+    expect(summary!.y + summary!.height).toBeLessThanOrEqual(size.height);
+    if (size.width > size.height && size.height <= 520) {
+      const legend = await page.locator('#legend').boundingBox();
+      expect(summary!.x + summary!.width).toBeLessThanOrEqual(legend!.x);
+    }
   }
 });
 

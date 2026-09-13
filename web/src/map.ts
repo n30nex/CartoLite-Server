@@ -21,6 +21,7 @@ import {
   buildNodeInspectorModel,
   createNodeInspectorContent,
   relativeTime,
+  observationTotal,
   searchNodes,
   type NodeSearchResult,
 } from './nodeInspector';
@@ -1556,11 +1557,10 @@ export class LiveMap {
     if (!from || !to) return false;
     this.routeInspectionPinned = pin;
     this.setHoveredRoute(route.id);
-    const packetCount = Math.max(0, route.packetCount);
     this.presentTooltip(
       event,
       `${from.label} ↔ ${to.label}`,
-      `${route.lastKind} · ${packetCount.toLocaleString()} ${packetCount === 1 ? 'packet' : 'packets'} · heard ${relativeTime(route.lastHeard)}`,
+      `${route.lastKind} · ${observationTotal(route.packetCount)} · heard ${relativeTime(route.lastHeard)}`,
       'route'
     );
     return true;

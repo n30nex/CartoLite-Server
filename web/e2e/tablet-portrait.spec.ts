@@ -41,6 +41,7 @@ test('keeps tablet portrait controls compact, separated, and touch sized', async
 
   await summary.click();
   await expect(disclosure).toHaveAttribute('open', '');
+  await page.locator('#terrain-options > summary').click();
   const layerButtons = ['routes', 'heatmap', 'clusters', 'hillshade', 'terrain'];
   for (const id of layerButtons) await expect(page.locator(`#${id}-button`)).toBeVisible();
   await expect(page.locator('#route-window')).toBeVisible();

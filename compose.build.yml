@@ -6,6 +6,6 @@ services:
     build:
       context: .
       args:
-        APP_VERSION: ${CARTOLITE_VERSION:-0.5.0}
+        APP_VERSION: ${CARTOLITE_VERSION:-0.5.1}
         GIT_SHA: ${CARTOLITE_GIT_SHA:-local}
         BUILD_TIME: ${CARTOLITE_BUILD_TIME:-unknown}
