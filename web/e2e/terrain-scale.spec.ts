@@ -41,3 +41,41 @@ test('keeps close 3D inspection responsive with 7000 retained routes', async ({ 
   await page.keyboard.press('Escape');
   await page.screenshot({ path: info.outputPath('terrain-scale-close.png') });
 });
+
+test('keeps controls responsive while preparing a dense 7000-route terrain mesh', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'desktop dense terrain gate');
+  await visualFixture(page, 13);
+  const now = Date.now();
+  const nodes: NodeV2[] = Array.from({ length: 400 }, (_, i) => ({
+    id: `city-${i}`, label: `City ${i}`, role: 'repeater', observer: false,
+    lng: visualCenter[0] + Math.cos(i * 2.399963) * 0.018,
+    lat: visualCenter[1] + Math.sin(i * 2.399963) * 0.012, lastSeen: now,
+  }));
+  const routes: RouteV2[] = Array.from({ length: 7000 }, (_, i) => ({
+    id: `city-route-${i}`, fromId: `city-${i % 400}`, toId: `city-${(i + 1 + Math.floor(i / 400)) % 400}`,
+    packetCount: 1, lastHeard: now, intensity: 1, lastKind: 'Text', traffic: 1,
+  }));
+  const state: StateV2 = { schemaVersion: 2, bootId: 'dense-terrain', seq: 0, serverTime: now,
+    status: { feed: 'connected', activity: 'active', dropped: 0, version: 'test', gitSha: 'synthetic' },
+    map: { center: visualCenter, zoom: 13 }, nodes, routes };
+  await page.route('**/api/state', route => route.fulfill({ json: state }));
+  await page.goto('/');
+  const map = page.locator('#map');
+  await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 10000 });
+  await openMapOptions(page);
+  await page.locator('#terrain-button').click();
+  await page.keyboard.press('Escape');
+  const eventLoop = await page.evaluate(() => new Promise<number>(resolve => {
+    const start = performance.now();
+    let turns = 0;
+    const tick = (): void => { if (++turns === 50) resolve(performance.now() - start); else setTimeout(tick, 0); };
+    setTimeout(tick, 0);
+  }));
+  expect(eventLoop, 'terrain preparation must leave the event loop responsive').toBeLessThan(2000);
+  await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number), { timeout: 15000 }).toBeGreaterThan(100);
+  await expect(map).toHaveAttribute('data-route-mesh-busy', 'false', { timeout: 15000 });
+  expect(Number(await map.getAttribute('data-route-mesh-max-slice-ms')), 'each terrain work slice stays within 100 ms').toBeLessThan(100);
+  await expect(map).toHaveAttribute('data-eligible-routes', '7000');
+  await expect(page.locator('#map-notice')).toBeHidden();
+  await page.screenshot({ path: info.outputPath('terrain-scale-dense.png') });
+});

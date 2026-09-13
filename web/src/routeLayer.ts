@@ -11,6 +11,7 @@ type GL = WebGLRenderingContext | WebGL2RenderingContext;
 interface StrokeSegment { from: [number, number, number]; to: [number, number, number]; color: string; opacity: number; band: number }
 interface HitPath { id: string; band: number; positions: readonly [number, number, number][] }
 interface Resources { program: WebGLProgram; buffer: WebGLBuffer; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
+interface PreparedMesh { data: Float32Array; origin: [number, number, number]; hitPaths: HitPath[] }
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
   readonly id = ROUTE_WEBGL_LAYER_ID;
@@ -32,6 +33,9 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private lastUploadAt = -Infinity;
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private hitMatrix?: Float32Array;
+  private building = false;
+  private buildEpoch = 0;
+  private prepared?: PreparedMesh;
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.map = map;
@@ -64,6 +68,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.off('sourcedata', this.sourceChanged);
     if (this.resources) { gl.deleteBuffer(this.resources.buffer); gl.deleteProgram(this.resources.program); }
     this.resources = undefined;
+    this.cancelBuild();
     this.map = undefined;
     this.gl = undefined;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
@@ -85,19 +90,21 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
   }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
-  setRoutes(routes: readonly Feature<LineString>[]): void { this.routes = routes; this.invalidate(); }
+  private cancelBuild(): void { this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true; }
+  setRoutes(routes: readonly Feature<LineString>[]): void { this.cancelBuild(); this.routes = routes; this.invalidate(); }
   setOpacity(opacity: number): void { this.opacity = clamp(opacity, 0.2, 1); this.map?.triggerRepaint(); }
-  setLightBackground(light: boolean): void { if (light !== this.lightBackground) { this.lightBackground = light; this.invalidate(); } }
+  setLightBackground(light: boolean): void { if (light !== this.lightBackground) { this.cancelBuild(); this.lightBackground = light; this.invalidate(); } }
   setVisible(visible: boolean): void {
     if (this.visible === visible) return;
     this.visible = visible;
+    if (!visible) this.cancelBuild();
     this.map?.triggerRepaint();
   }
   setMaximumBand(band: number): void {
     const next = clamp(Math.round(band), 0, 3);
     if (next === this.maximumBand) return;
     this.maximumBand = next;
-    if (this.map?.getTerrain()) this.dirty = true;
+    if (this.map?.getTerrain()) this.cancelBuild();
     if (this.visible) this.map?.triggerRepaint();
   }
   refreshAppearance(): void { this.map?.triggerRepaint(); }
@@ -131,12 +138,17 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     return found;
   }
 
-  private upload(): void {
+  private async upload(matrix: readonly number[]): Promise<void> {
     if (!this.map || !this.gl || !this.resources) return;
     const map = this.map;
     const started = performance.now();
     const center = MercatorCoordinate.fromLngLat(map.getCenter());
-    this.origin = [center.x, center.y, 0];
+    const origin: [number, number, number] = [center.x, center.y, 0];
+    const epoch = ++this.buildEpoch;
+    this.building = true;
+    this.dirty = false;
+    map.getContainer().dataset.routeMeshBusy = 'true';
+    const routes = this.routes;
     const terrain = Boolean(map.getTerrain());
     const bounds = map.getBounds();
     const view: [number, number, number, number] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
@@ -146,7 +158,14 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const project = (point: Coordinate): SurfacePoint => {
       const key = point.join(',');
       let result = projections.get(key);
-      if (!result) { result = map.project([point[0], point[1]]); projections.set(key, result); }
+      if (!result) {
+        const [x, y, z] = position(point);
+        const w = matrix[3]! * x + matrix[7]! * y + matrix[11]! * z + matrix[15]!;
+        const divisor = Math.abs(w) < 1e-9 ? (w < 0 ? -1e-9 : 1e-9) : w;
+        result = { x: ((matrix[0]! * x + matrix[4]! * y + matrix[8]! * z + matrix[12]!) / divisor + 1) * width / 2,
+          y: (1 - (matrix[1]! * x + matrix[5]! * y + matrix[9]! * z + matrix[13]!) / divisor) * height / 2 };
+        projections.set(key, result);
+      }
       return result;
     };
     const position = (point: Coordinate): [number, number, number] => {
@@ -162,8 +181,11 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       return result;
     };
     const segments: StrokeSegment[] = [];
-    this.hitPaths = [];
-    for (const route of this.routes) {
+    const hitPaths: HitPath[] = [];
+    const chunks: Float32Array[] = [];
+    let sliceStarted = performance.now();
+    let maximumSlice = 0;
+    for (const route of routes) {
       const rawFrom = route.geometry.coordinates[0]; const rawTo = route.geometry.coordinates.at(-1);
       if (!rawFrom || !rawTo) continue;
       const band = Number(route.properties?.windowBand ?? 3);
@@ -190,24 +212,56 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
           const point = routeCoordinate(pair[0], pair[1], t);
           return position(point);
         });
-        if (terrain) this.hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
+        if (terrain) hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
         for (let i = 1; i < positions.length; i += 1) segments.push({ from: positions[i - 1]!, to: positions[i]!, color, opacity, band });
+        if (terrain) {
+          chunks.push(strokeVertices(segments, origin));
+          segments.length = 0;
+          const elapsed = performance.now() - sliceStarted;
+          if (elapsed >= 6) {
+            maximumSlice = Math.max(maximumSlice, elapsed);
+            await new Promise<void>(resolve => setTimeout(resolve, 0));
+            if (this.map !== map || this.buildEpoch !== epoch) return;
+            sliceStarted = performance.now();
+          }
+        }
       }
     }
-    const data = strokeVertices(segments, this.origin);
-    this.vertexCount = data.length / STROKE_VERTEX_FLOATS;
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.resources.buffer);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, data, this.gl.DYNAMIC_DRAW);
-    this.dirty = false;
+    let data: Float32Array;
+    if (terrain) {
+      data = new Float32Array(chunks.reduce((size, chunk) => size + chunk.length, 0));
+      let offset = 0;
+      for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+    } else data = strokeVertices(segments, origin);
+    if (this.map !== map || this.buildEpoch !== epoch) return;
+    this.prepared = { data, origin, hitPaths };
+    this.building = false;
     this.lastUploadAt = performance.now();
+    maximumSlice = Math.max(maximumSlice, this.lastUploadAt - sliceStarted);
     map.getContainer().dataset.routeMeshUploadMs = (this.lastUploadAt - started).toFixed(1);
+    map.getContainer().dataset.routeMeshMaxSliceMs = maximumSlice.toFixed(1);
     map.getContainer().dataset.routeTerrainSamples = String(terrain ? projections.size : 0);
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
+    if (terrain) map.triggerRepaint();
   }
   render(gl: GL, options: CustomRenderMethodInput): void {
     if (!this.resources || !this.map || !this.visible) return;
-    if (this.dirty) this.upload();
+    if (this.dirty && !this.building) void this.upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
+      this.building = false;
+      if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
+      console.warn('Historical route geometry could not be prepared');
+    });
+    if (this.prepared) {
+      const { data, origin, hitPaths } = this.prepared;
+      this.origin = origin;
+      this.hitPaths = hitPaths;
+      this.vertexCount = data.length / STROKE_VERTEX_FLOATS;
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.resources.buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+      this.prepared = undefined;
+      this.map.getContainer().dataset.routeMeshBusy = 'false';
+    }
     if (!this.vertexCount) return;
     const { program, buffer, uniforms, attributes } = this.resources;
     const settings = displayPreferences();

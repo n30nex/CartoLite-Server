@@ -268,6 +268,7 @@ export class LiveMap {
     });
     this.map.on('moveend', () => {
       this.container.dataset.cameraMoving = 'false';
+      this.container.dataset.cameraZoom = String(Math.round(this.map.getZoom() * 100) / 100);
       if (this.terrain3D && viewClass() === 'desktop') {
         this.appearance.terrainPitch = this.map.getPitch();
         this.appearance.terrainBearing = this.map.getBearing();
