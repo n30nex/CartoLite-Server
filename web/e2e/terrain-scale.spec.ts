@@ -66,14 +66,29 @@ test('keeps controls responsive while preparing a dense 7000-route terrain mesh'
   await openMapOptions(page);
   await page.locator('#terrain-button').click();
   await page.keyboard.press('Escape');
-  const eventLoop = await page.evaluate(() => new Promise<number>(resolve => {
+  const profileSession = await page.context().newCDPSession(page);
+  await profileSession.send('Profiler.enable');
+  await profileSession.send('Profiler.start');
+  const loopTiming = await page.evaluate(() => new Promise<{ duration: number; turns: number[]; longTasks: number[]; visible: boolean; focused: boolean }>(resolve => {
     const start = performance.now();
-    let turns = 0;
-    const tick = (): void => { if (++turns === 50) resolve(performance.now() - start); else setTimeout(tick, 0); };
+    const turns: number[] = []; const longTasks: number[] = [];
+    let previous = start;
+    const observer = new PerformanceObserver(list => longTasks.push(...list.getEntries().map(entry => entry.duration)));
+    observer.observe({ entryTypes: ['longtask'] });
+    const tick = (): void => {
+      const now = performance.now(); turns.push(now - previous); previous = now;
+      if (turns.length === 50) {
+        observer.disconnect();
+        resolve({ duration: now - start, turns, longTasks, visible: !document.hidden, focused: document.hasFocus() });
+      } else setTimeout(tick, 0);
+    };
     setTimeout(tick, 0);
   }));
-  await info.attach('dense-terrain-timing', { body: JSON.stringify({ eventLoop, mesh: await map.evaluate(el => ({ ...el.dataset })) }), contentType: 'application/json' });
-  expect(eventLoop, 'terrain preparation must leave the event loop responsive').toBeLessThan(2000);
+  const profile = await profileSession.send('Profiler.stop');
+  await profileSession.detach();
+  await info.attach('dense-terrain-cpu-profile', { body: JSON.stringify(profile.profile), contentType: 'application/json' });
+  await info.attach('dense-terrain-timing', { body: JSON.stringify({ ...loopTiming, mesh: await map.evaluate(el => ({ ...el.dataset })) }), contentType: 'application/json' });
+  expect(loopTiming.duration, 'terrain preparation must leave the event loop responsive').toBeLessThan(2000);
   await expect.poll(() => map.getAttribute('data-route-terrain-samples').then(Number), { timeout: 15000 }).toBeGreaterThan(100);
   await expect(map).toHaveAttribute('data-route-mesh-busy', 'false', { timeout: 15000 });
   expect(Number(await map.getAttribute('data-route-mesh-max-slice-ms')), 'each terrain work slice stays within 100 ms').toBeLessThan(100);
