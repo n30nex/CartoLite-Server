@@ -106,8 +106,18 @@ test('shows matching region colors in a viewport legend only when Regions is ena
   await expect(page.locator('#region-legend')).toBeHidden();
 });
 
-test('renders buildings in desktop 3D', async ({ page }, info) => {
+test('renders buildings in desktop 3D after upgrading a cached map worker', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop 3D feature; mobile controls are covered separately');
+  // A previous install can retain this immutable worker with the old provider
+  // policy. An upgraded URL must fetch the current response headers instead.
+  await page.route(/\/assets\/maplibre-gl-worker-[^/?]+\.js(?:\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    const headers = response.headers();
+    if (!new URL(route.request().url()).search) {
+      headers['content-security-policy'] = "connect-src 'self' https://*.basemaps.cartocdn.com https://tiles.mapterhorn.com";
+    }
+    await route.fulfill({ response, headers });
+  });
   await visualFixture(page, 15);
   await page.goto('/');
   const map = page.locator('#map');
