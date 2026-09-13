@@ -665,7 +665,7 @@ details.map-layer-group, .map-appearance { border-top: 1px solid var(--panel-bor
 }
 #layers-panel .control-button > span:last-child { display: inline; }
 .layer-toggles .control-icon { width: 14px; height: 14px; }
-.layer-toggles .control-button::after { content: 'Off'; flex: none; margin-left: auto; font-size: 9px; font-weight: 400; opacity: 0.7; }
+.layer-toggles .control-button::after { content: 'Off'; flex: none; margin-left: auto; font-size: 9px; font-weight: 400; opacity: 1; }
 .layer-toggles .control-button[aria-pressed="true"]::after { content: 'On'; font-weight: 750; opacity: 1; }
 .map-option, #layers-panel .route-window { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0; color: var(--muted); font-size: 12px; }
 .map-option select, #layers-panel .route-window select { width: 146px; min-width: 0; min-height: 44px; border: 1px solid var(--panel-border); border-radius: 8px; padding: 0 8px; color: var(--ink-strong); background: var(--field-bg); font: inherit; }
