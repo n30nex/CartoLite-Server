@@ -20,6 +20,17 @@ describe('historical route WebGL geometry', () => {
     const sample = terrainBatchSampler({ getCenter: () => ({ lng: 0, lat: 0 }), queryTerrainElevation: () => 75 });
     expect(sample([0, 0])).toBe(75);
   });
+  it('restores the native method when the calibration query fails', () => {
+    const terrain = { getElevationForLngLatZoom: () => 25 };
+    const original = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
+    let failing = true;
+    const sample = terrainBatchSampler({
+      terrain, getCenter: () => ({ lng: 0, lat: 0 }),
+      queryTerrainElevation: () => { if (failing) { failing = false; throw new Error('not ready'); } return 25; },
+    });
+    expect(Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom')).toEqual(original);
+    expect(sample([0, 0])).toBe(25);
+  });
   it('removes redundant straight subdivisions without flattening relief or reversing a path', () => {
     expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.5], [1, 1, 1]])).toEqual([[0, 0, 0], [1, 1, 1]]);
     expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.6], [1, 1, 1]])).toHaveLength(3);

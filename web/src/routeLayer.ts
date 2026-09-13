@@ -215,7 +215,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
         if (packedOffset === GPU_CHUNK_FLOATS) { chunks.push(packed); packed = undefined; packedOffset = 0; }
       }
     };
-    let sliceStarted = performance.now();
+    let sliceStarted = started;
     let maximumSlice = 0;
     let workMs = 0;
     for (const route of routes) {
