@@ -15,7 +15,7 @@ interface Resources { program: WebGLProgram; uniforms: Record<string, WebGLUnifo
 const GPU_CHUNK_FLOATS = STROKE_VERTEX_FLOATS * 6 * 1024;
 interface PreparedMesh {
   chunks: Float32Array[]; buffers: GPUChunk[]; nextChunk: number; origin: [number, number, number]; hitPaths: HitPath[];
-  startedAt: number; workMs: number; maximumSliceMs: number; samples: number; maximumUploadBytes: number;
+  startedAt: number; workMs: number; maximumSliceMs: number; samples: number; maximumUploadBytes: number; terrain: boolean;
 }
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
@@ -43,6 +43,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private prepared?: PreparedMesh;
   private cameraKey = '';
   private buffers: GPUChunk[] = [];
+  private bufferTerrain = false;
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.map = map;
@@ -71,8 +72,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.off('moveend', this.cameraChanged);
     map.off('terrain', this.terrainChanged);
     map.off('sourcedata', this.sourceChanged);
-    for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
-    this.buffers = [];
+    this.clearBuffers();
     if (this.resources) gl.deleteProgram(this.resources.program);
     this.resources = undefined;
     this.cancelBuild();
@@ -104,7 +104,17 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
   }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
-  private terrainChanged = (): void => { this.cancelBuild(); this.invalidate(); };
+  private terrainChanged = (): void => {
+    this.cancelBuild();
+    // A flat mesh has neither terrain heights nor viewport culling. Do not draw
+    // it in the new 3D camera while the correct terrain geometry is prepared.
+    if (Boolean(this.map?.getTerrain()) !== this.bufferTerrain) this.clearBuffers();
+    this.invalidate();
+  };
+  private clearBuffers(): void {
+    if (this.gl) for (const chunk of this.buffers) this.gl.deleteBuffer(chunk.buffer);
+    this.buffers = []; this.vertexCount = 0; this.hitPaths = []; this.hitMatrix = undefined;
+  }
   private cancelBuild(): void {
     if (this.gl && this.prepared) for (const chunk of this.prepared.buffers) this.gl.deleteBuffer(chunk.buffer);
     this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true;
@@ -270,7 +280,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const finalSlice = performance.now() - sliceStarted;
     workMs += finalSlice;
     maximumSlice = Math.max(maximumSlice, finalSlice);
-    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0 };
+    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0, terrain };
     this.building = false;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
@@ -305,6 +315,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       if (mesh.nextChunk === mesh.chunks.length) {
         for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
         this.buffers = mesh.buffers;
+        this.bufferTerrain = mesh.terrain;
         this.origin = mesh.origin;
         this.hitPaths = mesh.hitPaths;
         this.vertexCount = this.buffers.reduce((count, chunk) => count + chunk.count, 0);
