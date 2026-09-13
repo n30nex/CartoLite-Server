@@ -239,10 +239,11 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
           const points = adaptiveSurfacePath(sample, pieces.length > 1 ? 3 : 4);
           fractions = points.map((p) => p.progress!);
         }
-        const positions = fractions.map((t) => {
+        const sampledPositions = fractions.map((t) => {
           const point = routeCoordinate(pair[0], pair[1], t);
           return position(point);
         });
+        const positions = terrain ? collapseCollinearPositions(sampledPositions) : sampledPositions;
         if (terrain) hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
         for (let i = 1; i < positions.length; i += 1) segments.push({ from: positions[i - 1]!, to: positions[i]!, color, opacity, band });
         if (terrain) {
@@ -359,6 +360,23 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (depth) gl.enable(gl.DEPTH_TEST);
     if (cull) gl.enable(gl.CULL_FACE);
   }
+}
+
+/** Remove numerical subdivisions of straight 3D chords, preserving real relief. */
+export function collapseCollinearPositions(points: readonly [number, number, number][]): [number, number, number][] {
+  const result: [number, number, number][] = [];
+  for (const point of points) {
+    while (result.length >= 2) {
+      const a = result[result.length - 2]!; const b = result[result.length - 1]!;
+      const dx = point[0] - a[0]; const dy = point[1] - a[1]; const dz = point[2] - a[2];
+      const length = dx * dx + dy * dy + dz * dz;
+      const t = length > 1e-24 ? ((b[0] - a[0]) * dx + (b[1] - a[1]) * dy + (b[2] - a[2]) * dz) / length : 0;
+      if (t < 0 || t > 1 || Math.hypot(b[0] - a[0] - t * dx, b[1] - a[1] - t * dy, b[2] - a[2] - t * dz) > 1e-12) break;
+      result.pop();
+    }
+    result.push(point);
+  }
+  return result;
 }
 
 /** Conservative geographic culling; lines crossing the view are retained. */

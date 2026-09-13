@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Feature, LineString } from 'geojson';
-import { historicalRouteVertices, routeMayIntersectView, STROKE_VERTEX_FLOATS } from './routeLayer';
+import { collapseCollinearPositions, historicalRouteVertices, routeMayIntersectView, STROKE_VERTEX_FLOATS } from './routeLayer';
 
 describe('historical route WebGL geometry', () => {
+  it('removes redundant straight subdivisions without flattening relief or reversing a path', () => {
+    expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.5], [1, 1, 1]])).toEqual([[0, 0, 0], [1, 1, 1]]);
+    expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.6], [1, 1, 1]])).toHaveLength(3);
+    expect(collapseCollinearPositions([[0, 0, 0], [1, 0, 0], [0.5, 0, 0]])).toHaveLength(3);
+  });
   it('culls distant terrain work but keeps crossing routes and date-line views', () => {
     expect(routeMayIntersectView([-123, 49], [-122, 49], [-81, 43, -79, 44])).toBe(false);
     expect(routeMayIntersectView([-82, 43.5], [-78, 43.5], [-81, 43, -79, 44])).toBe(true);
