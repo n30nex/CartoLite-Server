@@ -10,12 +10,12 @@ export const STROKE_VERTEX_FLOATS = 13;
 type GL = WebGLRenderingContext | WebGL2RenderingContext;
 interface StrokeSegment { from: [number, number, number]; to: [number, number, number]; color: string; opacity: number; band: number }
 interface HitPath { id: string; band: number; positions: readonly [number, number, number][] }
-interface GPUChunk { buffer: WebGLBuffer; count: number }
+interface GPUChunk { buffer: WebGLBuffer; count: number; capacity: number; written: number }
 interface Resources { program: WebGLProgram; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
 const GPU_CHUNK_FLOATS = STROKE_VERTEX_FLOATS * 6 * 1024;
 interface PreparedMesh {
   chunks: Float32Array[]; buffers: GPUChunk[]; nextChunk: number; origin: [number, number, number]; hitPaths: HitPath[];
-  startedAt: number; workMs: number; maximumSliceMs: number; samples: number; maximumUploadBytes: number; terrain: boolean;
+  startedAt: number; workMs: number; maximumSliceMs: number; samples: number; maximumUploadBytes: number; maximumAllocationBytes: number; terrain: boolean;
 }
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
@@ -280,7 +280,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const finalSlice = performance.now() - sliceStarted;
     workMs += finalSlice;
     maximumSlice = Math.max(maximumSlice, finalSlice);
-    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0, terrain };
+    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0, maximumAllocationBytes: 0, terrain };
     this.building = false;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
@@ -299,12 +299,21 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       do {
         const data = mesh.chunks[mesh.nextChunk];
         if (!data) break;
-        const buffer = gl.createBuffer();
-        if (!buffer) { this.cancelBuild(); return; }
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-        gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+        let target = mesh.buffers.at(-1);
+        if (!target || target.written + data.byteLength > target.capacity) {
+          const capacity = mesh.chunks.slice(mesh.nextChunk, mesh.nextChunk + 8).reduce((size, part) => size + part.byteLength, 0);
+          const buffer = gl.createBuffer();
+          if (!buffer) { this.cancelBuild(); return; }
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
+          target = { buffer, count: 0, capacity, written: 0 };
+          mesh.buffers.push(target);
+          mesh.maximumAllocationBytes = Math.max(mesh.maximumAllocationBytes, capacity);
+        } else gl.bindBuffer(gl.ARRAY_BUFFER, target.buffer);
+        gl.bufferSubData(gl.ARRAY_BUFFER, target.written, data);
+        target.written += data.byteLength;
+        target.count += data.length / STROKE_VERTEX_FLOATS;
         mesh.maximumUploadBytes = Math.max(mesh.maximumUploadBytes, data.byteLength);
-        mesh.buffers.push({ buffer, count: data.length / STROKE_VERTEX_FLOATS });
         mesh.chunks[mesh.nextChunk] = new Float32Array(0);
         mesh.nextChunk += 1;
       } while (mesh.nextChunk < mesh.chunks.length && performance.now() - commitStarted < 6);
@@ -325,6 +334,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
         container.dataset.routeMeshDurationMs = (this.lastUploadAt - mesh.startedAt).toFixed(1);
         container.dataset.routeMeshMaxSliceMs = mesh.maximumSliceMs.toFixed(1);
         container.dataset.routeMeshMaxUploadBytes = String(mesh.maximumUploadBytes);
+        container.dataset.routeMeshMaxAllocationBytes = String(mesh.maximumAllocationBytes);
         container.dataset.routeTerrainSamples = String(mesh.samples);
         container.dataset.routeMeshBusy = 'false';
       }
