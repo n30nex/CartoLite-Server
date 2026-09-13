@@ -268,6 +268,7 @@ export class LiveMap {
     });
     this.map.on('moveend', () => {
       this.container.dataset.cameraMoving = 'false';
+      this.container.dataset.cameraZoom = String(Math.round(this.map.getZoom() * 100) / 100);
       if (this.terrain3D && viewClass() === 'desktop') {
         this.appearance.terrainPitch = this.map.getPitch();
         this.appearance.terrainBearing = this.map.getBearing();
@@ -771,7 +772,7 @@ export class LiveMap {
     this.updateTerrainRoutes();
     const maxAge = this.effectiveRouteAgeMS();
     const visualApplied = detailSource
-      ? applyRouteVisibilityForZoom(this.map, visible, maxAge, this.map.getZoom())
+      ? applyRouteVisibilityForZoom(this.map, visible && this.selectedNodeID !== null, maxAge, this.map.getZoom())
       : false;
     const hitApplied = this.selectedNodeID !== null && applyRouteHitLayerVisibility(this.map, visible);
     const neighborsApplied = this.selectedNodeID !== null && applyNeighborRingVisibility(this.map, visible);
@@ -981,7 +982,7 @@ export class LiveMap {
     }
     const visibilityApplied = applyRouteVisibilityForZoom(
       this.map,
-      this.routesVisible,
+      this.routesVisible && this.selectedNodeID !== null,
       this.effectiveRouteAgeMS(),
       this.map.getZoom()
     );
@@ -1072,7 +1073,7 @@ export class LiveMap {
     this.map.addSource(ROUTE_DETAIL_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
     this.map.addSource(ROUTE_FOCUS_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
     this.applyRouteTimeState(Date.now(), true);
-    const exactVisibility = this.routesVisible ? 'visible' : 'none';
+    const exactVisibility = this.routesVisible && this.selectedNodeID !== null ? 'visible' : 'none';
     this.historicalRouteLayer.setVisible(this.routesVisible);
     this.historicalRouteLayer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));
     this.map.addLayer(this.historicalRouteLayer);
@@ -1515,6 +1516,7 @@ export class LiveMap {
 
   private applyFocusState(updateRouteFilter = true): void {
     const focusIDs = this.selectedNodeID ? [this.selectedNodeID, ...this.neighborNodeIDs] : [];
+    applyRouteVisibilityForZoom(this.map, this.routesVisible && this.selectedNodeID !== null, this.effectiveRouteAgeMS(), this.map.getZoom());
     if (updateRouteFilter) applyRouteSelectionFilter(this.map, this.selectedNodeID);
     applySelectedNodeFilter(this.map, this.selectedNodeID);
     applyNodeFocus(this.map, this.selectedNodeID, focusIDs, this.neighborNodeIDs);

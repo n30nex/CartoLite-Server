@@ -1,4 +1,4 @@
-import { MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
+import { LngLat, MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, LineString } from 'geojson';
 import { splitWorldRoute, routeCoordinate, longitudeDelta, type Coordinate } from './worldGeometry';
 import { adaptiveSurfacePath, type SurfacePoint } from './terrainProjection';
@@ -10,7 +10,13 @@ export const STROKE_VERTEX_FLOATS = 13;
 type GL = WebGLRenderingContext | WebGL2RenderingContext;
 interface StrokeSegment { from: [number, number, number]; to: [number, number, number]; color: string; opacity: number; band: number }
 interface HitPath { id: string; band: number; positions: readonly [number, number, number][] }
-interface Resources { program: WebGLProgram; buffer: WebGLBuffer; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
+interface GPUChunk { buffer: WebGLBuffer; count: number; capacity: number; written: number }
+interface Resources { program: WebGLProgram; uniforms: Record<string, WebGLUniformLocation>; attributes: number[] }
+const GPU_CHUNK_FLOATS = STROKE_VERTEX_FLOATS * 6 * 1024;
+interface PreparedMesh {
+  chunks: Float32Array[]; buffers: GPUChunk[]; nextChunk: number; origin: [number, number, number]; hitPaths: HitPath[];
+  startedAt: number; workMs: number; maximumSliceMs: number; samples: number; maximumUploadBytes: number; maximumAllocationBytes: number; terrain: boolean;
+}
 
 export class HistoricalRouteLayer implements CustomLayerInterface {
   readonly id = ROUTE_WEBGL_LAYER_ID;
@@ -32,15 +38,19 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   private lastUploadAt = -Infinity;
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private hitMatrix?: Float32Array;
+  private building = false;
+  private buildEpoch = 0;
+  private prepared?: PreparedMesh;
+  private cameraKey = '';
+  private buffers: GPUChunk[] = [];
+  private bufferTerrain = false;
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.map = map;
     this.gl = gl;
     const program = createProgram(gl);
-    const buffer = gl.createBuffer();
-    if (!buffer) throw new Error('Unable to create route stroke buffer');
     const uniforms: Record<string, WebGLUniformLocation> = {};
-    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline']) {
+    for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline', 'simple']) {
       const location = gl.getUniformLocation(program, `u_${name}`);
       if (location === null) throw new Error(`Missing route uniform: ${name}`);
       uniforms[name] = location;
@@ -50,20 +60,22 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       if (location < 0) throw new Error(`Missing route attribute: ${name}`);
       return location;
     });
-    this.resources = { program, buffer, uniforms, attributes };
+    this.resources = { program, uniforms, attributes };
     map.on('move', this.cameraChanged);
     map.on('moveend', this.cameraChanged);
-    map.on('terrain', this.invalidate);
+    map.on('terrain', this.terrainChanged);
     map.on('sourcedata', this.sourceChanged);
     this.dirty = true;
   }
   onRemove(map: MapLibreMap, gl: GL): void {
     map.off('move', this.cameraChanged);
     map.off('moveend', this.cameraChanged);
-    map.off('terrain', this.invalidate);
+    map.off('terrain', this.terrainChanged);
     map.off('sourcedata', this.sourceChanged);
-    if (this.resources) { gl.deleteBuffer(this.resources.buffer); gl.deleteProgram(this.resources.program); }
+    this.clearBuffers();
+    if (this.resources) gl.deleteProgram(this.resources.program);
     this.resources = undefined;
+    this.cancelBuild();
     this.map = undefined;
     this.gl = undefined;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
@@ -71,11 +83,18 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   }
   private cameraChanged = (): void => {
     if (!this.map) return;
-    const center = MercatorCoordinate.fromLngLat(this.map.getCenter());
+    const location = this.map.getCenter();
+    const canvas = this.map.getCanvas();
+    const key = [location.lng.toFixed(7), location.lat.toFixed(7), this.map.getZoom().toFixed(3),
+      this.map.getPitch().toFixed(2), this.map.getBearing().toFixed(2), canvas.clientWidth, canvas.clientHeight,
+      JSON.stringify(this.map.getPadding())].join(':');
+    if (key === this.cameraKey) return;
+    this.cameraKey = key;
+    const center = MercatorCoordinate.fromLngLat(location);
     if (this.map.getTerrain() || Math.abs(center.x - this.origin[0]) > 1 / 256 || Math.abs(center.y - this.origin[1]) > 1 / 256) this.scheduleResample();
   };
-  private sourceChanged = (event: { sourceId?: string }): void => {
-    if (event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.scheduleResample();
+  private sourceChanged = (event: { sourceId?: string; sourceDataType?: string }): void => {
+    if ((!event.sourceDataType || event.sourceDataType === 'content') && event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.scheduleResample();
   };
   private scheduleResample(): void {
     if (!this.visible) { this.dirty = true; return; }
@@ -85,19 +104,36 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
   }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
-  setRoutes(routes: readonly Feature<LineString>[]): void { this.routes = routes; this.invalidate(); }
+  private terrainChanged = (): void => {
+    this.cancelBuild();
+    // A flat mesh has neither terrain heights nor viewport culling. Do not draw
+    // it in the new 3D camera while the correct terrain geometry is prepared.
+    if (Boolean(this.map?.getTerrain()) !== this.bufferTerrain) this.clearBuffers();
+    this.invalidate();
+  };
+  private clearBuffers(): void {
+    if (this.gl) for (const chunk of this.buffers) this.gl.deleteBuffer(chunk.buffer);
+    this.buffers = []; this.vertexCount = 0; this.hitPaths = []; this.hitMatrix = undefined;
+  }
+  private cancelBuild(): void {
+    if (this.gl && this.prepared) for (const chunk of this.prepared.buffers) this.gl.deleteBuffer(chunk.buffer);
+    this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true;
+    if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
+  }
+  setRoutes(routes: readonly Feature<LineString>[]): void { this.cancelBuild(); this.routes = routes; this.invalidate(); }
   setOpacity(opacity: number): void { this.opacity = clamp(opacity, 0.2, 1); this.map?.triggerRepaint(); }
-  setLightBackground(light: boolean): void { if (light !== this.lightBackground) { this.lightBackground = light; this.invalidate(); } }
+  setLightBackground(light: boolean): void { if (light !== this.lightBackground) { this.cancelBuild(); this.lightBackground = light; this.invalidate(); } }
   setVisible(visible: boolean): void {
     if (this.visible === visible) return;
     this.visible = visible;
+    if (!visible) this.cancelBuild();
     this.map?.triggerRepaint();
   }
   setMaximumBand(band: number): void {
     const next = clamp(Math.round(band), 0, 3);
     if (next === this.maximumBand) return;
     this.maximumBand = next;
-    if (this.map?.getTerrain()) this.dirty = true;
+    if (this.map?.getTerrain()) this.cancelBuild();
     if (this.visible) this.map?.triggerRepaint();
   }
   refreshAppearance(): void { this.map?.triggerRepaint(); }
@@ -131,13 +167,19 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     return found;
   }
 
-  private upload(): void {
+  private async upload(matrix: readonly number[]): Promise<void> {
     if (!this.map || !this.gl || !this.resources) return;
     const map = this.map;
     const started = performance.now();
     const center = MercatorCoordinate.fromLngLat(map.getCenter());
-    this.origin = [center.x, center.y, 0];
+    const origin: [number, number, number] = [center.x, center.y, 0];
+    const epoch = ++this.buildEpoch;
+    this.building = true;
+    this.dirty = false;
+    map.getContainer().dataset.routeMeshBusy = 'true';
+    const routes = this.routes;
     const terrain = Boolean(map.getTerrain());
+    const sampleElevation = terrain ? terrainBatchSampler(map) : () => 0;
     const bounds = map.getBounds();
     const view: [number, number, number, number] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
     const width = map.getCanvas().clientWidth; const height = map.getCanvas().clientHeight;
@@ -146,7 +188,14 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     const project = (point: Coordinate): SurfacePoint => {
       const key = point.join(',');
       let result = projections.get(key);
-      if (!result) { result = map.project([point[0], point[1]]); projections.set(key, result); }
+      if (!result) {
+        const [x, y, z] = position(point);
+        const w = matrix[3]! * x + matrix[7]! * y + matrix[11]! * z + matrix[15]!;
+        const divisor = Math.abs(w) < 1e-9 ? (w < 0 ? -1e-9 : 1e-9) : w;
+        result = { x: ((matrix[0]! * x + matrix[4]! * y + matrix[8]! * z + matrix[12]!) / divisor + 1) * width / 2,
+          y: (1 - (matrix[1]! * x + matrix[5]! * y + matrix[9]! * z + matrix[13]!) / divisor) * height / 2 };
+        projections.set(key, result);
+      }
       return result;
     };
     const position = (point: Coordinate): [number, number, number] => {
@@ -154,7 +203,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       let result = elevations.get(key);
       if (!result) {
         const coordinate: [number, number] = [point[0], point[1]];
-        const elevation = terrain ? map.queryTerrainElevation(coordinate) ?? 0 : 0;
+        const elevation = sampleElevation(coordinate);
         const mercator = MercatorCoordinate.fromLngLat(coordinate, Number.isFinite(elevation) ? elevation : 0);
         result = [mercator.x, mercator.y, mercator.z];
         elevations.set(key, result);
@@ -162,8 +211,24 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       return result;
     };
     const segments: StrokeSegment[] = [];
-    this.hitPaths = [];
-    for (const route of this.routes) {
+    const hitPaths: HitPath[] = [];
+    const chunks: Float32Array[] = [];
+    let packed: Float32Array | undefined;
+    let packedOffset = 0;
+    const append = (values: Float32Array): void => {
+      let offset = 0;
+      while (offset < values.length) {
+        packed ??= new Float32Array(GPU_CHUNK_FLOATS);
+        const count = Math.min(GPU_CHUNK_FLOATS - packedOffset, values.length - offset);
+        packed.set(values.subarray(offset, offset + count), packedOffset);
+        packedOffset += count; offset += count;
+        if (packedOffset === GPU_CHUNK_FLOATS) { chunks.push(packed); packed = undefined; packedOffset = 0; }
+      }
+    };
+    let sliceStarted = started;
+    let maximumSlice = 0;
+    let workMs = 0;
+    for (const route of routes) {
       const rawFrom = route.geometry.coordinates[0]; const rawTo = route.geometry.coordinates.at(-1);
       if (!rawFrom || !rawTo) continue;
       const band = Number(route.properties?.windowBand ?? 3);
@@ -186,32 +251,101 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
           const points = adaptiveSurfacePath(sample, pieces.length > 1 ? 3 : 4);
           fractions = points.map((p) => p.progress!);
         }
-        const positions = fractions.map((t) => {
+        const sampledPositions = fractions.map((t) => {
           const point = routeCoordinate(pair[0], pair[1], t);
           return position(point);
         });
-        if (terrain) this.hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
+        const positions = terrain ? collapseCollinearPositions(sampledPositions) : sampledPositions;
+        if (terrain) hitPaths.push({ id: String(route.properties?.id ?? route.id ?? ''), band, positions });
         for (let i = 1; i < positions.length; i += 1) segments.push({ from: positions[i - 1]!, to: positions[i]!, color, opacity, band });
+        if (terrain) {
+          append(strokeVertices(segments, origin));
+          segments.length = 0;
+          const elapsed = performance.now() - sliceStarted;
+          if (elapsed >= 6) {
+            maximumSlice = Math.max(maximumSlice, elapsed);
+            workMs += elapsed;
+            await new Promise<void>(resolve => setTimeout(resolve, 0));
+            if (this.map !== map || this.buildEpoch !== epoch) return;
+            sliceStarted = performance.now();
+          }
+        }
       }
     }
-    const data = strokeVertices(segments, this.origin);
-    this.vertexCount = data.length / STROKE_VERTEX_FLOATS;
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.resources.buffer);
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, data, this.gl.DYNAMIC_DRAW);
-    this.dirty = false;
-    this.lastUploadAt = performance.now();
-    map.getContainer().dataset.routeMeshUploadMs = (this.lastUploadAt - started).toFixed(1);
-    map.getContainer().dataset.routeTerrainSamples = String(terrain ? projections.size : 0);
+    if (terrain) {
+      const remainder = packed as Float32Array | undefined;
+      if (remainder && packedOffset) chunks.push(remainder.subarray(0, packedOffset));
+    } else chunks.push(strokeVertices(segments, origin));
+    if (this.map !== map || this.buildEpoch !== epoch) return;
+    const finalSlice = performance.now() - sliceStarted;
+    workMs += finalSlice;
+    maximumSlice = Math.max(maximumSlice, finalSlice);
+    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0, maximumAllocationBytes: 0, terrain };
+    this.building = false;
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
     this.refreshTimer = undefined;
+    if (terrain) map.triggerRepaint();
   }
   render(gl: GL, options: CustomRenderMethodInput): void {
     if (!this.resources || !this.map || !this.visible) return;
-    if (this.dirty) this.upload();
+    if (this.dirty && !this.building && !this.prepared) void this.upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
+      this.building = false;
+      if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
+      console.warn('Historical route geometry could not be prepared');
+    });
+    if (this.prepared) {
+      const commitStarted = performance.now();
+      const mesh = this.prepared;
+      do {
+        const data = mesh.chunks[mesh.nextChunk];
+        if (!data) break;
+        let target = mesh.buffers.at(-1);
+        if (!target || target.written + data.byteLength > target.capacity) {
+          const capacity = mesh.chunks.slice(mesh.nextChunk, mesh.nextChunk + 8).reduce((size, part) => size + part.byteLength, 0);
+          const buffer = gl.createBuffer();
+          if (!buffer) { this.cancelBuild(); return; }
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
+          target = { buffer, count: 0, capacity, written: 0 };
+          mesh.buffers.push(target);
+          mesh.maximumAllocationBytes = Math.max(mesh.maximumAllocationBytes, capacity);
+        } else gl.bindBuffer(gl.ARRAY_BUFFER, target.buffer);
+        gl.bufferSubData(gl.ARRAY_BUFFER, target.written, data);
+        target.written += data.byteLength;
+        target.count += data.length / STROKE_VERTEX_FLOATS;
+        mesh.maximumUploadBytes = Math.max(mesh.maximumUploadBytes, data.byteLength);
+        mesh.chunks[mesh.nextChunk] = new Float32Array(0);
+        mesh.nextChunk += 1;
+      } while (mesh.nextChunk < mesh.chunks.length && performance.now() - commitStarted < 6);
+      const commitMs = performance.now() - commitStarted;
+      mesh.workMs += commitMs;
+      mesh.maximumSliceMs = Math.max(mesh.maximumSliceMs, commitMs);
+      const container = this.map.getContainer();
+      if (mesh.nextChunk === mesh.chunks.length) {
+        for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
+        this.buffers = mesh.buffers;
+        this.bufferTerrain = mesh.terrain;
+        this.origin = mesh.origin;
+        this.hitPaths = mesh.hitPaths;
+        this.vertexCount = this.buffers.reduce((count, chunk) => count + chunk.count, 0);
+        this.prepared = undefined;
+        this.lastUploadAt = performance.now();
+        container.dataset.routeMeshUploadMs = mesh.workMs.toFixed(1);
+        container.dataset.routeMeshDurationMs = (this.lastUploadAt - mesh.startedAt).toFixed(1);
+        container.dataset.routeMeshMaxSliceMs = mesh.maximumSliceMs.toFixed(1);
+        container.dataset.routeMeshMaxUploadBytes = String(mesh.maximumUploadBytes);
+        container.dataset.routeMeshMaxAllocationBytes = String(mesh.maximumAllocationBytes);
+        container.dataset.routeTerrainSamples = String(mesh.samples);
+        container.dataset.routeMeshBusy = 'false';
+      }
+      if (this.prepared || this.dirty) this.map.triggerRepaint();
+    }
     if (!this.vertexCount) return;
-    const { program, buffer, uniforms, attributes } = this.resources;
+    const { program, uniforms, attributes } = this.resources;
     const settings = displayPreferences();
-    const denseOverview = this.routes.length > 2000 && this.map.getZoom() < 11;
+    // Preserve every core stroke and pattern; omit decorative passes when a
+    // dense close view carries as much geometry as a regional overview.
+    const denseOverview = this.routes.length > 2000 && (this.map.getZoom() < 11 || this.vertexCount > 12000);
     const depth = gl.isEnabled(gl.DEPTH_TEST);
     const cull = gl.isEnabled(gl.CULL_FACE);
     const depthMask = gl.getParameter(gl.DEPTH_WRITEMASK) as boolean;
@@ -221,13 +355,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.useProgram(program);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    let offset = 0;
-    [3, 3, 2, 3, 1, 1].forEach((size, index) => {
-      gl.enableVertexAttribArray(attributes[index]!);
-      gl.vertexAttribPointer(attributes[index]!, size, gl.FLOAT, false, STROKE_VERTEX_FLOATS * 4, offset * 4);
-      offset += size;
-    });
+    for (const attribute of attributes) gl.enableVertexAttribArray(attribute);
     // Rebase in double precision before uploading floats, keeping close-zoom endpoints aligned.
     const matrix = Array.from(options.defaultProjectionData.mainMatrix);
     for (let row = 0; row < 4; row += 1) matrix[12 + row] = matrix[12 + row]! + matrix[row]! * this.origin[0] + matrix[4 + row]! * this.origin[1];
@@ -237,16 +365,80 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.width!, settings.width);
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
+    gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
     gl.uniform1f(uniforms.opacity!, this.opacity);
     gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
     if (this.lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
     else gl.uniform3f(uniforms.casing!, 0.025, 0.055, 0.075);
-    gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+    for (const chunk of this.buffers) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, chunk.buffer);
+      let offset = 0;
+      [3, 3, 2, 3, 1, 1].forEach((size, index) => {
+        gl.vertexAttribPointer(attributes[index]!, size, gl.FLOAT, false, STROKE_VERTEX_FLOATS * 4, offset * 4);
+        offset += size;
+      });
+      gl.drawArrays(gl.TRIANGLES, 0, chunk.count);
+    }
     gl.depthMask(depthMask);
     if (depth) gl.enable(gl.DEPTH_TEST);
     if (cull) gl.enable(gl.CULL_FACE);
   }
+}
+
+interface ElevationMap {
+  getCenter(): { lng: number; lat: number };
+  queryTerrainElevation(point: [number, number]): number | null;
+  terrain?: { getElevationForLngLatZoom?: (point: LngLat, zoom: number) => number } | null;
+}
+
+/**
+ * MapLibre 6.4.1 repeats viewport coverage calculation in every public elevation
+ * query. Capture its exact chosen level during one synchronous query, restore
+ * the method immediately, and use the same native sampler for the whole batch.
+ * A capability fallback keeps upgrades safe without copying the DEM decoder.
+ */
+export function terrainBatchSampler(map: ElevationMap): (point: Coordinate) => number {
+  const fallback = (point: Coordinate): number => map.queryTerrainElevation([point[0], point[1]]) ?? 0;
+  const terrain = map.terrain;
+  if (!terrain || typeof terrain.getElevationForLngLatZoom !== 'function') return fallback;
+  const original = terrain.getElevationForLngLatZoom;
+  const descriptor = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
+  if ((descriptor && !descriptor.configurable) || (!descriptor && !Object.isExtensible(terrain))) return fallback;
+  let level: number | undefined;
+  try {
+    Object.defineProperty(terrain, 'getElevationForLngLatZoom', {
+      configurable: true, writable: true,
+      value: (point: LngLat, zoom: number): number => { level = zoom; return original.call(terrain, point, zoom); },
+    });
+    const center = map.getCenter();
+    map.queryTerrainElevation([center.lng, center.lat]);
+  } catch {
+    return fallback;
+  } finally {
+    if (descriptor) Object.defineProperty(terrain, 'getElevationForLngLatZoom', descriptor);
+    else delete terrain.getElevationForLngLatZoom;
+  }
+  if (level === undefined || !Number.isInteger(level) || level < 0 || level > 30) return fallback;
+  const zoom = level;
+  return point => original.call(terrain, new LngLat(point[0], point[1]), zoom);
+}
+
+/** Remove numerical subdivisions of straight 3D chords, preserving real relief. */
+export function collapseCollinearPositions(points: readonly [number, number, number][]): [number, number, number][] {
+  const result: [number, number, number][] = [];
+  for (const point of points) {
+    while (result.length >= 2) {
+      const a = result[result.length - 2]!; const b = result[result.length - 1]!;
+      const dx = point[0] - a[0]; const dy = point[1] - a[1]; const dz = point[2] - a[2];
+      const length = dx * dx + dy * dy + dz * dz;
+      const t = length > 1e-24 ? ((b[0] - a[0]) * dx + (b[1] - a[1]) * dy + (b[2] - a[2]) * dz) / length : 0;
+      if (t < 0 || t > 1 || Math.hypot(b[0] - a[0] - t * dx, b[1] - a[1] - t * dy, b[2] - a[2] - t * dz) > 1e-12) break;
+      result.pop();
+    }
+    result.push(point);
+  }
+  return result;
 }
 
 /** Conservative geographic culling; lines crossing the view are retained. */
@@ -295,7 +487,7 @@ export function historicalRouteVertices(routes: readonly Feature<LineString>[]):
 function createProgram(gl: GL): WebGLProgram {
   const vertex = compileShader(gl, gl.VERTEX_SHADER, `
     precision highp float;
-    uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; uniform float u_glow; uniform float u_outline;
+    uniform mat4 u_matrix; uniform vec2 u_viewport; uniform float u_width; uniform float u_glow; uniform float u_outline; uniform float u_simple;
     attribute vec3 a_from; attribute vec3 a_to; attribute vec2 a_corner;
     attribute vec3 a_color; attribute float a_alpha; attribute float a_band;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
@@ -303,7 +495,7 @@ function createProgram(gl: GL): WebGLProgram {
       vec4 a = u_matrix * vec4(a_from, 1.0); vec4 b = u_matrix * vec4(a_to, 1.0);
       vec2 delta = (b.xy / b.w - a.xy / a.w) * u_viewport * 0.5;
       float len = max(0.001, length(delta)); vec2 direction = delta / len;
-      float extent = u_width * 0.5 + max(0.55, u_outline) + u_glow * 5.0;
+      float extent = u_width * 0.5 + (u_simple > 0.5 ? 0.0 : max(0.55, u_outline) + u_glow * 5.0);
       vec4 point = mix(a, b, a_corner.x);
       vec2 shift = (direction * (a_corner.x * 2.0 - 1.0) + vec2(-direction.y, direction.x) * a_corner.y) * extent;
       point.xy += shift * 2.0 / u_viewport * point.w;
@@ -315,10 +507,18 @@ function createProgram(gl: GL): WebGLProgram {
   const fragment = compileShader(gl, gl.FRAGMENT_SHADER, `
     precision highp float;
     uniform float u_width; uniform float u_glow; uniform float u_opacity; uniform float u_maximum_band; uniform float u_pattern;
-    uniform vec3 u_casing; uniform float u_outline;
+    uniform vec3 u_casing; uniform float u_outline; uniform float u_simple;
     varying vec3 v_color; varying float v_alpha; varying float v_band; varying vec2 v_local; varying float v_length;
     void main() {
       if (v_band > u_maximum_band + 0.1 || v_alpha <= 0.0) discard;
+      if (u_simple > 0.5) {
+        if (u_pattern > 1.5) {
+          float period = u_width * 2.7;
+          if (length(vec2(mod(max(0.0, v_local.x), period) - period * 0.5, v_local.y)) > u_width * 0.5) discard;
+        } else if (u_pattern > 0.5 && mod(max(0.0, v_local.x), u_width * 7.0) > u_width * 4.0) discard;
+        gl_FragColor = vec4(v_color, v_alpha * u_opacity);
+        return;
+      }
       float x = v_local.x; float outside = max(-x, x - v_length);
       float distance = abs(v_local.y);
       if (outside > 0.0) distance = length(vec2(outside, v_local.y));

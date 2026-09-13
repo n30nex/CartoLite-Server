@@ -1,8 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import type { Feature, LineString } from 'geojson';
-import { historicalRouteVertices, routeMayIntersectView, STROKE_VERTEX_FLOATS } from './routeLayer';
+import { collapseCollinearPositions, historicalRouteVertices, routeMayIntersectView, STROKE_VERTEX_FLOATS, terrainBatchSampler } from './routeLayer';
 
 describe('historical route WebGL geometry', () => {
+  it('reuses the native elevation level and restores the sampler descriptor', () => {
+    let coverageQueries = 0;
+    const terrain = { getElevationForLngLatZoom(point: { lng: number; lat: number }, zoom: number): number { return point.lng + point.lat + zoom * 100; } };
+    const descriptor = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
+    const map = {
+      terrain, getCenter: () => ({ lng: 0, lat: 0 }),
+      queryTerrainElevation: (point: [number, number]): number => { coverageQueries += 1; return terrain.getElevationForLngLatZoom({ lng: point[0], lat: point[1] }, 12); },
+    };
+    const sample = terrainBatchSampler(map);
+    for (let i = 0; i < 100; i++) expect(sample([i, 40])).toBe(i + 1240);
+    expect(coverageQueries).toBe(1);
+    expect(Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom')).toEqual(descriptor);
+  });
+  it('uses the public fallback if an elevation adapter is unavailable', () => {
+    const sample = terrainBatchSampler({ getCenter: () => ({ lng: 0, lat: 0 }), queryTerrainElevation: () => 75 });
+    expect(sample([0, 0])).toBe(75);
+  });
+  it('restores the native method when the calibration query fails', () => {
+    const terrain = { getElevationForLngLatZoom: () => 25 };
+    const original = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
+    let failing = true;
+    const sample = terrainBatchSampler({
+      terrain, getCenter: () => ({ lng: 0, lat: 0 }),
+      queryTerrainElevation: () => { if (failing) { failing = false; throw new Error('not ready'); } return 25; },
+    });
+    expect(Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom')).toEqual(original);
+    expect(sample([0, 0])).toBe(25);
+  });
+  it('removes redundant straight subdivisions without flattening relief or reversing a path', () => {
+    expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.5], [1, 1, 1]])).toEqual([[0, 0, 0], [1, 1, 1]]);
+    expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.6], [1, 1, 1]])).toHaveLength(3);
+    expect(collapseCollinearPositions([[0, 0, 0], [1, 0, 0], [0.5, 0, 0]])).toHaveLength(3);
+  });
   it('culls distant terrain work but keeps crossing routes and date-line views', () => {
     expect(routeMayIntersectView([-123, 49], [-122, 49], [-81, 43, -79, 44])).toBe(false);
     expect(routeMayIntersectView([-82, 43.5], [-78, 43.5], [-81, 43, -79, 44])).toBe(true);
