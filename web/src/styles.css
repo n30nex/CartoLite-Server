@@ -644,7 +644,18 @@ button { font: inherit; }
   border-radius: 12px;
 }
 #layers-panel[hidden], .follow-card[hidden] { display: none; }
-.map-options-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--ink-strong); font-size: 13px; }
+.map-options-header { position: sticky; top: -10px; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -10px -12px 0; padding: 8px 12px; background: var(--panel-solid); border-bottom: 1px solid var(--panel-border); color: var(--ink-strong); font-size: 13px; }
+.map-options-subtitle { margin: 3px 0 0; color: var(--muted); font-size: 11px; font-weight: 400; }
+.map-layer-group { min-width: 0; margin: 0; }
+section.map-layer-group, .layer-group-body, .map-appearance-content { display: grid; gap: 8px; }
+.map-layer-group h2 { margin: 2px 0; color: var(--ink-strong); font-size: 12px; font-weight: 650; }
+.map-layer-group > summary, .map-appearance > summary { min-height: 44px; padding: 12px 0; color: var(--ink-strong); font-size: 12px; font-weight: 650; cursor: pointer; }
+.map-layer-group > summary > span, .map-appearance > summary > span { float: right; margin-left: 8px; color: var(--muted); font-size: 10px; font-weight: 400; }
+details.map-layer-group, .map-appearance { border-top: 1px solid var(--panel-border); }
+.layer-hint { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+#map-appearance .reset-appearance { width: 100%; margin-block: 10px 8px; }
+#layers-panel :is(button, input, select, summary) { scroll-margin-block: 70px 12px; }
+#layers-panel input:disabled { cursor: not-allowed; opacity: 0.5; }
 .map-options-header .control-button { border: 0; border-radius: 7px; }
 .map-options-label { padding-top: 4px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
 .layer-toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
@@ -654,8 +665,8 @@ button { font: inherit; }
 }
 #layers-panel .control-button > span:last-child { display: inline; }
 .layer-toggles .control-icon { width: 14px; height: 14px; }
-.layer-toggles .control-button::after { content: ''; flex: none; width: 7px; height: 7px; margin-left: auto; border: 1px solid currentColor; border-radius: 50%; opacity: 0.5; }
-.layer-toggles .control-button[aria-pressed="true"]::after { background: #45baa6; border-color: #45baa6; opacity: 1; }
+.layer-toggles .control-button::after { content: 'Off'; flex: none; margin-left: auto; font-size: 9px; font-weight: 400; opacity: 1; }
+.layer-toggles .control-button[aria-pressed="true"]::after { content: 'On'; font-weight: 750; opacity: 1; }
 .map-option, #layers-panel .route-window { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0; color: var(--muted); font-size: 12px; }
 .map-option select, #layers-panel .route-window select { width: 146px; min-width: 0; min-height: 44px; border: 1px solid var(--panel-border); border-radius: 8px; padding: 0 8px; color: var(--ink-strong); background: var(--field-bg); font: inherit; }
 .map-slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 10px; color: var(--muted); font-size: 12px; }

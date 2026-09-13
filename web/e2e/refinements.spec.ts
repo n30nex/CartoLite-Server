@@ -109,6 +109,7 @@ test('map navigation and controls remain separate across laptop and narrow phone
     await expect(page.locator('#status-text')).toBeVisible();
   }
   await page.locator('#layers-summary').click();
+  await page.locator('#terrain-options > summary').click();
   for (const id of ['routes', 'heatmap', 'clusters', 'hillshade', 'terrain']) {
     await expect(page.locator(`#${id}-button > span`).last()).toBeVisible();
   }

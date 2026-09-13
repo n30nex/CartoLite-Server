@@ -1,6 +1,6 @@
 # Map, Netgraph, and display settings
 
-Map keeps its everyday controls in the toolbar. Open **Map** for layers, appearance and camera settings. Netgraph has a matching **Display** menu. Menus scroll within the viewport; Escape closes them and returns keyboard focus to their button.
+Map keeps its everyday controls in the toolbar. Open **Layers** for grouped Traffic and Map details controls. Expand **Terrain & buildings** or **Appearance** for their additional settings. Netgraph has a matching **Display** menu. Menus scroll within the viewport; Escape closes them and returns keyboard focus to their button.
 
 ## Shared appearance
 
@@ -31,3 +31,13 @@ A map notice explains unavailable tile details and offers Retry; traffic data an
 Synthetic Actions checks cover themes, presets, storage migration and cross-tab updates, keyboard/menu behavior, actual building pixels, terrain/date-line projection, route/packet visibility, bounded performance and the public privacy contract.
 
 OpenFreeMap supplies the default geography and building layer. Optional CARTO configuration is described in [Deployment](deployment.md). Netgraph areas remain coordinate-derived global grid squares.
+
+## Layer guidance and reset
+
+Toggles show On or Off, and the menu reports how many layers are enabled. Buildings explain when neighborhood zoom is required. Camera and terrain-height controls require 3D; the shading slider requires Topo.
+
+**Reset layers** restores layer visibility, route window, and shading defaults while keeping the scene, route preset, and sound settings. **Reset all display settings**, under Appearance, also resets the shared Map/Netgraph appearance. Sound remains separate.
+
+Netgraph supports arrow-key pan, plus/minus zoom, and Home to fit when its canvas has keyboard focus. Its menus remain mutually exclusive for keyboard and pointer use, and phone summaries keep visible labels.
+
+If browser storage is blocked, the views continue running; preferences are then temporary for the current page.

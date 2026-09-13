@@ -85,6 +85,11 @@ export function searchNodes(nodes: Iterable<NodeV2>, rawQuery: string, limit = 8
   )).slice(0, Math.floor(limit));
 }
 
+export function observationTotal(count: number): string {
+  const total = Math.max(0, count);
+  return `${total.toLocaleString()} total ${total === 1 ? 'observation' : 'observations'}`;
+}
+
 export function relativeTime(timestamp: number, now = Date.now()): string {
   const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
   if (seconds < 60) return 'now';
@@ -141,6 +146,10 @@ export function createNodeInspectorContent(
   heading.textContent = model.neighbors.length === 0 ? 'No neighbours in this route window' : 'Neighbours · newest first';
   root.append(heading);
   if (model.neighbors.length === 0) return root;
+  const totalsNote = ownerDocument.createElement('small');
+  totalsNote.className = 'inspector-window-note';
+  totalsNote.textContent = 'Totals include earlier observations; the window selects which links appear.';
+  heading.append(totalsNote);
 
   const list = ownerDocument.createElement('div');
   list.className = 'neighbor-list';
@@ -154,7 +163,7 @@ export function createNodeInspectorContent(
     const role = ownerDocument.createElement('span');
     role.textContent = roleLabel(neighbor.role);
     const traffic = ownerDocument.createElement('span');
-    const packets = neighbor.packetCount === 1 ? '1 packet' : `${neighbor.packetCount.toLocaleString()} packets`;
+    const packets = observationTotal(neighbor.packetCount);
     traffic.textContent = `${neighbor.lastKind} · ${packets} · ${relativeTime(neighbor.lastHeard, now)}`;
     button.append(label, role, traffic);
     button.addEventListener('click', () => options.onSelectNeighbor(neighbor.id));

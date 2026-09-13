@@ -1,3 +1,4 @@
+import { browserStorage } from './browserStorage';
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from './soundScenes';
 import { mountDisplayControls } from './displayControls';
 import { loadBasemapConfiguration } from './basemap';
@@ -91,8 +92,8 @@ const followProgress = required<HTMLProgressElement>('follow-progress');
 const followPause = required<HTMLButtonElement>('follow-pause');
 
 initializeDisplay();
-let uiPreferences: UiPreferences = { ...loadUiPreferences(localStorage), basemap: displayPreferences().basemap, theme: displayPreferences().theme, routeOpacity: displayPreferences().opacity };
-mountDisplayControls(layersPanel);
+let uiPreferences: UiPreferences = { ...loadUiPreferences(browserStorage()), basemap: displayPreferences().basemap, theme: displayPreferences().theme, routeOpacity: displayPreferences().opacity };
+mountDisplayControls(required<HTMLElement>('map-appearance-content'));
 let legendExpanded = uiPreferences.legendExpanded;
 let lastTrafficPulseAt = -Infinity;
 let soundPulseTimer: number | undefined;
@@ -173,7 +174,7 @@ applyAppearanceChrome();
 legendToggle.addEventListener('click', () => {
   legendExpanded = !legendExpanded;
   uiPreferences = { ...uiPreferences, legendExpanded };
-  saveUiPreferences(localStorage, uiPreferences);
+  saveUiPreferences(browserStorage(), uiPreferences);
   legend.dataset.collapsed = String(!legendExpanded);
   legendToggle.setAttribute('aria-expanded', String(legendExpanded));
   legendToggle.setAttribute('aria-label', legendExpanded ? 'Hide map legend' : 'Show map legend');
@@ -344,7 +345,7 @@ async function start(): Promise<void> {
       liveMap.resetNorth();
       persistUiPreference({ terrainBearing: 0 });
     });
-    required<HTMLButtonElement>('reset-appearance').addEventListener('click', () => {
+    const resetLayers = (): void => {
       const toggles = [
         ['terrain-button', 'terrain3D'], ['hillshade-button', 'hillshade'], ['buildings-button', 'buildings'], ['routes-button', 'routes'],
         ['heatmap-button', 'heatmap'], ['clusters-button', 'clusters'],
@@ -354,11 +355,17 @@ async function start(): Promise<void> {
         const button = document.getElementById(id);
         if (button && uiPreferences[key] !== DEFAULT_UI_PREFERENCES[key]) button.click();
       }
-      if (legendExpanded) legendToggle.click();
-      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, relief: 0.75, routeWindow: 'auto', terrainExaggeration: 1, terrainPitch: 50, terrainBearing: 0 });
-      updateDisplay({ ...DEFAULT_DISPLAY });
+      persistUiPreference({ relief: DEFAULT_UI_PREFERENCES.relief, routeWindow: 'auto' });
       routeWindow.value = 'auto';
       liveMap.setRouteWindow('auto');
+      applyAppearance();
+    };
+    required<HTMLButtonElement>('reset-layers').addEventListener('click', resetLayers);
+    required<HTMLButtonElement>('reset-appearance').addEventListener('click', () => {
+      resetLayers();
+      if (legendExpanded) legendToggle.click();
+      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, terrainExaggeration: 1, terrainPitch: 50, terrainBearing: 0 });
+      updateDisplay({ ...DEFAULT_DISPLAY });
       applyAppearance();
     });
     applyAppearance();
@@ -504,8 +511,13 @@ async function start(): Promise<void> {
       }
     };
     setLiveFollow(false);
-    pauseLiveFollow = () => { if (liveFollow) setLiveFollow(false, true); };
-    followPause.addEventListener('click', () => setLiveFollow(followPaused, !followPaused));
+    pauseLiveFollow = () => {
+      if (liveFollow) { liveMap.map.stop(); setLiveFollow(false, true); }
+    };
+    followPause.addEventListener('click', () => {
+      if (liveFollow) liveMap.map.stop();
+      setLiveFollow(followPaused, !followPaused);
+    });
     required<HTMLButtonElement>('follow-close').addEventListener('click', () => setLiveFollow(false));
 
     for (const gesture of ['dragstart', 'click'] as const) liveMap.map.on(gesture, () => { if (liveFollow) setLiveFollow(false, true); });
@@ -526,7 +538,7 @@ async function start(): Promise<void> {
       if (changes) liveMap.render(state, changes);
       updateStatus();
     });
-    const savedView = loadSavedView(localStorage, activeViewClass);
+    const savedView = loadSavedView(browserStorage(), activeViewClass);
     if (savedView) {
       mapElement.dataset.viewSource = liveMap.restore(savedView.center, savedView.zoom, initial.nodes)
         ? 'saved'
@@ -537,7 +549,8 @@ async function start(): Promise<void> {
     }
 
     liveMap.map.on('moveend', () => {
-      if (!liveFollow) saveView(localStorage, activeViewClass, liveMap.view());
+      updateLayerChrome();
+      if (!liveFollow) saveView(browserStorage(), activeViewClass, liveMap.view());
       if (uiPreferences.terrain3D && activeViewClass === 'desktop') {
         persistUiPreference({ terrainPitch: liveMap.map.getPitch(), terrainBearing: liveMap.map.getBearing() });
         applyAppearanceChrome();
@@ -554,7 +567,7 @@ async function start(): Promise<void> {
         document.documentElement.dataset.viewClass = next;
         setLayersOpen(false);
         if (liveFollow) setLiveFollow(false, true);
-        const restored = loadSavedView(localStorage, next);
+        const restored = loadSavedView(browserStorage(), next);
         if (restored) {
           mapElement.dataset.viewSource = liveMap.restore(restored.center, restored.zoom, liveStore.snapshot.nodes)
             ? 'saved'
@@ -739,6 +752,7 @@ function required<T extends HTMLElement>(id: string): T {
 
 function applyAppearanceChrome(): void {
   applyDisplayChrome();
+  updateLayerChrome();
   basemapStyle.value = uiPreferences.basemap;
   interfaceTheme.value = uiPreferences.theme;
   routeOpacity.value = String(Math.round(uiPreferences.routeOpacity * 100));
@@ -754,7 +768,30 @@ function applyAppearanceChrome(): void {
 
 function persistUiPreference(update: Partial<UiPreferences>): void {
   uiPreferences = { ...uiPreferences, ...update };
-  saveUiPreferences(localStorage, uiPreferences);
+  saveUiPreferences(browserStorage(), uiPreferences);
+}
+
+function updateLayerChrome(): void {
+  const enabled = layersPanel.querySelectorAll('.layer-toggles button[aria-pressed="true"]').length;
+  const layerSummary = required<HTMLElement>('layer-summary');
+  const summaryText = `${enabled} layers on`;
+  if (layerSummary.textContent !== summaryText) layerSummary.textContent = summaryText;
+  const preset = displayPreferences().preset;
+  required<HTMLElement>('appearance-summary').textContent = `${{ dark: 'Night', light: 'Daylight', streets: 'Streets' }[uiPreferences.basemap]} · ${preset[0]!.toUpperCase()}${preset.slice(1)}`;
+  required<HTMLElement>('terrain-summary').textContent = `${uiPreferences.terrain3D ? '3D' : '2D'}${uiPreferences.buildings ? ' · Buildings' : ''}`;
+  const zoom = Number(mapElement.dataset.cameraZoom ?? 0);
+  const buildingText = !uiPreferences.buildings
+    ? 'Buildings appear at neighborhood zoom.'
+    : zoom < 13 ? 'Zoom in to neighborhood level to see buildings.'
+      : uiPreferences.terrain3D && activeViewClass === 'desktop'
+        ? 'Mapped building heights are shown where available.' : 'Building footprints are enabled.';
+  const buildingStatus = required<HTMLElement>('building-status');
+  if (buildingStatus.textContent !== buildingText) buildingStatus.textContent = buildingText;
+  terrainRelief.disabled = !uiPreferences.hillshade;
+  cameraPitch.disabled = !uiPreferences.terrain3D;
+  terrainHeight.disabled = !uiPreferences.terrain3D;
+  required<HTMLButtonElement>('north-button').disabled = !uiPreferences.terrain3D;
+  required<HTMLElement>('camera-status').hidden = uiPreferences.terrain3D;
 }
 
 function updateCompass(bearing: number): void {
@@ -775,6 +812,7 @@ function wireLayerToggle(
     button.setAttribute('aria-pressed', String(visible));
     button.classList.toggle('selected', visible);
     button.title = `${visible ? 'Hide' : 'Show'} ${layerName}`;
+    updateLayerChrome();
   };
   setVisible(visible);
   update();

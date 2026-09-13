@@ -23,6 +23,7 @@ test('map options are compact, persistent, and preserve live layers through styl
   await page.locator('.display-advanced > summary').click();
   await page.locator('#route-opacity').press('Home');
   for (let step = 0; step < 6; step++) await page.locator('#route-opacity').press('ArrowRight');
+  if (await page.locator('#hillshade-button').getAttribute('aria-pressed') !== 'true') await page.locator('#hillshade-button').click();
   await page.locator('#terrain-relief').press('Home');
   for (let step = 0; step < 8; step++) await page.locator('#terrain-relief').press('ArrowRight');
   await page.locator('#basemap-style').selectOption('streets');

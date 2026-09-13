@@ -1,3 +1,4 @@
+import { browserStorage } from './browserStorage';
 import { stableHash } from './trafficVisuals';
 import { isSoundScene, SOUND_SCENES as SCENES, type SoundScene } from './soundScenes';
 import { surfacePathPoint, type SurfacePoint } from './terrainProjection';
@@ -217,7 +218,7 @@ export class RouteSonifier {
   constructor(
     private readonly map: ViewportProjector,
     private readonly viewport: HTMLElement,
-    private readonly storage: Storage = window.localStorage,
+    private readonly storage: Storage = browserStorage(),
   ) {
     const preference = loadSoundPreference(storage);
     this.preferredEnabled = preference.enabled;

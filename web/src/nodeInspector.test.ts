@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildNodeInspectorModel, createNodeInspectorContent, searchNodes } from './nodeInspector';
+import { buildNodeInspectorModel, createNodeInspectorContent, observationTotal, searchNodes } from './nodeInspector';
 import type { NodeV2, RouteV2 } from './types';
 
 const now = 1_700_000_000_000;
@@ -55,4 +55,10 @@ describe('node finder', () => {
     ], 'maple');
     expect(results.map(({ node: result }) => result.id)).toEqual(['new-exact', 'old-exact', 'prefix', 'contains']);
   });
+});
+
+it('identifies cumulative observations in both detail and route labels', () => {
+  expect(observationTotal(1)).toBe('1 total observation');
+  expect(observationTotal(7)).toBe('7 total observations');
+  expect(observationTotal(0)).toBe('0 total observations');
 });

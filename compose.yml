@@ -2,7 +2,7 @@ name: cartolite-server
 
 services:
   cartolite:
-    image: ${CARTOLITE_IMAGE:-ghcr.io/n30nex/cartolite-server:0.5.0}
+    image: ${CARTOLITE_IMAGE:-ghcr.io/n30nex/cartolite-server:0.5.1}
     restart: unless-stopped
     ports:
       - "${CARTOLITE_BIND_ADDR:-127.0.0.1}:${CARTOLITE_PORT:-8080}:8080"

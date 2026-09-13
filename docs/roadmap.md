@@ -1,5 +1,7 @@
 # Audit roadmap
 
+Latest UI review: [2026-09-13 audit and refinement](ui-ux-audit-2026-09-13.md). The paired refinement implements A07, A08, A10 and part of A09, with layer organization and scoped reset; release evidence is separate.
+
 Updated: 12 September 2026. This roadmap turns the end-to-end audit into tracked delivery work. Audit IDs A01–A12 are retained; F IDs track features and R IDs track validation risks.
 
 This is the worldwide source-release roadmap. Shared work is paired with [CartoLite Canada](https://github.com/n30nex/CartoLite); A04/O1 is tracked upstream and is not an operator rollout for this repository.
@@ -36,10 +38,10 @@ Each item needs its acceptance check, edition parity, and an exact CI result bef
 | A04 | P1 | Canada | Needs setup | Configure the documented encrypted off-host backup and restore path. Prove a checksummed isolated restore with the matching image/version and independent monitoring; preserve production throughout validation. |
 | A05 | P2 | Both | Implemented | Reject non-finite RF/coordinate values and impose a bounded MQTT envelope before normalization. Synthetic invalid numbers and over-limit JSON/hex are rejected; valid RSSI-only and SNR-only packets still work. |
 | A06 | P2 | Both | Implemented | Run retention maintenance during quiet periods and avoid unnecessary checkpoint writes. With no new messages, expired routes/nodes leave the API, checkpoint and connected client; quiet connected feeds remain ready. |
-| A07 | P2 | Both | Planned | Label cumulative observation totals honestly and describe windows as “links heard within this period.” Never imply current totals are unique packets counted within the chosen interval. |
-| A08 | P2 | Both map pages | Planned | Guard access to browser storage itself and fall back to in-memory preferences. A throwing storage getter cannot prevent startup or control use. |
+| A07 | P2 | Both | Implemented | Label cumulative observation totals honestly and describe windows as “links heard within this period.” Never imply current totals are unique packets counted within the chosen interval. |
+| A08 | P2 | Both map pages | Implemented | Guard access to browser storage itself and fall back to in-memory preferences. A throwing storage getter cannot prevent startup or control use. |
 | A09 | P2 | Both | Planned | Transfer keyboard selection focus to details, restore it on close, add Netgraph keyboard pan/zoom/reset, and bounded node/area browsing. Find → details → neighbour → close works without a pointer. |
-| A10 | P2 | Both Netgraphs | Planned | Give every phone counter a visible or accessible name; prefer a concise nodes/links summary with optional area/component detail. Validate at 320–480 px without overlap. |
+| A10 | P2 | Both Netgraphs | Implemented | Give every phone counter a visible or accessible name; prefer a concise nodes/links summary with optional area/component detail. Validate at 320–480 px without overlap. |
 | A11 | P2 | Both delivery processes | Planned | Make dependency contributions testable without production credentials, retain trusted provider verification, enforce worldwide exact-revision merge/release checks and enable dependency alerting. M1 covers the runtime lockfile scan and automatic publication of the verified manual-run status on the exact commit; repository enforcement and alerts remain planned. |
 | A12 | P2 | Worldwide | Planned | Improve setup identity, require an instance-specific MQTT client ID, and refresh upgrade/rollback instructions. A documented install reports its actual revision/version; independent instances have distinct identities. |
 
