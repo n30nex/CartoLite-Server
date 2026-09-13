@@ -1,4 +1,4 @@
-import { MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
+import { LngLat, MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, LineString } from 'geojson';
 import { splitWorldRoute, routeCoordinate, longitudeDelta, type Coordinate } from './worldGeometry';
 import { adaptiveSurfacePath, type SurfacePoint } from './terrainProjection';
@@ -62,14 +62,14 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.resources = { program, uniforms, attributes };
     map.on('move', this.cameraChanged);
     map.on('moveend', this.cameraChanged);
-    map.on('terrain', this.invalidate);
+    map.on('terrain', this.terrainChanged);
     map.on('sourcedata', this.sourceChanged);
     this.dirty = true;
   }
   onRemove(map: MapLibreMap, gl: GL): void {
     map.off('move', this.cameraChanged);
     map.off('moveend', this.cameraChanged);
-    map.off('terrain', this.invalidate);
+    map.off('terrain', this.terrainChanged);
     map.off('sourcedata', this.sourceChanged);
     for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
     this.buffers = [];
@@ -104,6 +104,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
   }
   private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
+  private terrainChanged = (): void => { this.cancelBuild(); this.invalidate(); };
   private cancelBuild(): void {
     if (this.gl && this.prepared) for (const chunk of this.prepared.buffers) this.gl.deleteBuffer(chunk.buffer);
     this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true;
@@ -168,6 +169,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.getContainer().dataset.routeMeshBusy = 'true';
     const routes = this.routes;
     const terrain = Boolean(map.getTerrain());
+    const sampleElevation = terrain ? terrainBatchSampler(map) : () => 0;
     const bounds = map.getBounds();
     const view: [number, number, number, number] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
     const width = map.getCanvas().clientWidth; const height = map.getCanvas().clientHeight;
@@ -191,7 +193,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       let result = elevations.get(key);
       if (!result) {
         const coordinate: [number, number] = [point[0], point[1]];
-        const elevation = terrain ? map.queryTerrainElevation(coordinate) ?? 0 : 0;
+        const elevation = sampleElevation(coordinate);
         const mercator = MercatorCoordinate.fromLngLat(coordinate, Number.isFinite(elevation) ? elevation : 0);
         result = [mercator.x, mercator.y, mercator.z];
         elevations.set(key, result);
@@ -360,6 +362,44 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (depth) gl.enable(gl.DEPTH_TEST);
     if (cull) gl.enable(gl.CULL_FACE);
   }
+}
+
+interface ElevationMap {
+  getCenter(): { lng: number; lat: number };
+  queryTerrainElevation(point: [number, number]): number | null;
+  terrain?: { getElevationForLngLatZoom?: (point: LngLat, zoom: number) => number } | null;
+}
+
+/**
+ * MapLibre 6.4.1 repeats viewport coverage calculation in every public elevation
+ * query. Capture its exact chosen level during one synchronous query, restore
+ * the method immediately, and use the same native sampler for the whole batch.
+ * A capability fallback keeps upgrades safe without copying the DEM decoder.
+ */
+export function terrainBatchSampler(map: ElevationMap): (point: Coordinate) => number {
+  const fallback = (point: Coordinate): number => map.queryTerrainElevation([point[0], point[1]]) ?? 0;
+  const terrain = map.terrain;
+  if (!terrain || typeof terrain.getElevationForLngLatZoom !== 'function') return fallback;
+  const original = terrain.getElevationForLngLatZoom;
+  const descriptor = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
+  if ((descriptor && !descriptor.configurable) || (!descriptor && !Object.isExtensible(terrain))) return fallback;
+  let level: number | undefined;
+  try {
+    Object.defineProperty(terrain, 'getElevationForLngLatZoom', {
+      configurable: true, writable: true,
+      value: (point: LngLat, zoom: number): number => { level = zoom; return original.call(terrain, point, zoom); },
+    });
+    const center = map.getCenter();
+    map.queryTerrainElevation([center.lng, center.lat]);
+  } catch {
+    return fallback;
+  } finally {
+    if (descriptor) Object.defineProperty(terrain, 'getElevationForLngLatZoom', descriptor);
+    else delete terrain.getElevationForLngLatZoom;
+  }
+  if (level === undefined || !Number.isInteger(level) || level < 0 || level > 30) return fallback;
+  const zoom = level;
+  return point => original.call(terrain, new LngLat(point[0], point[1]), zoom);
 }
 
 /** Remove numerical subdivisions of straight 3D chords, preserving real relief. */
