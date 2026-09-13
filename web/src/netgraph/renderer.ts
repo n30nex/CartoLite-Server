@@ -1528,6 +1528,13 @@ export class NetgraphRenderer implements ViewportProjector {
     for (const id of ids) if (this.stage.hasPointerCapture(id)) this.stage.releasePointerCapture(id);
   }
 
+  panBy(x: number, y: number): void {
+    this.cancelViewAnimation();
+    this.centerX += x / this.scale;
+    this.centerY += y / this.scale;
+    this.viewChanged();
+  }
+
   zoomBy(factor: number): void {
     this.animateView(this.centerX, this.centerY, clamp(this.scale * factor, 0.005, 8));
   }

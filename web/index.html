@@ -55,15 +55,14 @@
             <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="m4 7 8-4 8 4-8 4z"></path><path d="m4 12 8 4 8-4M4 17l8 4 8-4"></path>
             </svg>
-            <span>Map</span>
+            <span>Layers</span>
           </button>
-          <div id="layers-panel" class="layers-panel glass" hidden>
-            <header class="map-options-header"><strong>Map options</strong><button id="layers-close" class="control-button icon-button" type="button" aria-label="Close map options">×</button></header>
-            <label class="map-option" for="basemap-style"><span>Map style</span><select id="basemap-style"><option value="dark">Night</option><option value="light">Daylight</option><option value="streets">Streets</option></select></label>
-            <label class="map-option" for="interface-theme"><span>Interface</span><select id="interface-theme"><option value="map">Match map</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
-            <div class="map-options-label">Layers</div>
-            <div class="layer-toggles">
-            <button id="routes-button" class="control-button" type="button" aria-label="Routes" aria-pressed="false" title="Show routes">
+          <div id="layers-panel" class="layers-panel glass" aria-label="Map layers and appearance" hidden>
+            <header class="map-options-header"><div><strong>Map layers</strong><p id="layer-summary" class="map-options-subtitle" aria-live="polite"></p></div><button id="layers-close" class="control-button icon-button" type="button" aria-label="Close map options">×</button></header>
+            <section class="map-layer-group" aria-labelledby="traffic-layer-title" aria-describedby="traffic-layer-help">
+              <h2 id="traffic-layer-title">Traffic</h2>
+              <div class="layer-toggles">
+                <button id="routes-button" class="control-button" type="button" aria-label="Routes" aria-pressed="false" title="Show routes">
               <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="6" cy="19" r="3"></circle>
                 <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
@@ -71,7 +70,8 @@
               </svg>
               <span>Routes</span>
             </button>
-            <button id="heatmap-button" class="control-button selected" type="button" aria-label="Heatmap" aria-pressed="true" title="Hide heatmap">
+                <button id="live-packets-button" class="control-button" type="button" aria-label="Live packets" aria-pressed="true"><span>Live packets</span></button>
+                <button id="heatmap-button" class="control-button selected" type="button" aria-label="Heatmap" aria-pressed="true" title="Hide heatmap">
               <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="2.5"></circle>
                 <circle cx="12" cy="12" r="6"></circle>
@@ -79,32 +79,15 @@
               </svg>
               <span>Heatmap</span>
             </button>
-            <button id="clusters-button" class="control-button selected" type="button" aria-label="Clusters" aria-pressed="true" title="Hide clusters">
+                <button id="clusters-button" class="control-button selected" type="button" aria-label="Clusters" aria-pressed="true" title="Hide clusters">
               <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="7" cy="8" r="3"></circle><circle cx="16.5" cy="7" r="2.5"></circle><circle cx="12" cy="16" r="3.5"></circle>
               </svg>
               <span>Clusters</span>
             </button>
-            <button id="hillshade-button" class="control-button" type="button" aria-label="Topography" aria-pressed="false" title="Show topography">
-              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m3 18 6-9 3 4 3-7 6 12z"></path><path d="M6 18h12"></path>
-              </svg>
-              <span>Topo</span>
-            </button>
-            <button id="terrain-button" class="control-button" type="button" aria-label="3D terrain" aria-pressed="false" title="Enable 3D terrain">
-              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m4 15 5-7 3 4 3-6 5 9"></path><path d="m4 15 8 5 8-5"></path>
-              </svg>
-              <span>3D</span>
-            </button>
-            <button id="map-labels-button" class="control-button" type="button" aria-label="Place labels" aria-pressed="true"><span>Place labels</span></button>
-            <button id="buildings-button" class="control-button" type="button" aria-label="Buildings" aria-pressed="false"><span>Buildings</span></button>
-            <button id="node-labels-button" class="control-button" type="button" aria-label="Node labels" aria-pressed="true"><span>Node labels</span></button>
-            <button id="roads-button" class="control-button" type="button" aria-label="Roads" aria-pressed="true"><span>Roads</span></button>
-            <button id="live-packets-button" class="control-button" type="button" aria-label="Live packets" aria-pressed="true"><span>Live packets</span></button>
-            </div>
-            <label class="route-window" for="route-window">
-              <span>Route age</span>
+              </div>
+              <label class="route-window" for="route-window">
+              <span>Links heard within</span>
               <select id="route-window" aria-label="Route age window">
                 <option value="auto">Auto · 15m</option>
                 <option value="15m">15m</option>
@@ -113,15 +96,57 @@
                 <option value="24h">24h</option>
               </select>
             </label>
-            <label class="map-slider" for="route-opacity"><span>Route strength</span><output id="route-opacity-output" for="route-opacity">80%</output><input id="route-opacity" type="range" min="20" max="100" step="5" value="80" /></label>
-            <label class="map-slider" for="terrain-relief"><span>Topo shading</span><output id="terrain-relief-output" for="terrain-relief">75%</output><input id="terrain-relief" type="range" min="0" max="100" step="5" value="75" /></label>
-            <details class="camera-settings"><summary>Desktop 3D camera</summary>
-              <button id="north-button" class="control-button reset-appearance" type="button" aria-label="Reset north"><span class="compass-needle" aria-hidden="true">↑</span> Reset north <output id="camera-bearing" aria-label="Camera bearing">0°</output></button>
+              <p id="traffic-layer-help" class="layer-hint">Routes show previously heard links. Live packets control new motion and sound.</p>
+            </section>
+            <section class="map-layer-group" aria-labelledby="detail-layer-title">
+              <h2 id="detail-layer-title">Map details</h2>
+              <div class="layer-toggles">
+                <button id="node-labels-button" class="control-button" type="button" aria-label="Node labels" aria-pressed="true"><span>Node labels</span></button>
+                <button id="map-labels-button" class="control-button" type="button" aria-label="Place labels" aria-pressed="true"><span>Place labels</span></button>
+                <button id="roads-button" class="control-button" type="button" aria-label="Roads" aria-pressed="true"><span>Roads</span></button>
+
+              </div>
+            </section>
+            <details id="terrain-options" class="map-layer-group">
+              <summary>Terrain &amp; buildings <span id="terrain-summary">2D</span></summary>
+              <div class="layer-group-body">
+                <div class="layer-toggles">
+                  <button id="hillshade-button" class="control-button" type="button" aria-label="Topography" aria-pressed="false" title="Show topography">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m3 18 6-9 3 4 3-7 6 12z"></path><path d="M6 18h12"></path>
+              </svg>
+              <span>Topo</span>
+            </button>
+                  <button id="terrain-button" class="control-button" type="button" aria-label="3D terrain" aria-pressed="false" title="Enable 3D terrain">
+              <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m4 15 5-7 3 4 3-6 5 9"></path><path d="m4 15 8 5 8-5"></path>
+              </svg>
+              <span>3D</span>
+            </button>
+                  <button id="buildings-button" class="control-button" type="button" aria-label="Buildings" aria-pressed="false"><span>Buildings</span></button>
+                </div>
+                <p id="building-status" class="layer-hint" aria-live="polite">Buildings appear at neighborhood zoom.</p>
+                <label class="map-slider" for="terrain-relief"><span>Topo shading</span><output id="terrain-relief-output" for="terrain-relief">75%</output><input id="terrain-relief" type="range" min="0" max="100" step="5" value="75" /></label>
+                <p class="layer-hint">Topo adds shading. 3D adds height and enables Topo and Buildings.</p>
+                <details class="camera-settings"><summary>Desktop 3D camera</summary>
+              <p id="camera-status" class="layer-hint">Turn on 3D to adjust the camera and terrain height.</p><button id="north-button" class="control-button reset-appearance" type="button" aria-label="Reset north"><span class="compass-needle" aria-hidden="true">↑</span> Reset north <output id="camera-bearing" aria-label="Camera bearing">0°</output></button>
               <label class="map-slider" for="camera-pitch"><span>Camera pitch</span><output id="camera-pitch-output" for="camera-pitch">50°</output><input id="camera-pitch" type="range" min="0" max="65" step="1" value="50" /></label>
               <label class="map-slider" for="terrain-height"><span>Terrain height</span><output id="terrain-height-output" for="terrain-height">1×</output><input id="terrain-height" type="range" min="0.5" max="2" step="0.1" value="1" /></label>
               <p class="display-note">Height changes the terrain’s visual scale. Buildings use approximate mapped heights, not antenna heights.</p>
             </details>
-            <button id="reset-appearance" class="control-button reset-appearance" type="button">Restore display defaults</button>
+              </div>
+            </details>
+            <button id="reset-layers" class="control-button reset-appearance" type="button">Reset layers</button>
+            <details id="map-appearance" class="map-appearance">
+              <summary>Appearance <span id="appearance-summary">Night · Crisp</span></summary>
+              <div id="map-appearance-content" class="map-appearance-content">
+                <label class="map-option" for="basemap-style"><span>Map style</span><select id="basemap-style"><option value="dark">Night</option><option value="light">Daylight</option><option value="streets">Streets</option></select></label>
+                <label class="map-option" for="interface-theme"><span>Interface</span><select id="interface-theme"><option value="map">Match map</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+                <label class="map-slider" for="route-opacity"><span>Route strength</span><output id="route-opacity-output" for="route-opacity">80%</output><input id="route-opacity" type="range" min="20" max="100" step="5" value="80" /></label>
+              </div>
+              <button id="reset-appearance" class="control-button reset-appearance" type="button">Reset all display settings</button>
+              <p class="layer-hint">Resets layers and shared Map/Netgraph appearance. Sound settings stay unchanged.</p>
+            </details>
           </div>
         </div>
         <div class="sound-control">

@@ -14,7 +14,7 @@ import { NetgraphRenderer } from './renderer';
 
 const SETTINGS_KEY = 'cartolite-server:netgraph:v1';
 initializeDisplay();
-mountNetgraphDisplay();
+const closeDisplay = mountNetgraphDisplay(() => { closeFindPanel(); closeSoundPanel(); });
 const app = required<HTMLElement>('netgraph-app');
 const stage = required<HTMLElement>('netgraph-stage');
 const graphCanvas = required<HTMLCanvasElement>('graph-canvas');
@@ -220,6 +220,21 @@ async function start(): Promise<void> {
     resetButton.addEventListener('click', () => graph.home());
     zoomInButton.addEventListener('click', () => graph.zoomBy(1.5));
     zoomOutButton.addEventListener('click', () => graph.zoomBy(1 / 1.5));
+    stage.addEventListener('keydown', (event) => {
+      if (event.target !== stage || event.altKey || event.ctrlKey || event.metaKey) return;
+      const step = event.shiftKey ? 160 : 80;
+      switch (event.key) {
+        case 'ArrowLeft': graph.panBy(-step, 0); break;
+        case 'ArrowRight': graph.panBy(step, 0); break;
+        case 'ArrowUp': graph.panBy(0, -step); break;
+        case 'ArrowDown': graph.panBy(0, step); break;
+        case '+': case '=': graph.zoomBy(1.5); break;
+        case '-': case '_': graph.zoomBy(1 / 1.5); break;
+        case 'Home': graph.home(); break;
+        default: return;
+      }
+      event.preventDefault();
+    });
     wireSearch(graph, (nodeID) => selectNode(nodeID, true));
 
     let wasHidden = document.hidden;
@@ -251,9 +266,11 @@ async function start(): Promise<void> {
     });
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
+      const activeMenu = !soundPanel.hidden ? soundButton : !findPanel.hidden ? findButton : undefined;
       closeSoundPanel();
       closeFindPanel();
-      if (selectedNodeID) selectNode(null);
+      if (activeMenu) { event.preventDefault(); activeMenu.focus(); }
+      else if (selectedNodeID) { selectNode(null); stage.focus(); }
     });
     minuteTimer = window.setInterval(() => {
       graph.refreshRouteWindow();
@@ -306,6 +323,7 @@ function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void
     findButton.setAttribute('aria-expanded', String(opening));
     if (!opening) return;
     closeSoundPanel();
+    closeDisplay();
     renderResults();
     requestAnimationFrame(() => nodeSearch.focus());
   });
@@ -328,7 +346,7 @@ function configureSound(sonifier: RouteSonifier): void {
     const opening = soundPanel.hidden;
     soundPanel.hidden = !opening;
     soundButton.setAttribute('aria-expanded', String(opening));
-    if (opening) closeFindPanel();
+    if (opening) { closeFindPanel(); closeDisplay(); }
   });
   soundToggle.addEventListener('click', async () => {
     await sonifier.setEnabled(sonifier.status() !== 'on');

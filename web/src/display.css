@@ -79,3 +79,5 @@
 }
 #map[data-terrain3d="true"] + .map-grade { background: none; box-shadow: none; }
 #map[data-terrain3d="true"] + .map-grade::after { display: none; }
+
+.inspector-window-note { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.45; font-weight: 400; letter-spacing: 0; text-transform: none; }

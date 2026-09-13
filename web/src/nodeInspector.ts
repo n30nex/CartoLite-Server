@@ -141,6 +141,10 @@ export function createNodeInspectorContent(
   heading.textContent = model.neighbors.length === 0 ? 'No neighbours in this route window' : 'Neighbours · newest first';
   root.append(heading);
   if (model.neighbors.length === 0) return root;
+  const totalsNote = ownerDocument.createElement('small');
+  totalsNote.className = 'inspector-window-note';
+  totalsNote.textContent = 'Totals include earlier observations; the window selects which links appear.';
+  heading.append(totalsNote);
 
   const list = ownerDocument.createElement('div');
   list.className = 'neighbor-list';
@@ -154,7 +158,7 @@ export function createNodeInspectorContent(
     const role = ownerDocument.createElement('span');
     role.textContent = roleLabel(neighbor.role);
     const traffic = ownerDocument.createElement('span');
-    const packets = neighbor.packetCount === 1 ? '1 packet' : `${neighbor.packetCount.toLocaleString()} packets`;
+    const packets = neighbor.packetCount === 1 ? '1 observation total' : `${neighbor.packetCount.toLocaleString()} total observations`;
     traffic.textContent = `${neighbor.lastKind} · ${packets} · ${relativeTime(neighbor.lastHeard, now)}`;
     button.append(label, role, traffic);
     button.addEventListener('click', () => options.onSelectNeighbor(neighbor.id));

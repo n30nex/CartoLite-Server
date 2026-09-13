@@ -13,7 +13,7 @@
   </head>
   <body>
     <main id="netgraph-app" class="netgraph-app" aria-label="CartoLite live topology" data-loading="true">
-      <section id="netgraph-stage" class="netgraph-stage" aria-label="Interactive live MeshCore topology" tabindex="0" data-render-state="loading">
+      <section id="netgraph-stage" class="netgraph-stage" aria-label="Interactive live MeshCore topology" aria-describedby="graph-keyboard-help" tabindex="0" data-render-state="loading">
         <canvas id="graph-canvas" aria-hidden="true"></canvas>
         <canvas id="packet-canvas" aria-hidden="true"></canvas>
         <div class="graph-grade" aria-hidden="true"></div>
@@ -67,16 +67,17 @@
         <button id="reset-button" class="control-button reset-button" type="button" title="Fit the whole topology"><span aria-hidden="true">⌂</span><span>Reset</span></button>
       </section>
 
+      <p id="graph-keyboard-help" class="visually-hidden">Use arrow keys to pan, plus and minus to zoom, and Home to fit the topology.</p>
       <section class="zoom-controls glass" aria-label="Zoom controls">
         <button id="zoom-in-button" class="control-button" type="button" aria-label="Zoom in" title="Zoom in">+</button>
         <button id="zoom-out-button" class="control-button" type="button" aria-label="Zoom out" title="Zoom out">−</button>
       </section>
 
       <aside id="graph-summary" class="graph-summary glass" aria-label="Topology summary">
-        <div><strong id="connected-count">—</strong><span>connected nodes</span></div>
-        <div><strong id="route-count">—</strong><span>visible links</span></div>
-        <div><strong id="area-count">—</strong><span>geo areas</span></div>
-        <div><strong id="component-count">—</strong><span>components</span></div>
+        <div><strong id="connected-count">—</strong><span class="summary-full">connected nodes</span><span class="summary-compact" aria-hidden="true">nodes</span></div>
+        <div><strong id="route-count">—</strong><span class="summary-full">visible links</span><span class="summary-compact" aria-hidden="true">links</span></div>
+        <div><strong id="area-count">—</strong><span class="summary-full">geo areas</span><span class="summary-compact" aria-hidden="true">areas</span></div>
+        <div><strong id="component-count">—</strong><span class="summary-full">components</span><span class="summary-compact" aria-hidden="true">groups</span></div>
       </aside>
 
       <aside id="legend" class="legend glass" aria-label="Netgraph legend">

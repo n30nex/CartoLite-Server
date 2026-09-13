@@ -25,9 +25,7 @@ export function mountDisplayControls(parent: HTMLElement, sceneControls = false)
     oldOpacityLabel.querySelector('span')!.textContent = 'Line opacity';
     duplicateOpacity.replaceWith(oldOpacityLabel);
   }
-  const layersHeading = parent.querySelector('.map-options-label');
-  if (layersHeading?.parentElement === parent) parent.insertBefore(section, layersHeading);
-  else parent.append(section);
+  parent.append(section);
   const sync = (): void => {
     const settings = displayPreferences();
     for (const input of section.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-display]')) input.value = String(settings[input.dataset.display as keyof DisplayPreferences]);
@@ -60,7 +58,7 @@ export function mountDisplayControls(parent: HTMLElement, sceneControls = false)
   sync();
 }
 
-export function mountNetgraphDisplay(): void {
+export function mountNetgraphDisplay(onOpen: () => void = () => {}): () => void {
   const controls = document.querySelector<HTMLElement>('.controls')!;
   const host = document.createElement('div');
   host.className = 'display-disclosure popover-control';
@@ -69,7 +67,7 @@ export function mountNetgraphDisplay(): void {
   const button = host.querySelector<HTMLButtonElement>('#display-button')!;
   const panel = host.querySelector<HTMLElement>('#display-panel')!;
   const close = (restore = false): void => { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (restore) button.focus(); };
-  button.addEventListener('click', () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); });
+  button.addEventListener('click', () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) onOpen(); });
   panel.querySelector('button')!.addEventListener('click', () => close(true));
   document.addEventListener('pointerdown', (event) => { if (event.target instanceof Node && !host.contains(event.target)) close(); });
   document.addEventListener('keydown', (event) => {
@@ -77,4 +75,5 @@ export function mountNetgraphDisplay(): void {
     event.preventDefault(); event.stopImmediatePropagation(); close(true);
   });
   mountDisplayControls(panel, true);
+  return () => close();
 }
