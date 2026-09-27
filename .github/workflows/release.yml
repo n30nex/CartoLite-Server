@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing tested release tag to promote
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,11 +17,12 @@ permissions:
   actions: read
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
   promote:
@@ -27,16 +34,17 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref }}
       - name: Verify version, main ancestry, and successful CI
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          sha="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
-          test "$sha" = "$GITHUB_SHA"
-          version="${GITHUB_REF_NAME#v}"
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+          test "$sha" = "$(git rev-parse HEAD)"
+          version="${RELEASE_TAG#v}"
           test "$version" = "$(tr -d '\r\n' < VERSION)"
           git fetch origin main --depth=200
           git merge-base --is-ancestor "$sha" origin/main
@@ -68,7 +76,10 @@ jobs:
         shell: bash
         run: |
           candidate="${IMAGE_NAME}:sha-${{ steps.release.outputs.sha }}"
-          digest="$(docker buildx imagetools inspect "$candidate" | awk '$1 == "Digest:" {print $2; exit}')"
+          # Read the producer to completion before awk exits; pipefail otherwise
+          # turns a closed stdout pipe into an intermittent Buildx exit 255.
+          docker buildx imagetools inspect "$candidate" > "$RUNNER_TEMP/candidate-inspect.txt"
+          digest="$(awk '$1 == "Digest:" {print $2; exit}' "$RUNNER_TEMP/candidate-inspect.txt")"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           gh attestation verify "oci://${IMAGE_NAME}@${digest}" --repo "$GITHUB_REPOSITORY"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
@@ -101,14 +112,15 @@ jobs:
             --tag "${IMAGE_NAME}:latest" \
             "$source"
           for tag in "${{ steps.release.outputs.version }}" "${{ steps.release.outputs.series }}" latest; do
-            actual="$(docker buildx imagetools inspect "${IMAGE_NAME}:$tag" | awk '$1 == "Digest:" {print $2; exit}')"
+            docker buildx imagetools inspect "${IMAGE_NAME}:$tag" > "$RUNNER_TEMP/promoted-inspect.txt"
+            actual="$(awk '$1 == "Digest:" {print $2; exit}' "$RUNNER_TEMP/promoted-inspect.txt")"
             test "$actual" = "${{ steps.candidate.outputs.digest }}"
           done
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$RELEASE_TAG" \
             artifacts/release/default.env.example \
             artifacts/release/compose.yml \
             artifacts/release/compose.carto.yml \
