@@ -176,6 +176,7 @@ setLayersOpen(false);
 applyAppearanceChrome();
 
 legendToggle.addEventListener('click', () => {
+  closeSoundPanel(); closeFindPanel(); setLayersOpen(false);
   legendExpanded = !legendExpanded;
   uiPreferences = { ...uiPreferences, legendExpanded };
   saveUiPreferences(browserStorage(), uiPreferences);
