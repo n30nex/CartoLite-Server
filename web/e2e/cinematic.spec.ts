@@ -44,6 +44,14 @@ test('compact map corners and dock keep a synchronized, keyboard-accessible 3D s
   await expect(shortcut).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('#terrain-button')).toHaveAttribute('aria-pressed','true');
   for(const id of ['hillshade-button','buildings-button']) await expect(page.locator('#'+id)).toHaveAttribute('aria-pressed','true');
+  await attribution.press('Enter');
+  await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('Mapterhorn');
+  if(desktop) await expect.poll(async()=>{
+    const packet=await page.locator('#route-legend').boundingBox();
+    const credit=await page.locator('.maplibregl-ctrl-attrib').boundingBox();
+    return packet!.y+packet!.height < credit!.y;
+  }).toBe(true);
+  await page.screenshot({path:info.outputPath('compact-map-3d.png')});
   await page.reload(); await expect(shortcut).toHaveAttribute('aria-pressed','true');
   await openMapOptions(page); await page.locator('#terrain-button').click();
   await expect(shortcut).toHaveAttribute('aria-pressed','false');
@@ -53,6 +61,7 @@ test('compact map corners and dock keep a synchronized, keyboard-accessible 3D s
   await page.getByRole('link',{name:'Open CartoLite Netgraph',exact:true}).click();
   await expect(page.locator('#connected-count')).toHaveText('2');
   await expect(shortcut).toHaveCount(0);
+  if(desktop) expect((await page.locator('.controls').boundingBox())!.height).toBeLessThanOrEqual(42);
   await page.screenshot({path:info.outputPath('compact-netgraph-dock.png')});
 });
 

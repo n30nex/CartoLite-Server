@@ -193,7 +193,8 @@ test('native touch pinches, pans, lifts and cancels without jumping or losing se
     const rect = element.getBoundingClientRect();
     return { width: rect.width, height: rect.height, visible: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === element };
   }));
-  for (const button of buttons) expect(button).toEqual({ width: 44, height: 44, visible: true });
+  const targetSize = await page.evaluate(() => matchMedia('(max-width: 900px), (pointer: coarse)').matches ? 44 : 34);
+  for (const button of buttons) expect(button).toEqual({ width: targetSize, height: targetSize, visible: true });
   expect(errors).toEqual([]);
   await session.detach();
 });
