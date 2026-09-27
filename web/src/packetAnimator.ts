@@ -396,6 +396,7 @@ export class PacketAnimator {
       this.frameId = 0;
       this.residueTimer = undefined;
       this.clearCanvas();
+      this.gpu.batch.clear(); this.gpu.flush();
       this.clearResidueCanvas();
     } else {
       this.requestFrame();
@@ -1087,8 +1088,6 @@ export class PacketAnimator {
   }
 
   private clearCanvas(): void {
-    this.gpu.batch.clear();
-    this.gpu.flush();
     const width = this.canvas.width / this.dpr;
     const height = this.canvas.height / this.dpr;
     this.context.clearRect(0, 0, width, height);

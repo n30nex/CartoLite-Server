@@ -146,21 +146,27 @@ export class GPUEffects {
 
 export function mapEffects(map: LibreMap) {
   const batch=new GPUEffects(); let activeGL: WebGL2RenderingContext|undefined;
-  let lastInk=false, requestedAt=0, slowFrames=0, budgetFallback=false;
+  let lastInk=false, requestedAt=0, slowFrames=0, lastFrameAt=0, slowPresentationFrames=0, budgetFallback=false;
   const measure=()=>{
     if(!requestedAt)return;
     const elapsed=performance.now()-requestedAt;requestedAt=0;
     slowFrames=elapsed>80?slowFrames+1:Math.max(0,slowFrames-1);
     if(slowFrames>=3)budgetFallback=true;
   };
-  const retry=()=>{budgetFallback=false;slowFrames=0;requestedAt=0;};
+  const retry=()=>{budgetFallback=false;slowFrames=0;slowPresentationFrames=0;lastFrameAt=0;requestedAt=0;};
   map.on('render',measure);map.on('moveend',retry);
   const layer: CustomLayerInterface={id:'live-packet-effects',type:'custom',renderingMode:'2d',onAdd(_map,gl){activeGL=gl as WebGL2RenderingContext;batch.initialize(activeGL);},render(){batch.draw();},onRemove(){batch.dispose();}};
   const attach=()=>{if(map.isStyleLoaded?.() && !map.getLayer(layer.id)) map.addLayer(layer);};
   const lost=()=>batch.dispose();
   const restored=()=>{if(activeGL)batch.initialize(activeGL);attach();map.triggerRepaint();};
   map.on('load',attach); map.on('idle',attach); map.on('styledata',attach); map.on('webglcontextlost',lost); map.on('webglcontextrestored',restored); attach();
-  return {batch,prepare:()=>batch.setEnabled(displayPreferences().quality !== 'economy' && (!budgetFallback || displayPreferences().quality === 'high')),flush:()=>{
+  return {batch,prepare:()=>{
+    const now=performance.now();
+    if(lastInk&&lastFrameAt)slowPresentationFrames=now-lastFrameAt>80?slowPresentationFrames+1:Math.max(0,slowPresentationFrames-1);
+    if(slowPresentationFrames>=3)budgetFallback=true;
+    lastFrameAt=now;
+    batch.setEnabled(displayPreferences().quality !== 'economy' && !budgetFallback);
+  },flush:()=>{
     const ink=batch.ready&&batch.hasInk;
     // A stationary faded trail does not require rerasterizing the whole basemap.
     if(ink||lastInk){if(!requestedAt)requestedAt=performance.now();map.triggerRepaint();}
