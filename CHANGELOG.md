@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 - Cinematic overhaul
+
+- Add Spectacle, Calm and Minimal effects, automatic detail/graphics, shared motion and text-size controls while retaining saved styles and sound settings.
+- Draw live packet cores, directional trails and terrain-aligned arrival effects with shared WebGL2 batches and Canvas fallback. Historical links stay still and packet/audio timing is unchanged.
+- Introduce a compact dock, fixed node inspector, selection continuity between views, reversible layer combinations and native/browser Back handling for menus.
+- Add scoped ten-second Follow with Hold, Next and Inspect; bring live directing and area/component focus to Netgraph.
+- Reduce crowded labels and animated area badges, preserve every retained route, and improve light/dark contrast and keyboard focus.
+- Add explicit voice preview and mute controls for the existing 30 sound voices.
+- Preserve key-free OpenFreeMap, worldwide geographic grouping and tested AMD64/ARM64 Docker installation.
+
 ## 0.5.0 - 2026-09-12
 
 - Add shared Map/Netgraph themes, six route presets, advanced styling controls and readable light/dark palettes.

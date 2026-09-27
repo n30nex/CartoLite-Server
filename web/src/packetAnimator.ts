@@ -1,5 +1,6 @@
+import { mapEffects } from './gpuEffects';
 import { stableHash as stableVisualHash } from './trafficVisuals';
-import { canvasColorWithAlpha as withAlpha, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime } from './displayPreferences';
+import { canvasColorWithAlpha as withAlpha, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime, prefersReducedMotion, effectStrength } from './displayPreferences';
 import type * as maplibregl from 'maplibre-gl';
 import type { EndpointV2, ObserverPacketEventV2, PacketView, RoutePacketView, RouteSegmentView } from './types';
 import { TerrainProjector, surfaceArc, surfacePathPoint, surfaceTrail, traceSurfacePath, type SurfacePoint } from './terrainProjection';
@@ -282,6 +283,7 @@ export function capNewest<T>(items: readonly T[], limit: number): T[] {
 
 export class PacketAnimator {
   readonly projection: TerrainProjector;
+  private readonly gpu: ReturnType<typeof mapEffects>;
   private readonly context: CanvasRenderingContext2D;
   private readonly residueCanvas: HTMLCanvasElement;
   private readonly residueContext: CanvasRenderingContext2D;
@@ -306,6 +308,7 @@ export class PacketAnimator {
 
   constructor(private readonly map: maplibregl.Map, private readonly canvas: HTMLCanvasElement) {
     this.projection = new TerrainProjector(map);
+    this.gpu = mapEffects(map);
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas2D is unavailable');
     this.context = context;
@@ -315,7 +318,7 @@ export class PacketAnimator {
     this.residueContext = residueContext;
     this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.lowPowerQuery = window.matchMedia('(max-width: 620px), (pointer: coarse)');
-    this.reducedMotion = this.reducedMotionQuery.matches;
+    this.reducedMotion = prefersReducedMotion();
     this.lowPower = this.lowPowerQuery.matches;
     if (this.reducedMotion) this.reducedModeStartedAt = performance.now();
     this.updateMotionMode();
@@ -393,6 +396,7 @@ export class PacketAnimator {
       this.frameId = 0;
       this.residueTimer = undefined;
       this.clearCanvas();
+      this.gpu.batch.clear(); this.gpu.flush();
       this.clearResidueCanvas();
     } else {
       this.requestFrame();
@@ -400,6 +404,7 @@ export class PacketAnimator {
   }
 
   refreshAppearance(): void {
+    this.handleReducedMotionChange({ matches: prefersReducedMotion() } as MediaQueryListEvent);
     this.residueContentDirty = true;
     this.residueProjectionDirty = true;
     this.canvas.dataset.routePreset = displayPreferences().preset;
@@ -415,6 +420,7 @@ export class PacketAnimator {
     this.map.off('terrain', this.handleMapMove);
     this.map.off('sourcedata', this.handleTerrainData);
     this.projection.reset();
+    this.gpu.destroy();
   }
 
   private resize(): void {
@@ -438,9 +444,10 @@ export class PacketAnimator {
   }
 
   private handleReducedMotionChange = (event: MediaQueryListEvent): void => {
-    if (this.reducedMotion === event.matches) return;
+    const reduced = displayPreferences().motion === 'system' ? event.matches : prefersReducedMotion();
+    if (this.reducedMotion === reduced) return;
     const now = performance.now();
-    this.reducedMotion = event.matches;
+    this.reducedMotion = reduced;
     if (this.reducedMotion) {
       this.reducedModeStartedAt = now;
       for (const route of this.activeRoutes) {
@@ -521,6 +528,9 @@ export class PacketAnimator {
     this.frameId = 0;
     if (this.paused) return;
     this.clearCanvas();
+    this.gpu.prepare();
+    this.gpu.batch.begin(this.canvas.width / this.dpr, this.canvas.height / this.dpr);
+    this.canvas.dataset.effectsRenderer = this.gpu.batch.ready ? 'webgl2' : 'canvas2d';
     if (!this.reducedMotion) {
       for (const route of this.activeRoutes) this.completeRoute(route, now);
     }
@@ -542,7 +552,6 @@ export class PacketAnimator {
     this.context.globalCompositeOperation = 'source-over';
     this.context.lineCap = 'round';
     if (!this.reducedMotion) {
-      this.drawResidueSparkles(now);
       for (const item of this.nodeWakes) this.drawNodeWake(this.context, item, now);
     }
     this.activeRoutes = this.activeRoutes.filter(
@@ -552,10 +561,13 @@ export class PacketAnimator {
       (item) => now - item.started < OBSERVER_PING_MS,
     );
     this.updateMotionMode();
+    this.canvas.dataset.residueCount = String(this.residue.length);
+    this.canvas.dataset.activeCount = String(this.activeRoutes.length + this.activeObservers.length);
     for (const route of this.activeRoutes) this.drawRoute(route, now);
     for (const observer of this.activeObservers) this.drawObserver(observer, now);
     this.context.restore();
-    if (!this.reducedMotion && this.hasVisibleEffects()) this.requestFrame();
+    this.gpu.flush();
+    if (!this.reducedMotion && (this.activeRoutes.length || this.activeObservers.length || this.nodeWakes.length)) this.requestFrame();
     else this.requestTimedFrame(now);
   }
 
@@ -597,30 +609,6 @@ export class PacketAnimator {
     context.lineWidth = Math.max(1, coreWidth * detail) * (displayPreferences().width / 1.6) * (item.longHaul ? 1.18 : 1);
     context.stroke();
     context.setLineDash([]);
-  }
-
-  private drawResidueSparkles(now: number): void {
-    if (this.map.getZoom() < 5 || displayPreferences().glow < 0.25) return;
-    const quality = this.qualityMode();
-    const count = quality === 'full' ? 3 : quality === 'balanced' ? 2 : 1;
-    const limit = quality === 'full' ? 160 : quality === 'balanced' ? 120 : 96;
-    for (const item of this.residue.slice(-limit)) {
-      const path = this.projection.projectSegment(item.segment);
-      const style = residueStyle(displayResidueAge(now - item.addedAt));
-      if (style.life <= 0.025) continue;
-      const age = Math.max(0, now - item.addedAt);
-      const sparkleCount = Math.min(4, count + (item.longHaul ? 1 : 0));
-      for (let index = 0; index < sparkleCount; index += 1) {
-        const progress = residueSparkleProgress(item.segment.routeId, age, index);
-        const point = surfacePathPoint(path, progress);
-        const twinkle = 0.32 + 0.68 * Math.abs(Math.sin(age / 240 + index * 2.1));
-        const radius = quality === 'low' ? 0.85 : 0.9 + index * 0.12;
-        this.context.fillStyle = withAlpha(item.color, style.life * twinkle * 0.82);
-        this.context.beginPath();
-        this.context.arc(point.x, point.y, radius * (point.scale ?? 1), 0, Math.PI * 2);
-        this.context.fill();
-      }
-    }
   }
 
   private drawNodeWake(context: CanvasRenderingContext2D, item: NodeWake, now: number): void {
@@ -704,6 +692,8 @@ export class PacketAnimator {
         }
       }
       this.canvas.dataset.projectionSamples = String(path.length);
+      const gpuDrawn = this.gpu.batch.packet(points, head, item.color, item.signature, item.longHaul ? 1.15 : 1);
+      if (!gpuDrawn) {
       this.drawProgressiveTrail(trail, item.color, quality, item.longHaul);
       if (quality !== 'low') {
         this.drawTrailSparks(trail, item.color, item.packet.id, elapsed, quality === 'full' ? 3 : 2);
@@ -713,6 +703,7 @@ export class PacketAnimator {
         this.drawPacketSignature(head, tangent, item.color, item.signature, elapsed);
         if (item.longHaul) this.drawLongHaulMarker(head, tangent, item.color, elapsed);
       }
+    }
     }
     const first = item.packet.segments[0];
     if (first) this.drawBloom(
@@ -757,7 +748,7 @@ export class PacketAnimator {
     const width = quality === 'full' ? 7.2 : quality === 'balanced' ? 5.8 : 3.8;
     this.context.lineWidth = width * (longHaul ? 1.42 : 1) * (trail.head.scale ?? 1);
     traceSurfacePath(this.context, trail.points ?? [trail.tail, trail.head]);
-    this.context.globalAlpha = displayPreferences().glow;
+    this.context.globalAlpha = displayPreferences().glow * effectStrength();
     this.context.stroke();
     this.context.globalAlpha = 1;
     const core = this.context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
@@ -861,7 +852,7 @@ export class PacketAnimator {
     this.context.fillStyle = glow;
     this.context.beginPath();
     this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    this.context.globalAlpha = displayPreferences().glow;
+    this.context.globalAlpha = displayPreferences().glow * effectStrength();
     this.context.fill();
     this.context.globalAlpha = 1;
     this.context.fillStyle = displayColor(color);
@@ -961,6 +952,7 @@ export class PacketAnimator {
   ): void {
     if (timing.opacity <= 0) return;
     const radius = startRadius + (endRadius - startRadius) * easeOutCubic(timing.progress);
+    if (this.gpu.batch.disc(point, radius * .75, color, timing.opacity * .8, 2, true)) return;
     if (simple) {
       this.context.strokeStyle = withAlpha(color, timing.opacity * 0.58);
       this.context.lineWidth = 1.4;
@@ -986,6 +978,7 @@ export class PacketAnimator {
     timing: { progress: number; opacity: number },
   ): void {
     if (timing.opacity <= 0) return;
+    if (this.gpu.batch.disc(point, 5 + timing.progress * 8, color, timing.opacity * .8, 2, true)) return;
     const angle = Math.atan2(toward.y - point.y, toward.x - point.x);
     const radius = 3 + easeOutCubic(timing.progress) * 5;
     this.context.strokeStyle = withAlpha(color, timing.opacity * 0.78);
@@ -1008,6 +1001,7 @@ export class PacketAnimator {
   ): void {
     if (timing.opacity <= 0) return;
     const radius = 5 + easeOutCubic(timing.progress) * (simple ? (longHaul ? 12 : 8) : longHaul ? 22 : 14);
+    if (this.gpu.batch.disc(point, radius, color, timing.opacity * .85, 2, true)) return;
     this.context.strokeStyle = withAlpha(color, timing.opacity * 0.72);
     this.context.lineWidth = simple ? (longHaul ? 1.55 : 1.2) : longHaul ? 1.9 : 1.5;
     this.context.beginPath();
@@ -1075,7 +1069,8 @@ export class PacketAnimator {
   }
 
   private qualityMode(): VisualQuality {
-    return visualQuality(this.lowPower, this.activeRoutes.length, this.activeObservers.length);
+    if (displayPreferences().quality === 'economy' || displayPreferences().effects === 'minimal') return 'low';
+    return visualQuality(displayPreferences().quality === 'high' ? false : this.lowPower, this.activeRoutes.length, this.activeObservers.length);
   }
 
   private packetNearViewport(packet: PacketView): boolean {

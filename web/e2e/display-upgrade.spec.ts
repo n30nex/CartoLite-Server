@@ -50,23 +50,19 @@ test('shares presets and custom styling across Map and Netgraph without losing c
   await expect(page.locator('#map-notice')).toBeHidden();
 });
 
-test('uses bright packet ink at night and dark ink on both light scenes', async ({ page }, info) => {
-  await visualFixture(page);
-  let sequence = 0;
-  for (const path of ['/', '/netgraph/']) {
-    sequence = 0;
-    await page.goto(path);
-    await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
-    for (const scene of ['dark', 'light', 'streets']) {
-      if (path === '/') { await openMapOptions(page); await page.locator('#basemap-style').selectOption(scene); }
-      else { await page.locator('#display-button').click(); await page.getByLabel('Scene style', { exact: true }).selectOption(scene); }
-      await page.keyboard.press('Escape');
-      await visualPacket(page, ++sequence);
-      await expect.poll(() => packetInk(page, scene !== 'dark'), { timeout: 3000 }).toBeGreaterThan(2);
-      await page.screenshot({ path: info.outputPath(`${path === '/' ? 'map' : 'netgraph'}-${scene}.png`) });
-    }
-  }
-});
+for (const path of ['/', '/netgraph/']) for (const scene of ['dark', 'light', 'streets']) {
+  test(`composited live packet ink is readable in ${path} ${scene}`, async ({page},info) => {
+    await visualFixture(page); await page.goto(path);
+    await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+    if(path==='/') { await openMapOptions(page); await page.locator('#basemap-style').selectOption(scene); }
+    else { await page.locator('#display-button').click(); await page.getByLabel('Scene style',{exact:true}).selectOption(scene); }
+    await page.keyboard.press('Escape');
+    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+    const before=await sceneFrame(page); await visualPacket(page,1);
+    await expect.poll(()=>packetInk(page,scene!=='dark',before),{timeout:3000}).toBeGreaterThan(2);
+    await page.screenshot({path:info.outputPath(`${path==='/'?'map':'netgraph'}-${scene}.png`)});
+  });
+}
 
 test('reports missing tiles while keeping node data and Netgraph available', async ({ page }) => {
   await visualFixture(page);
@@ -195,10 +191,14 @@ test('can disable lingering trails without disabling live packets', async ({ pag
   await page.getByLabel('After-trails', { exact: true }).press('Home');
   await expect(page.getByLabel('After-trails', { exact: true })).toHaveValue('0');
   await page.keyboard.press('Escape');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await page.clock.install();await page.clock.pauseAt(new Date(Date.now()+1000));
+  const beforePacket = await sceneFrame(page);
   await visualPacket(page, 1);
-  await expect.poll(() => packetInk(page, false)).toBeGreaterThan(2);
+  await page.clock.runFor(600);
+  await expect.poll(() => packetInk(page, false, beforePacket)).toBeGreaterThan(2);
   // Includes the existing six-second node wake, independently of route residue.
-  await page.waitForTimeout(9500);
+  await page.clock.fastForward(9500);await page.clock.runFor(32);
   const painted = await page.locator('#packet-canvas').evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     return canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data.some((value, index) => index % 4 === 3 && value > 0);
@@ -207,18 +207,25 @@ test('can disable lingering trails without disabling live packets', async ({ pag
   await expect(page.locator('#packet-canvas')).toHaveAttribute('data-enabled', 'true');
 });
 
-async function packetInk(page: Page, light: boolean): Promise<number> {
-  return page.locator('#packet-canvas').evaluate((element, light) => {
-    const canvas = element as HTMLCanvasElement;
-    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-    let found = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3]! < 180) continue;
-      if (light ? pixels[i]! < 40 && pixels[i + 1]! > 45 && pixels[i + 1]! < 145 && pixels[i + 2]! < 140
-        : pixels[i]! > 40 && pixels[i]! < 110 && pixels[i + 1]! > 180 && pixels[i + 2]! > 150) found++;
+async function sceneFrame(page: Page): Promise<Buffer> {
+  return page.screenshot({style: '.topbar,.controls,.legend,.route-legend,.graph-summary,.graph-focus,.zoom-controls,.node-inspector-sheet,.follow-card,.maplibregl-ctrl-attrib{visibility:hidden!important}'});
+}
+
+async function packetInk(page: Page, light: boolean, before: Buffer): Promise<number> {
+  const after = await sceneFrame(page);
+  return page.evaluate(async ({before,after,light}) => {
+    const decode=async (data:string) => {
+      const image=new Image();image.src=`data:image/png;base64,${data}`;await image.decode();
+      const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+      const context=canvas.getContext('2d')!;context.drawImage(image,0,0);return context.getImageData(0,0,canvas.width,canvas.height).data;
+    };
+    const [base,pixels]=await Promise.all([decode(before),decode(after)]);let found=0;
+    for(let i=0;i<pixels!.length;i+=4) {
+      if(Math.abs(pixels![i]!-base![i]!)+Math.abs(pixels![i+1]!-base![i+1]!)+Math.abs(pixels![i+2]!-base![i+2]!)<20)continue;
+      if(light?pixels![i]!<40&&pixels![i+1]!>45&&pixels![i+1]!<145&&pixels![i+2]!<140:pixels![i]!>40&&pixels![i]!<110&&pixels![i+1]!>180&&pixels![i+2]!>150)found++;
     }
     return found;
-  }, light);
+  },{before:before.toString('base64'),after:after.toString('base64'),light});
 }
 
 async function changedPixels(page: Page, before: Buffer, after: Buffer): Promise<number> {

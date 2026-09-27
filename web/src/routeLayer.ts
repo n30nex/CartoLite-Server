@@ -239,6 +239,10 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       const opacity = Math.max(this.lightBackground ? 0.95 : 0.55, rawOpacity);
       const pieces = splitWorldRoute([rawFrom[0]!, rawFrom[1]!], [rawTo[0]!, rawTo[1]!]);
       for (const pair of pieces) {
+        if (!terrain) {
+          segments.push({from:position(pair[0]),to:position(pair[1]),color,opacity,band});
+          continue;
+        }
         let fractions = [0, 1];
         if (terrain) {
           // Reject distant routes before MapLibre's terrain-aware projection,
@@ -366,7 +370,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
     gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
-    gl.uniform1f(uniforms.opacity!, this.opacity);
+    gl.uniform1f(uniforms.opacity!, this.opacity * (settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.routes.length / 150) * .1, .38, .9) : 1));
     gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
     if (this.lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
@@ -460,9 +464,16 @@ function strokeVertices(segments: readonly StrokeSegment[], origin: [number, num
   let offset = 0;
   for (const segment of segments) {
     const color = parseColor(segment.color);
-    for (const [along, side] of [[0, -1], [1, -1], [1, 1], [0, -1], [1, 1], [0, 1]]) {
-      data.set([...segment.from.map((v, i) => v - origin[i]!), ...segment.to.map((v, i) => v - origin[i]!), along!, side!, ...color, segment.opacity, segment.band], offset);
-      offset += STROKE_VERTEX_FLOATS;
+    // A stroke's six vertices share endpoints, colour and age. Pack those once;
+    // copy the typed values and change only each triangle corner.
+    const first=offset;
+    for(let axis=0;axis<3;axis++) { data[first+axis]=segment.from[axis]!-origin[axis]!;data[first+3+axis]=segment.to[axis]!-origin[axis]!;data[first+8+axis]=color[axis]!; }
+    data[first+11]=segment.opacity;data[first+12]=segment.band;
+    for(let vertex=0;vertex<6;vertex++) {
+      if(vertex)data.copyWithin(offset,first,first+STROKE_VERTEX_FLOATS);
+      data[offset+6]=vertex===1||vertex===2||vertex===4?1:0;
+      data[offset+7]=vertex===2||vertex===4||vertex===5?1:-1;
+      offset+=STROKE_VERTEX_FLOATS;
     }
   }
   return data;

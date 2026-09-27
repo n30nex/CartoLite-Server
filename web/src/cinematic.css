@@ -1,0 +1,112 @@
+/* Cinematic chrome is shared by Map and Netgraph; the scene keeps the space. */
+html:root[data-cinematic] { --dock-bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px)); --dock-height: 52px; }
+html:root[data-cinematic] .glass { background: var(--panel-solid); border-color: var(--panel-border); box-shadow: 0 8px 28px #0003; }
+html:root[data-cinematic] .controls { position: fixed; top: auto; right: auto; bottom: var(--dock-bottom); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: nowrap; gap: 2px; max-width: calc(100vw - 24px); border-radius: 18px; padding: 4px; z-index: 20; }
+html:root[data-cinematic] .toolbar { position: static; }
+html:root[data-cinematic] .topbar { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; right: auto; width: auto; border-radius: 14px; z-index: 12; }
+html:root[data-cinematic] .control-button { min-height: 44px; border-radius: 10px; white-space: nowrap; }
+.dock-views { display: flex; align-items: center; gap: 2px; border-right: 1px solid var(--panel-border); padding-right: 4px; }
+.dock-views a { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 12px; font-size: 12px; color: var(--ink); }
+.dock-views a[aria-current] { color: var(--ink-strong); background: var(--selected); box-shadow: inset 0 -2px var(--focus-ring); }
+html:root[data-cinematic] :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { position: fixed; top: auto; bottom: calc(var(--dock-bottom) + 62px); right: 12px; left: auto; transform: none; max-height: calc(100dvh - 150px); width: min(370px, calc(100vw - 24px)); border-radius: 16px; }
+/* Fixed descendants of the transformed dock use its own coordinate space. */
+html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { position: absolute; bottom: calc(100% + 10px); right: 0; top: auto; }
+html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { top: max(72px, calc(env(safe-area-inset-top) + 62px)); bottom: auto; right: 12px; left: auto; width: min(370px, calc(100vw - 24px)); max-height: calc(100dvh - 190px); border-radius: 16px; overflow: auto; }
+html:root[data-cinematic] .follow-card { left: 12px; right: auto; }
+html:root[data-cinematic] :is(.legend,.route-legend,.graph-summary) { bottom: calc(var(--dock-bottom) + 64px); }
+html:root[data-cinematic] .graph-summary { top: 12px; right: 12px; bottom: auto; }
+html:root[data-cinematic] .zoom-controls { bottom: 22px; top: auto; }
+html:root[data-cinematic] .map-notice { bottom: calc(var(--dock-bottom) + 64px); }
+.layer-combinations { padding: 8px 0 14px; border-bottom: 1px solid var(--panel-border); font-size: 12px; }
+.layer-combinations > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.layer-combinations button, .follow-actions button, .follow-scope select { min-height: 44px; padding: 6px 10px; background: var(--field-bg); color: var(--ink-strong); border: 1px solid var(--panel-border); border-radius: 9px; cursor: pointer; }
+.layer-combinations p { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 0; }
+.follow-actions { display: flex; gap: 6px; }
+.follow-scope { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; margin-block: 8px; }
+:root[data-motion="reduced"] *, :root[data-effects="minimal"] .traffic-meter { animation: none !important; transition-duration: 0s !important; }
+:root[data-text-size="large"] :is(.display-settings label,.control-button,.node-inspector,.node-search-result,.follow-card,.layer-hint,.map-option,.map-slider,.scene-control,.volume-control) { font-size: 15px; }
+:root[data-text-size="large"] :is(.display-note,.sound-description,.neighbor-meta,.follow-detail,.node-role) { font-size: 13px; }
+html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-allowed; }
+@media (max-width: 900px), (pointer: coarse) {
+ html:root[data-cinematic] { --dock-bottom: max(8px, env(safe-area-inset-bottom)); --dock-height: 96px; }
+ html:root[data-cinematic] .controls { width: calc(100vw - 16px); max-width: 650px; display: flex; flex-wrap: wrap; justify-content: center; border-radius: 16px; }
+ html:root[data-cinematic] .controls > *, html:root[data-cinematic] .dock-views { flex: 0 1 auto; }
+ html:root[data-cinematic] .controls .control-button { padding-inline: 9px; font-size: 11px; }
+ html:root[data-cinematic] .dock-views { border: 0; }
+ html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { bottom: calc(100% + 8px); right: 0; width: min(100%, 650px); max-height: calc(100dvh - 185px); }
+ html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { position: fixed; top: auto; bottom: calc(var(--dock-bottom) + 112px); left: 8px; right: 8px; width: auto; max-height: min(50dvh, 420px); }
+ html:root[data-cinematic] :is(.legend,.route-legend) { bottom: calc(var(--dock-bottom) + 116px); }
+ html:root[data-cinematic] .graph-summary { top: 65px; left: 8px; right: auto; font-size: 10px; }
+ html:root[data-cinematic] .sound-state, html:root[data-cinematic] #sound-state { display: none; }
+ html:root[data-cinematic]:has(.layers-disclosure[open],.find-panel:not([hidden]),.sound-panel:not([hidden]),.display-panel:not([hidden])) :is(.node-inspector-sheet,.follow-card) { visibility: hidden; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+ html:root[data-cinematic] .controls { flex-wrap: wrap; max-width: calc(100vw - 72px); left: calc(50% + 24px); }
+ html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { max-height: calc(100dvh - 95px); }
+ html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { bottom: 72px; max-height: calc(100dvh - 90px); width: min(350px, 48vw); left: auto; right: 8px; }
+}
+
+.graph-focus { position: fixed; top: 68px; left: 12px; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--panel-border); border-radius: 10px; color: var(--ink); background: var(--panel-solid); font-size: 12px; z-index: 8; }
+.graph-focus select { min-height: 36px; background: var(--field-bg); color: var(--ink-strong); border: 0; }
+.graph-focus small:empty { display: none; }
+@media(max-width:900px) { .graph-focus { top: 106px; left: 8px; } }
+
+html:root[data-cinematic] .controls > :is(.layers-disclosure,.find-control,.sound-control,.popover-control), html:root[data-cinematic] .display-disclosure { position:static; }
+html:root[data-cinematic] .controls #layers-panel { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); width:min(370px,calc(100vw - 24px)); max-height:calc(100dvh - 150px); }
+html:root[data-cinematic] .maplibregl-ctrl-bottom-right { opacity:1; }
+.gpu-packet-canvas { z-index:2; }
+.sound-preview-actions { display:flex; gap:8px; }
+html:root[data-cinematic] .director-enabled[data-follow-inspect="true"] .node-inspector-sheet { visibility:visible; pointer-events:auto; }
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] .controls #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
+@media(max-height:520px) and (orientation:landscape) { html:root[data-cinematic] .controls #layers-panel { max-height:calc(100dvh - 95px); } }
+
+:root[data-native-app] .graph-summary { right:68px; }
+
+html:root[data-cinematic] .graph-summary { left:auto; width:auto; }
+html:root[data-cinematic] .follow-card header { gap:6px; }
+html:root[data-cinematic] .follow-card header button { min-height:44px; min-width:44px; border:0; background:transparent; color:var(--ink); cursor:pointer; }
+html:root[data-cinematic] .follow-card .follow-scope, html:root[data-cinematic] .follow-card .follow-actions { margin:8px 12px; }
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] .graph-summary { left:8px; right:auto; } }
+
+html:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - 150px)); }
+
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] :is(#app,#netgraph-app)[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }
+
+html:root[data-cinematic][data-text-size="large"] .control-button { font-size:15px; }
+:root[data-text-size="large"] #layers-panel .control-button { font-size:15px; }
+html:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px)); max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px); }
+html:root[data-cinematic] .controls :is(.find-panel,.sound-panel,.display-panel) { max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px); }
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card,.legend,.route-legend) { bottom:calc(var(--dock-height) + var(--dock-bottom) + 12px); } }
+
+/* Opaque panels need no backdrop readback over animated geography. */
+html:root[data-cinematic] .glass { backdrop-filter:none; -webkit-backdrop-filter:none; }
+html:root[data-cinematic] .controls .zoom-controls { position:static; display:flex; flex:none; width:88px; padding:0; border:0; background:transparent; box-shadow:none; border-radius:10px; }
+html:root[data-cinematic] .controls .zoom-controls .control-button { width:44px; min-width:44px; height:44px; padding:0; font-size:20px; }
+
+html:root[data-cinematic] .control-button { min-width:44px; }
+@media(max-width:900px),(pointer:coarse) {
+ html:root[data-cinematic] #app #legend-toggle { position:fixed; top:max(12px,env(safe-area-inset-top)); right:12px; left:auto; bottom:auto; display:grid; width:44px; height:44px; border:1px solid var(--panel-border); border-radius:12px; background:var(--panel-solid); }
+ html:root[data-cinematic] #app #legend[data-focused="true"] #legend-toggle { display:none; }
+ html:root[data-cinematic] #app #legend[data-collapsed="true"][data-focused="false"]:not(:has(.region-legend:not([hidden]))) { background:transparent; border-color:transparent; box-shadow:none; }
+}
+
+html:root[data-cinematic] .follow-card { position:fixed; z-index:8; color:var(--ink); }
+html:root[data-cinematic] .follow-card[hidden] { display:none; }
+html:root[data-cinematic] .follow-card header { display:flex; align-items:center; padding-left:12px; }
+html:root[data-cinematic] .follow-card header strong { flex:1; font-size:12px; }
+html:root[data-cinematic] .follow-copy { display:grid; gap:6px; padding:8px 12px; overflow-wrap:anywhere; }
+html:root[data-cinematic] .follow-card footer { display:flex; justify-content:space-between; padding:8px 12px; }
+html:root[data-cinematic] .follow-card :is(footer,.follow-copy span) { color:var(--muted); font-size:12px; }
+html:root[data-cinematic] .follow-card progress { display:block; width:100%; height:3px; accent-color:var(--focus-ring); }
+html:root[data-cinematic] .director-enabled:not([data-follow-inspect="true"]) .node-inspector-sheet { visibility:hidden; pointer-events:none; }
+
+@media(max-height:520px) and (orientation:landscape) {
+ html:root[data-cinematic] .node-inspector { display:flex; flex-direction:column; min-width:0; max-height:none; }
+ html:root[data-cinematic] .node-inspector > header { position:sticky; top:0; z-index:1; flex:none; background:var(--panel-solid); }
+ html:root[data-cinematic] .node-inspector .neighbor-list { flex:none; overflow:visible; }
+}
+
+@media(max-width:900px),(pointer:coarse) {
+ html:root[data-cinematic] .maplibregl-ctrl-bottom-right { top:max(68px,calc(env(safe-area-inset-top) + 64px)); bottom:auto; }
+}
+html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'©'; }

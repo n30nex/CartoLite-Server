@@ -48,7 +48,7 @@ for (const path of ['/', '/netgraph/']) {
     if (path === '/netgraph/' && page.viewportSize()!.height <= 520) {
       const inspector = await page.locator('#node-inspector-sheet').boundingBox();
       const controls = await page.locator('.controls').boundingBox();
-      expect(inspector!.y).toBeGreaterThanOrEqual(controls!.y + controls!.height);
+      expect(inspector!.y + inspector!.height).toBeLessThanOrEqual(controls!.y);
     }
 
     if (await layers.isVisible()) await layers.click();

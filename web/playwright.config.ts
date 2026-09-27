@@ -4,6 +4,8 @@ export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results',
   retries: process.env.CI ? 1 : 0,
+  // Stop broken candidates early; a passing candidate still runs every scenario.
+  maxFailures: process.env.CI ? 3 : 0,
   // Renderer timing is meaningful only when one Chromium instance owns the
   // shared Actions CPU; concurrent software-rendered maps distort the gate.
   workers: process.env.CI ? 1 : undefined,
@@ -11,7 +13,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.CARTOLITE_BASE_URL ?? 'http://127.0.0.1:39476',
     screenshot: 'only-on-failure',
-    trace: 'retain-on-failure',
+    trace: 'on-first-retry',
     launchOptions: { args: ['--enable-unsafe-swiftshader'] }
   },
   projects: [

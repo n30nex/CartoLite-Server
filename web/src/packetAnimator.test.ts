@@ -235,6 +235,7 @@ describe('PacketAnimator motion preference lifecycle', () => {
     const map = {
       on: vi.fn(),
       off: vi.fn(),
+      getContainer: () => document.createElement('div'),
       project: vi.fn((coordinates: [number, number]) => ({ x: coordinates[0], y: coordinates[1] })),
     } as unknown as maplibregl.Map;
     const canvas = document.createElement('canvas');
@@ -305,6 +306,7 @@ describe('PacketAnimator motion preference lifecycle', () => {
     const map = {
       on: vi.fn(),
       off: vi.fn(),
+      getContainer: () => document.createElement('div'),
       project: vi.fn((coordinates: [number, number]) => ({ x: coordinates[0], y: coordinates[1] })),
     } as unknown as maplibregl.Map;
     const canvas = document.createElement('canvas');
@@ -349,6 +351,7 @@ describe('PacketAnimator motion preference lifecycle', () => {
     const map = {
       on: vi.fn(),
       off: vi.fn(),
+      getContainer: () => document.createElement('div'),
       project: vi.fn((coordinates: [number, number]) => ({ x: coordinates[0], y: coordinates[1] })),
     } as unknown as maplibregl.Map;
     const canvas = document.createElement('canvas');

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_DISPLAY, DISPLAY_STORAGE_KEY, ROUTE_PRESETS, displayColor, loadDisplayPreferences, normalizeDisplay, packetPalette } from './displayPreferences';
 
 describe('shared display preferences', () => {
+  it('preserves existing route styling while enabling the cinematic defaults', () => {
+    const previous = { basemap: 'light', preset: 'dotted', pattern: 'dotted', width: 3, glow: 0, opacity: .7, packetSize: 1.5, trailLength: .7, residueSeconds: 8 };
+    expect(normalizeDisplay(previous)).toMatchObject({ ...previous, effects: 'spectacle', detail: 'auto', quality: 'auto', motion: 'system', textSize: 'standard' });
+    expect(normalizeDisplay({ effects: 'calm', detail: 'complete', quality: 'economy', motion: 'reduced', textSize: 'large' })).toMatchObject({ effects: 'calm', detail: 'complete', quality: 'economy', motion: 'reduced', textSize: 'large' });
+    expect(normalizeDisplay({ effects: 'invalid', detail: false, quality: 2, motion: 'invalid', textSize: 200 })).toMatchObject({ effects: 'spectacle', detail: 'auto', quality: 'auto', motion: 'system', textSize: 'standard' });
+  });
   it('migrates the map appearance without importing layers or audio settings', () => {
     const storage = { getItem: (key: string) => key === DISPLAY_STORAGE_KEY ? null : JSON.stringify({ basemap: 'streets', theme: 'dark', routeOpacity: 0.55, routes: true, scene: 'choir' }) };
     expect(loadDisplayPreferences(storage)).toEqual({ ...DEFAULT_DISPLAY, basemap: 'streets', theme: 'dark', opacity: 0.55 });

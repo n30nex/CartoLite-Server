@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FOLLOW_DWELL_MS, FollowQueue, followSummary } from './liveFollow';
+import { FOLLOW_DWELL_MS, FollowQueue, followSummary, followsScope } from './liveFollow';
 import type { PacketView } from './types';
 
 const packet = (id: string): PacketView => ({
@@ -8,6 +8,21 @@ const packet = (id: string): PacketView => ({
 });
 
 describe('Live Follow pacing', () => {
+  it('holds the countdown without replaying a packet and resumes the remaining dwell', () => {
+    const queue = new FollowQueue(); queue.offer(packet('a'), 1, 1000); queue.take(1000);
+    queue.setHeld(true, 4000); expect(queue.remaining(20_000)).toBe(7);
+    queue.offer(packet('b'), 1, 20_000); expect(queue.take(20_000)).toBeUndefined();
+    queue.setHeld(false, 20_000); expect(queue.remaining(20_000)).toBe(7);
+    expect(queue.take(27_000)?.id).toBe('b');
+    queue.next(); expect(queue.take(27_001)).toBeUndefined();
+  });
+  it('locks an area and handles bounds that cross the date line', () => {
+    const p = packet('a'); expect(followsScope(p, { kind:'node',id:'b' })).toBe(false);
+    expect(followsScope(p, { kind:'area',bounds:[-81,43,-79,45] })).toBe(true);
+    expect(followsScope(p, { kind:'area',bounds:[170,43,-170,45] })).toBe(false);
+    if(p.mode==='observer')p.observer.lng=179;
+    expect(followsScope(p, { kind:'area',bounds:[170,43,-170,45] })).toBe(true);
+  });
   it('holds a card for ten seconds even when the camera did not move', () => {
     const queue = new FollowQueue();
     queue.offer(packet('a'), 1, 1000);

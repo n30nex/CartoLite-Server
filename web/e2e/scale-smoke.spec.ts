@@ -11,6 +11,7 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   // Allow the complete interaction journey to finish; the explicit startup,
   // frame, long-task, and application-work budgets below still gate performance.
   test.slow();
+  page.on('console', message => { if (message.type() === 'warn' || message.type() === 'error') console.log('[scale]', message.text().replace(/https?:\/\/\S+/g, '[resource]').slice(0, 300)); });
   const state = scaleState();
   const firstRoute = state.routes[0];
   if (!firstRoute) throw new Error('scale fixture has no routes');
@@ -41,7 +42,8 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   const map = page.locator('#map');
   await expect(page.locator('#route-canvas')).toHaveCount(0);
   await expect(map).toHaveAttribute('data-route-renderer', 'maplibre-webgl');
-  await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 15_000 });
+  try { await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 15_000 }); }
+  catch(error) { console.log('Route readiness diagnostic',await map.evaluate(element=>({...((element as HTMLElement).dataset)}))); throw error; }
   await expect(map).toHaveAttribute('data-rendered-route-segments', '7000');
   await installLongTaskObserver(page);
 
@@ -109,9 +111,7 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   await resetLongTasks(page);
   await page.locator('.node-search-result').first().click();
   await expect(map).toHaveAttribute('data-selected-node-id', 'node-0');
-  const inspector = testInfo.project.name.startsWith('mobile')
-    ? page.locator('#node-inspector-sheet')
-    : page.locator('.node-inspector-popup');
+  const inspector = page.locator('#node-inspector-sheet');
   await expect(inspector).toBeVisible();
   await expect(inspector.locator('.neighbor-row').first()).toBeVisible();
   expect(Number(await map.getAttribute('data-node-selection-apply-ms')), 'opening an indexed node inspector must finish within 100 ms').toBeLessThan(100);

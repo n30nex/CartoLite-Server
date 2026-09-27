@@ -26,7 +26,7 @@ test('keeps tablet portrait controls compact, separated, and touch sized', async
     return { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
   }));
   expect(chrome).toHaveLength(2);
-  expect(chrome[0].right).toBeLessThanOrEqual(chrome[1].left);
+  expect(chrome[0].bottom <= chrome[1].top || chrome[0].right <= chrome[1].left).toBe(true);
 
   const primarySizes = await page.locator('#follow-button, #sound-button, #reset-button, #layers-summary').evaluateAll(
     (elements) => elements.map((element) => {

@@ -112,11 +112,11 @@ test('Netgraph menus are exclusive for keyboard users and its camera supports ke
     for (const label of ['nodes', 'links', 'areas', 'groups']) await expect(page.locator('.summary-compact').filter({ hasText: label })).toBeVisible();
     const summary = await page.locator('#graph-summary').boundingBox();
     const controls = await page.locator('.controls').boundingBox();
-    expect(summary!.y).toBeGreaterThanOrEqual(controls!.y + controls!.height);
+    expect(summary!.y + summary!.height <= controls!.y || summary!.x + summary!.width <= controls!.x || summary!.x >= controls!.x + controls!.width).toBe(true);
     expect(summary!.y + summary!.height).toBeLessThanOrEqual(size.height);
     if (size.width > size.height && size.height <= 520) {
       const legend = await page.locator('#legend').boundingBox();
-      expect(summary!.x + summary!.width).toBeLessThanOrEqual(legend!.x);
+      expect(summary!.y + summary!.height <= legend!.y || summary!.x + summary!.width <= legend!.x).toBe(true);
     }
   }
 });
@@ -146,7 +146,7 @@ test('pausing Follow stops a camera transition immediately', async ({ page }, in
   await expect(map).toHaveAttribute('data-camera-moving', 'true');
   await page.locator('#follow-pause').click();
   await expect(map).toHaveAttribute('data-camera-moving', 'false');
-  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'paused');
+  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'held');
 });
 
 test('blocked browser storage does not prevent Map, Netgraph, or Labs startup', async ({ page }, info) => {

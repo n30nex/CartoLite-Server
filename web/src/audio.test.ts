@@ -197,6 +197,18 @@ describe('route hop sonification', () => {
 });
 
 describe('sound preference and autoplay state', () => {
+  it('previews one voice without opting the listener into live sound', async () => {
+    const original=window.AudioContext;
+    FakeAudioContext.initialState='running'; FakeAudioContext.oscillators=0;
+    Object.defineProperty(window,'AudioContext',{configurable:true,value:FakeAudioContext});
+    const sonifier=new RouteSonifier(projector as never,document.createElement('div'));
+    try {
+      await sonifier.preview();
+      expect(FakeAudioContext.oscillators).toBe(1);
+      expect(sonifier.isEnabled()).toBe(false);
+      expect(loadSoundPreference(localStorage).enabled).toBe(false);
+    } finally { sonifier.destroy(); Object.defineProperty(window,'AudioContext',{configurable:true,value:original}); }
+  });
   beforeEach(() => localStorage.clear());
 
   it('defaults to Aurora at 80 percent and stores only enabled, volume, and scene', () => {
