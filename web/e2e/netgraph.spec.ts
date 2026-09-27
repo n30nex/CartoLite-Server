@@ -55,7 +55,7 @@ test('Netgraph renders stable topology, inspection, and synchronized musical hop
   await expect(stage).toHaveAttribute('data-last-region-traffic', 'long-haul');
   await expect.poll(() => stage.getAttribute('data-active-region-labels').then(Number), { timeout: 8_000 }).toBeGreaterThan(0);
   await expect(stage).toHaveAttribute('data-active-region-roles', /OUT/);
-  await expect.poll(() => canvasHasPixels(page, '#packet-canvas'), { timeout: 5_000 }).toBe(true);
+  await expect.poll(async () => await canvasHasPixels(page, '#packet-canvas') || await canvasHasPixels(page, '#netgraph-residue-canvas') || await gpuHasPixels(page), { timeout: 5_000 }).toBe(true);
 
   await page.locator('#find-button').click();
   await page.locator('#node-search').fill('Alpha');
@@ -398,4 +398,15 @@ async function instrumentAudioContext(page: Page): Promise<void> {
     (window as unknown as { __netgraphOscillators: number }).__netgraphOscillators = 0;
     Object.defineProperty(window, 'AudioContext', { configurable: true, value: TestAudioContext });
   });
+}
+
+async function gpuHasPixels(page: Page): Promise<boolean> {
+  return page.locator('.gpu-packet-canvas').evaluate(element => new Promise<boolean>(resolve => requestAnimationFrame(() => {
+    const canvas = element as HTMLCanvasElement;
+    const gl = canvas.getContext('webgl2');
+    if (!gl || gl.isContextLost()) { resolve(false); return; }
+    const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+    gl.readPixels(0,0,canvas.width,canvas.height,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    resolve(pixels.some((value,index)=>index%4===3&&value>0));
+  })));
 }

@@ -20,6 +20,8 @@ export function mountCinematicDock(): void {
   const labs = topbar.querySelector<HTMLAnchorElement>('#labs-link');
   if (labs) { labs.classList.add('control-button'); navigation.append(labs); }
   controls.prepend(navigation);
+  const zoomControls = document.querySelector<HTMLElement>('.zoom-controls');
+  if (zoomControls) controls.append(zoomControls);
   const sizeDock=()=>document.documentElement.style.setProperty('--dock-height',`${controls.offsetHeight}px`);
   const dockResize=new ResizeObserver(sizeDock);dockResize.observe(controls);sizeDock();
   window.addEventListener('pagehide',()=>dockResize.disconnect());
@@ -43,7 +45,7 @@ export function mountCinematicDock(): void {
   let closingURL = location.href;
   let pendingNavigation: string | undefined;
   const syncHistory = () => {
-    if (closingHistory) return;
+    if (closingHistory) { closingURL = location.href; return; }
     const open = openMenu();
     const current = history.state?.cartolitePanel;
     if (open && current !== open) {
