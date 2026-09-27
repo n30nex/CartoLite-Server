@@ -157,8 +157,11 @@ export function mapEffects(map: LibreMap) {
   map.on('render',measure);map.on('moveend',retry);
   const layer: CustomLayerInterface={id:'live-packet-effects',type:'custom',renderingMode:'2d',onAdd(_map,gl){activeGL=gl as WebGL2RenderingContext;batch.initialize(activeGL);},render(){batch.draw();},onRemove(){batch.dispose();}};
   const wanted=()=>displayPreferences().quality!=='economy'&&!budgetFallback
-    && !(displayPreferences().quality==='auto'&&Number(map.getContainer().dataset.eligibleRoutes)>2000);
-  const attach=()=>{if(wanted()&&map.isStyleLoaded?.() && !map.getLayer(layer.id)) map.addLayer(layer);};
+    && !(displayPreferences().quality==='auto'&&Math.max(Number(map.getContainer().dataset.eligibleRoutes)||0,Number(map.getContainer().dataset.renderedRouteSegments)||0)>2000);
+  const attach=()=>{
+    if(!wanted()){batch.setEnabled(false);if(map.getLayer?.(layer.id))map.removeLayer(layer.id);return;}
+    if(map.isStyleLoaded?.() && !map.getLayer(layer.id))map.addLayer(layer);
+  };
   const lost=()=>batch.dispose();
   const restored=()=>{if(activeGL&&wanted())batch.initialize(activeGL);attach();map.triggerRepaint();};
   map.on('load',attach); map.on('idle',attach); map.on('styledata',attach); map.on('webglcontextlost',lost); map.on('webglcontextrestored',restored); attach();
