@@ -1,3 +1,4 @@
+import { mountCinematicDock } from '../cinematicChrome';
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from '../soundScenes';
 import { initializeDisplay } from '../displayPreferences';
 import { mountNetgraphDisplay } from '../displayControls';
@@ -512,3 +513,5 @@ function required<T extends HTMLElement>(id: string): T {
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
+
+mountCinematicDock();

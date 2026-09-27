@@ -1,3 +1,4 @@
+import { mountCinematicDock, mountLayerCombinations } from './cinematicChrome';
 import { browserStorage } from './browserStorage';
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from './soundScenes';
 import { mountDisplayControls } from './displayControls';
@@ -213,6 +214,7 @@ document.addEventListener('keydown', (event) => {
 required<HTMLButtonElement>('layers-close').addEventListener('click', () => { setLayersOpen(false); layersSummary.focus(); });
 
 void requestScreenAwake();
+mountCinematicDock();
 void start();
 
 async function start(): Promise<void> {
@@ -368,6 +370,7 @@ async function start(): Promise<void> {
       updateDisplay({ ...DEFAULT_DISPLAY });
       applyAppearance();
     });
+    mountLayerCombinations();
     applyAppearance();
     routeWindow.value = uiPreferences.routeWindow;
     liveMap.setRouteWindow(uiPreferences.routeWindow);

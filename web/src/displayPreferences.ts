@@ -4,6 +4,11 @@ import { PACKET_KIND_COLORS as DARK_KINDS } from './trafficVisuals';
 export type LinePattern = 'solid' | 'dashed' | 'dotted';
 export type RoutePreset = 'crisp' | 'neon' | 'dashed' | 'dotted' | 'ribbon' | 'comet' | 'custom';
 export interface DisplayPreferences {
+  effects: 'spectacle' | 'calm' | 'minimal';
+  detail: 'auto' | 'complete';
+  quality: 'auto' | 'high' | 'economy';
+  motion: 'system' | 'full' | 'reduced';
+  textSize: 'standard' | 'large';
   basemap: BasemapStyle;
   theme: InterfaceTheme;
   preset: RoutePreset;
@@ -26,7 +31,7 @@ export const ROUTE_PRESETS = {
   ribbon: { pattern: 'solid', width: 3.5, opacity: 0.75, glow: 0.1, packetSize: 1.35, trailLength: 1, residueSeconds: 12 },
   comet: { pattern: 'solid', width: 1.4, opacity: 0.8, glow: 0.5, packetSize: 1.4, trailLength: 2, residueSeconds: 30 },
 } as const;
-export const DEFAULT_DISPLAY: DisplayPreferences = { basemap: 'dark', theme: 'map', preset: 'crisp', ...ROUTE_PRESETS.crisp };
+export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: 'auto', quality: 'auto', motion: 'system', textSize: 'standard', basemap: 'dark', theme: 'map', preset: 'crisp', ...ROUTE_PRESETS.crisp };
 
 const LIGHT_KINDS = { Advert: '#006957', Trace: '#855000', Text: '#a21b58', ACK: '#075b98', Control: '#6740a0', Other: '#445760' };
 const LIGHT_COLORS: Record<string, string> = {
@@ -87,6 +92,11 @@ export function normalizeDisplay(value: unknown): DisplayPreferences {
     return typeof raw === 'number' && Number.isFinite(raw) ? Math.max(min, Math.min(max, raw)) : Number(DEFAULT_DISPLAY[key]);
   };
   return {
+    effects: v.effects === 'calm' || v.effects === 'minimal' ? v.effects : 'spectacle',
+    detail: v.detail === 'complete' ? 'complete' : 'auto',
+    quality: v.quality === 'high' || v.quality === 'economy' ? v.quality : 'auto',
+    motion: v.motion === 'full' || v.motion === 'reduced' ? v.motion : 'system',
+    textSize: v.textSize === 'large' ? 'large' : 'standard',
     basemap: v.basemap === 'light' || v.basemap === 'streets' ? v.basemap : 'dark',
     theme: v.theme === 'light' || v.theme === 'dark' ? v.theme : 'map',
     preset: v.preset === 'custom' || (typeof v.preset === 'string' && Object.hasOwn(ROUTE_PRESETS, v.preset)) ? v.preset as RoutePreset : 'crisp',
@@ -108,6 +118,9 @@ export function initializeDisplay(): void {
   initialized = true;
   try { current = loadDisplayPreferences(localStorage); } catch { /* Browser storage is optional. */ }
   applyDisplayChrome();
+  window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () => {
+    applyDisplayChrome(); window.dispatchEvent(new Event(DISPLAY_EVENT));
+  });
   window.addEventListener('storage', (event) => {
     if (event.key !== DISPLAY_STORAGE_KEY && event.key !== null) return;
     try { current = loadDisplayPreferences(localStorage); } catch { current = { ...DEFAULT_DISPLAY }; }
@@ -126,6 +139,10 @@ export function applyDisplayChrome(): void {
   root.dataset.theme = current.theme === 'map' ? (lightScene() ? 'light' : 'dark') : current.theme;
   root.dataset.basemap = current.basemap;
   root.dataset.routePreset = current.preset;
+  root.dataset.effects = current.effects;
+  root.dataset.detail = current.detail;
+  root.dataset.motion = prefersReducedMotion() ? 'reduced' : 'full';
+  root.dataset.textSize = current.textSize;
   for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--kind-${kind.toLowerCase()}`, color);
   for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--ui-kind-${kind.toLowerCase()}`, color);
   root.style.setProperty('--scene-background', current.basemap === 'dark' ? '#071319' : current.basemap === 'streets' ? '#f0eadb' : '#eef1ee');
@@ -133,4 +150,14 @@ export function applyDisplayChrome(): void {
     const color = packetPalette()[el.dataset.kind as keyof typeof DARK_KINDS];
     if (color) el.style.setProperty('--route-color', color);
   }
+}
+
+/** Motion preference changes presentation only, never the packet clock. */
+export function prefersReducedMotion(): boolean {
+  return current.motion === 'reduced' || (current.motion === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+export function effectStrength(): number { return current.effects === 'minimal' ? 0 : current.effects === 'calm' ? 0.35 : 1; }
+export function scenePalette() {
+  return lightScene() ? { core: '#18383f', outline: '#f8faf4', muted: '#49656a', grid: '#c9d5d0', selection: '#005c52' }
+    : { core: '#efffff', outline: '#071319', muted: '#a8bcc7', grid: '#183039', selection: '#72ffe1' };
 }
