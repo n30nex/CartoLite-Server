@@ -53,6 +53,11 @@ describe('historical route WebGL geometry', () => {
     const vertices = historicalRouteVertices(routes);
 
     expect(vertices).toHaveLength(routes.length * 6 * STROKE_VERTEX_FLOATS);
+    expect(Array.from({length:6},(_,i)=>[vertices[i*STROKE_VERTEX_FLOATS+6],vertices[i*STROKE_VERTEX_FLOATS+7]])).toEqual([[0,-1],[1,-1],[1,1],[0,-1],[1,1],[0,1]]);
+    for(let i=1;i<6;i++) {
+      expect(vertices.slice(i*STROKE_VERTEX_FLOATS,i*STROKE_VERTEX_FLOATS+6)).toEqual(vertices.slice(0,6));
+      expect(vertices.slice(i*STROKE_VERTEX_FLOATS+8,(i+1)*STROKE_VERTEX_FLOATS)).toEqual(vertices.slice(8,STROKE_VERTEX_FLOATS));
+    }
     expect(vertices[12]).toBe(0);
     expect(vertices[6 * STROKE_VERTEX_FLOATS + 12]).toBe(3);
     expect([...vertices].every(Number.isFinite)).toBe(true);
