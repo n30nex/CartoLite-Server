@@ -411,6 +411,7 @@ test('keeps a recent packet trail after stable routes are hidden', async ({ page
   await expect(page.locator('#app')).toHaveAttribute('data-traffic-kind', 'text');
   const afterglowWindow = routeDuration([{ routeId: 'route-a-b', from, to }]) + DESTINATION_BLOOM_MS + 600;
   await page.waitForTimeout(afterglowWindow);
+  await testInfo.attach('trail-state.json', { contentType: 'application/json', body: JSON.stringify(await packetCanvas.evaluate(c => ({...((c as HTMLCanvasElement).dataset),display:localStorage.getItem('cartolite:display:v1'),width:(c as HTMLCanvasElement).width,height:(c as HTMLCanvasElement).height}))) });
   await expect.poll(() => canvasHasPixels(packetCanvas), { message: '45-second trail should outlive the moving comet and afterglow', timeout: 2_000 }).toBe(true);
   await page.waitForTimeout(Math.max(0, 15_500 - afterglowWindow));
   await expect.poll(() => canvasHasPixels(packetCanvas), { message: 'recent packet trail should remain visible beyond the former 15-second lifetime', timeout: 2_000 }).toBe(true);
@@ -522,6 +523,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await expect(page.locator('#legend-items')).toBeHidden();
   await expect(page.locator('#legend-toggle')).toBeHidden();
 
+  await closeLayers(page);
   await inspectRoute(page, alphaPoint, bravoPoint, mobile);
   await expect(map).toHaveAttribute('data-hovered-route-id', 'a-b');
   await expect(tooltip).toHaveAttribute('data-kind', 'route');

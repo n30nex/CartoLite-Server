@@ -104,6 +104,8 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   await page.locator('#find-button').click();
   await page.locator('#node-search').fill('Summit');
   await page.locator('.node-search-result').first().click();
+  // Pause before fresh events, with headroom for the software renderer's command round trip.
+  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 10_000)));
   await page.locator('#follow-button').click();
   await emit(page, 5, 'Text');
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
@@ -115,7 +117,6 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   } })));
   await expect(page.locator('#map')).toHaveAttribute('data-neighbor-route-count', '3');
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
-  await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 1000)));
   await page.clock.fastForward(10_000);
   await page.clock.fastForward(10_000);
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');

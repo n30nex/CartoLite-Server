@@ -457,8 +457,11 @@ export class LiveMap {
     let settledFrames = 0;
     const settle = (): void => {
       if (hydrationEpoch !== this.routeHydrationEpoch) return;
-      const sourceReady = Boolean(this.map.getSource(ROUTE_DETAIL_SOURCE_ID))
-        && this.map.isSourceLoaded(ROUTE_DETAIL_SOURCE_ID);
+      // Historical geometry lives in the batched renderer. The GeoJSON source
+      // serves selected-neighbour hit targets only and may stay unloaded while hidden.
+      const detailNeeded = this.routesVisible && this.selectedNodeID !== null;
+      const sourceReady = this.container.dataset.exactRoutesLoaded === 'true'
+        && (!detailNeeded || (Boolean(this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) && this.map.isSourceLoaded(ROUTE_DETAIL_SOURCE_ID)));
       if (!sourceReady || this.routeHydrating) {
         settledFrames = 0;
         window.requestAnimationFrame(settle);

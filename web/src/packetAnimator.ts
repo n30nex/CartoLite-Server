@@ -560,6 +560,8 @@ export class PacketAnimator {
       (item) => now - item.started < OBSERVER_PING_MS,
     );
     this.updateMotionMode();
+    this.canvas.dataset.residueCount = String(this.residue.length);
+    this.canvas.dataset.activeCount = String(this.activeRoutes.length + this.activeObservers.length);
     for (const route of this.activeRoutes) this.drawRoute(route, now);
     for (const observer of this.activeObservers) this.drawObserver(observer, now);
     this.context.restore();

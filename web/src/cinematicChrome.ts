@@ -13,12 +13,12 @@ export function mountCinematicDock(): void {
   if (!graph) mapLink.setAttribute('aria-current', 'page');
   navigation.append(mapLink);
   const graphLink = topbar.querySelector<HTMLAnchorElement>('#netgraph-link') ?? document.createElement('a');
-  graphLink.href = '/netgraph/'; graphLink.className = 'control-button'; graphLink.textContent = 'Netgraph';
+  graphLink.href = '/netgraph/'; graphLink.classList.add('control-button', 'netgraph-link'); graphLink.textContent = 'Netgraph';
   graphLink.setAttribute('aria-label', 'Open CartoLite Netgraph');
   if (graph) graphLink.setAttribute('aria-current', 'page');
   navigation.append(graphLink);
   const labs = topbar.querySelector<HTMLAnchorElement>('#labs-link');
-  if (labs) { labs.className = 'control-button'; navigation.append(labs); }
+  if (labs) { labs.classList.add('control-button'); navigation.append(labs); }
   controls.prepend(navigation);
   if (!graph) {
     const display = document.createElement('button');

@@ -41,7 +41,7 @@
  :root[data-cinematic]:has(.layers-disclosure[open],.find-panel:not([hidden]),.sound-panel:not([hidden]),.display-panel:not([hidden])) :is(.node-inspector-sheet,.follow-card,.legend,.route-legend) { visibility: hidden; }
 }
 @media (max-height: 520px) and (orientation: landscape) {
- :root[data-cinematic] .controls { flex-wrap: nowrap; max-width: calc(100vw - 100px); }
+ :root[data-cinematic] .controls { flex-wrap: wrap; max-width: calc(100vw - 72px); left: calc(50% + 24px); }
  :root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { max-height: calc(100dvh - 95px); }
  :root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { bottom: 72px; max-height: calc(100dvh - 90px); width: min(350px, 48vw); left: auto; right: 8px; }
 }
@@ -52,13 +52,13 @@
 @media(max-width:900px) { .graph-focus { top: 106px; left: 8px; } }
 
 :root[data-cinematic] .controls > :is(.layers-disclosure,.find-control,.sound-control,.popover-control), :root[data-cinematic] .display-disclosure { position:static; }
-:root[data-cinematic] #layers-panel { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); width:min(370px,calc(100vw - 24px)); max-height:calc(100dvh - 150px); }
+:root[data-cinematic] .controls #layers-panel { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); width:min(370px,calc(100vw - 24px)); max-height:calc(100dvh - 150px); }
 :root[data-cinematic] .maplibregl-ctrl-bottom-right { opacity:1; }
 .gpu-packet-canvas { z-index:2; }
 .sound-preview-actions { display:flex; gap:8px; }
 :root[data-cinematic] .director-enabled[data-follow-inspect="true"] .node-inspector-sheet { visibility:visible; pointer-events:auto; }
-@media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
-@media(max-height:520px) and (orientation:landscape) { :root[data-cinematic] #layers-panel { max-height:calc(100dvh - 95px); } }
+@media(max-width:900px),(pointer:coarse) { :root[data-cinematic] .controls #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
+@media(max-height:520px) and (orientation:landscape) { :root[data-cinematic] .controls #layers-panel { max-height:calc(100dvh - 95px); } }
 
 :root[data-native-app] .graph-summary { right:68px; }
 
@@ -68,6 +68,6 @@
 :root[data-cinematic] .follow-card .follow-scope, :root[data-cinematic] .follow-card .follow-actions { margin:8px 12px; }
 @media(max-width:900px),(pointer:coarse) { :root[data-cinematic] .graph-summary { left:8px; right:auto; } }
 
-:root[data-cinematic] #layers-panel { height:min(750px,calc(100dvh - 150px)); }
+:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - 150px)); }
 
 @media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #app[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }
