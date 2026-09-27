@@ -159,8 +159,9 @@ export function mapEffects(map: LibreMap) {
   const wanted=()=>displayPreferences().quality!=='economy'&&!budgetFallback
     && !(displayPreferences().quality==='auto'&&Math.max(Number(map.getContainer().dataset.eligibleRoutes)||0,Number(map.getContainer().dataset.renderedRouteSegments)||0)>2000);
   const attach=()=>{
-    if(!wanted()){batch.setEnabled(false);if(map.getLayer?.(layer.id))map.removeLayer(layer.id);return;}
-    if(map.isStyleLoaded?.() && !map.getLayer(layer.id))map.addLayer(layer);
+    if(!wanted()){batch.setEnabled(false);if(map.getLayer?.(layer.id))map.removeLayer(layer.id);}
+    else if(map.isStyleLoaded?.() && !map.getLayer(layer.id))map.addLayer(layer);
+    map.getContainer().dataset.gpuEffectLayer=String(Boolean(map.getLayer?.(layer.id)));
   };
   const lost=()=>batch.dispose();
   const restored=()=>{if(activeGL&&wanted())batch.initialize(activeGL);attach();map.triggerRepaint();};
