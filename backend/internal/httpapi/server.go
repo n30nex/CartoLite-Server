@@ -205,7 +205,8 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if path.Ext(name) == ".html" {
-		w.Header().Set("Cache-Control", "no-cache")
+		// Public HTML still requires revalidation; intermediaries must not inject scripts.
+		w.Header().Set("Cache-Control", "public, no-cache, no-transform")
 	} else if strings.HasPrefix(name, "assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	} else {

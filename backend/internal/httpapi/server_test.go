@@ -39,7 +39,7 @@ func TestStaticCachePolicy(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "CartoLite Server") {
 		t.Fatalf("root did not serve the map entry: status=%d body=%q", response.Code, response.Body.String())
 	}
-	if cache := response.Header().Get("Cache-Control"); cache != "no-cache" {
+	if cache := response.Header().Get("Cache-Control"); cache != "public, no-cache, no-transform" {
 		t.Fatalf("HTML cache policy = %q", cache)
 	}
 
@@ -74,7 +74,7 @@ func TestPublicRoutesAndPrivateBoundaries(t *testing.T) {
 	}
 }
 
-func TestSecurityHeadersExcludeExternalGlyphOrigins(t *testing.T) {
+func TestSecurityHeadersRestrictProvidersAndScripts(t *testing.T) {
 	response := httptest.NewRecorder()
 	testHandler(t, true).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	csp := response.Header().Get("Content-Security-Policy")
@@ -84,9 +84,9 @@ func TestSecurityHeadersExcludeExternalGlyphOrigins(t *testing.T) {
 	if !strings.Contains(csp, "https://tiles.mapterhorn.com") {
 		t.Fatalf("CSP does not allow the configured terrain origin: %q", csp)
 	}
-	for _, origin := range []string{"https://demotiles.maplibre.org", "https://fonts.openmaptiles.org"} {
+	for _, origin := range []string{"https://demotiles.maplibre.org", "https://fonts.openmaptiles.org", "https://static.cloudflareinsights.com"} {
 		if strings.Contains(csp, origin) {
-			t.Fatalf("CSP still allows external glyph origin %q: %q", origin, csp)
+			t.Fatalf("CSP allows unexpected external origin %q: %q", origin, csp)
 		}
 	}
 	if policy := response.Header().Get("Permissions-Policy"); !strings.Contains(policy, "geolocation=()") || !strings.Contains(policy, "usb=()") {
@@ -123,7 +123,7 @@ func TestNetgraphPageAndCanonicalURL(t *testing.T) {
 	}
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/netgraph/", nil))
-	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-cache" {
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "public, no-cache, no-transform" {
 		t.Fatalf("unexpected Netgraph response: %d", response.Code)
 	}
 	response = httptest.NewRecorder()
