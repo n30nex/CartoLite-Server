@@ -66,3 +66,11 @@ Runtime provider configuration is identical for source-built and published image
 ## Release verification
 
 Actions tests native amd64 and arm64 images, including synthetic MQTT/privacy/load checks and a checkpoint-preserving upgrade from 0.4.1. Browser checks run against the same frontend on amd64. Main publishes and attests the tested platform digests, assembles their index without rebuilding, and verifies anonymous pulls and the Compose recipe on both architectures. Tag releases promote that exact index and publish Compose files, source archives, a release manifest and SHA256SUMS.
+
+## Proxy content integrity
+
+Preserve the HTML response's `Cache-Control: no-cache, no-transform` header at
+reverse proxies and CDNs. This prevents automatic script injection, including
+Cloudflare Web Analytics, without weakening CartoLite's Content Security Policy.
+Do not add analytics hosts to the script allowlist to silence CSP errors. See
+[Cloudflare's automatic setup documentation](https://developers.cloudflare.com/web-analytics/get-started/).

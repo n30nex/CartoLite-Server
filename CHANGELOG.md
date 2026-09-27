@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 - Edge content integrity
+
+- Prevent automatic proxy/CDN script injection into Map and Netgraph HTML with `Cache-Control: no-cache, no-transform`; keep the existing strict Content Security Policy and traffic API unchanged.
+
 ## 0.6.0 - Cinematic overhaul
 
 - Add Spectacle, Calm and Minimal effects, automatic detail/graphics, shared motion and text-size controls while retaining saved styles and sound settings.
