@@ -50,24 +50,19 @@ test('shares presets and custom styling across Map and Netgraph without losing c
   await expect(page.locator('#map-notice')).toBeHidden();
 });
 
-test('uses bright packet ink at night and dark ink on both light scenes', async ({ page }, info) => {
-  await visualFixture(page);
-  let sequence = 0;
-  for (const path of ['/', '/netgraph/']) {
-    sequence = 0;
-    await page.goto(path);
-    await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
-    for (const scene of ['dark', 'light', 'streets']) {
-      if (path === '/') { await openMapOptions(page); await page.locator('#basemap-style').selectOption(scene); }
-      else { await page.locator('#display-button').click(); await page.getByLabel('Scene style', { exact: true }).selectOption(scene); }
-      await page.keyboard.press('Escape');
-      const beforePacket = await sceneFrame(page);
-      await visualPacket(page, ++sequence);
-      await expect.poll(() => packetInk(page, scene !== 'dark', beforePacket), { timeout: 3000 }).toBeGreaterThan(2);
-      await page.screenshot({ path: info.outputPath(`${path === '/' ? 'map' : 'netgraph'}-${scene}.png`) });
-    }
-  }
-});
+for (const path of ['/', '/netgraph/']) for (const scene of ['dark', 'light', 'streets']) {
+  test(`composited live packet ink is readable in ${path} ${scene}`, async ({page},info) => {
+    await visualFixture(page); await page.goto(path);
+    await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+    if(path==='/') { await openMapOptions(page); await page.locator('#basemap-style').selectOption(scene); }
+    else { await page.locator('#display-button').click(); await page.getByLabel('Scene style',{exact:true}).selectOption(scene); }
+    await page.keyboard.press('Escape');
+    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+    const before=await sceneFrame(page); await visualPacket(page,1);
+    await expect.poll(()=>packetInk(page,scene!=='dark',before),{timeout:3000}).toBeGreaterThan(2);
+    await page.screenshot({path:info.outputPath(`${path==='/'?'map':'netgraph'}-${scene}.png`)});
+  });
+}
 
 test('reports missing tiles while keeping node data and Netgraph available', async ({ page }) => {
   await visualFixture(page);
