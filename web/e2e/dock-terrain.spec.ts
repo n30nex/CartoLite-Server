@@ -4,7 +4,7 @@ import { openMapOptions } from './mapControls';
 
 // As in terrain.spec, continuous retry screencasts stall software terrain readback.
 test.use({trace:'off'});
-test('dock 3D shortcut shares layer state, persistence and reset', async ({page},info) => {
+test('dock 3D shortcut shares layer state, persistence and reset', {tag:'@terrain'}, async ({page},info) => {
   const desktop=info.project.name==='desktop';
   await page.emulateMedia({reducedMotion:'reduce'});
   await visualFixture(page); await page.goto('/');
