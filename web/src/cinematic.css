@@ -37,7 +37,7 @@ html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-a
  html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { position: fixed; top: auto; bottom: calc(var(--dock-bottom) + 112px); left: 8px; right: 8px; width: auto; max-height: min(50dvh, 420px); }
  html:root[data-cinematic] :is(.legend,.route-legend) { bottom: calc(var(--dock-bottom) + 116px); }
  html:root[data-cinematic] .graph-summary { top: 65px; left: 8px; right: auto; font-size: 10px; }
- html:root[data-cinematic] .sound-state, html:root[data-cinematic] #sound-state, html:root[data-cinematic] .controls > .icon-button { display: none; }
+ html:root[data-cinematic] .sound-state, html:root[data-cinematic] #sound-state { display: none; }
  html:root[data-cinematic]:has(.layers-disclosure[open],.find-panel:not([hidden]),.sound-panel:not([hidden]),.display-panel:not([hidden])) :is(.node-inspector-sheet,.follow-card) { visibility: hidden; }
 }
 @media (max-height: 520px) and (orientation: landscape) {

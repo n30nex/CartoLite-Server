@@ -165,7 +165,11 @@ export function mapEffects(map: LibreMap) {
     if(lastInk&&lastFrameAt)slowPresentationFrames=now-lastFrameAt>80?slowPresentationFrames+1:Math.max(0,slowPresentationFrames-1);
     if(slowPresentationFrames>=3)budgetFallback=true;
     lastFrameAt=now;
-    batch.setEnabled(displayPreferences().quality !== 'economy' && !budgetFallback);
+    const quality=displayPreferences().quality;
+    // With dense history, presenting an effect would rerasterize thousands of
+    // stationary strokes. Auto uses the independent Canvas packet layer instead.
+    const dense=quality==='auto' && Number(map.getContainer().dataset.eligibleRoutes)>2000;
+    batch.setEnabled(quality !== 'economy' && !budgetFallback && !dense);
   },flush:()=>{
     const ink=batch.ready&&batch.hasInk;
     // A stationary faded trail does not require rerasterizing the whole basemap.
