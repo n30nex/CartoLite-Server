@@ -116,3 +116,24 @@ export function mountLayerCombinations(): void {
     bar.querySelector<HTMLButtonElement>('[data-undo]')!.hidden = false;
   });
 }
+
+/** The director frames activity in the space actually left by its card and dock. */
+export function followViewport(container: HTMLElement) {
+  const box=container.getBoundingClientRect(), width=container.clientWidth, height=container.clientHeight;
+  let left=24, right=width-24, top=72, bottom=height-24;
+  for(const selector of ['#topbar','.graph-focus']) {
+    const chrome=document.querySelector<HTMLElement>(selector);
+    if(chrome&&chrome.getClientRects().length)top=Math.max(top,chrome.getBoundingClientRect().bottom-box.top+16);
+  }
+  const dock=document.querySelector<HTMLElement>('.controls');
+  if(dock)bottom=Math.min(bottom,dock.getBoundingClientRect().top-box.top-16);
+  const card=document.getElementById('follow-card');
+  if(card&&!card.hidden){
+    const bounds=card.getBoundingClientRect();
+    if(bounds.width>=width*.6)bottom=Math.min(bottom,bounds.top-box.top-20);
+    else if(bounds.left+bounds.width/2<box.left+width/2)left=Math.max(left,bounds.right-box.left+24);
+    else right=Math.min(right,bounds.left-box.left-24);
+  }
+  top=Math.min(top,height-48);bottom=Math.max(top+24,bottom);
+  return {left,right:Math.max(left+48,right),top,bottom};
+}

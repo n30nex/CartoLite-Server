@@ -185,5 +185,5 @@ export function canvasEffects(parent: HTMLElement, before: HTMLCanvasElement) {
   if(gl)batch.initialize(gl);
   const lost=(event: Event)=>{event.preventDefault();batch.dispose();}; const restored=()=>{if(gl)batch.initialize(gl);};
   canvas.addEventListener('webglcontextlost',lost); canvas.addEventListener('webglcontextrestored',restored);
-  return {batch,flush:(width:number,height:number,dpr:number)=>{if(!gl)return;const w=Math.round(width*dpr),h=Math.round(height*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);batch.draw();},destroy:()=>{batch.dispose();canvas.remove();}};
+  return {batch,flush:(width:number,height:number,dpr:number)=>{if(!gl)return;const w=Math.round(width*dpr),h=Math.round(height*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);batch.draw();},destroy:()=>{canvas.removeEventListener('webglcontextlost',lost);canvas.removeEventListener('webglcontextrestored',restored);batch.dispose();gl?.getExtension('WEBGL_lose_context')?.loseContext();canvas.remove();}};
 }

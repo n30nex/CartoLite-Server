@@ -1,3 +1,4 @@
+import { followViewport } from './cinematicChrome';
 import { prefersReducedMotion as displayReducedMotion } from './displayPreferences';
 import { rememberNode, replaceInspector } from './selection';
 import * as maplibregl from 'maplibre-gl';
@@ -638,10 +639,11 @@ export class LiveMap {
     if (endpoints.length === 0) return false;
     const container = this.map.getContainer();
     const viewport = { width: container.clientWidth, height: container.clientHeight };
-    const inside = endpoints.every((endpoint) => isPointInSafeArea(
-      this.map.project([endpoint.lng, endpoint.lat]),
-      viewport,
-    ));
+    const visible=followViewport(container);
+    const inside = endpoints.every(endpoint => {
+      const p=this.map.project([endpoint.lng,endpoint.lat]);
+      return p.x>=visible.left&&p.x<=visible.right&&p.y>=visible.top&&p.y<=visible.bottom;
+    });
     if (inside) return false;
     const now = Date.now();
     if (!canMoveLiveFollow(this.lastFollowMoveAt, now)) return false;
@@ -652,20 +654,13 @@ export class LiveMap {
       this.directorTimer = undefined;
       this.container.dataset.cameraMode = 'idle';
     }, 1500);
-    if (endpoints.length === 1) {
-      const center: [number, number] = [endpoints[0]!.lng, endpoints[0]!.lat];
-      if (this.reducedMotion) this.map.jumpTo({ center });
-      else this.map.easeTo({ center, duration: 1200, essential: false, easeId: 'cartolite-live-follow' });
-      return true;
-    }
     const bounds = new maplibregl.LngLatBounds();
     const anchor = endpoints[0]!.lng;
     for (const endpoint of endpoints) bounds.extend([anchor + longitudeDelta(anchor, endpoint.lng), endpoint.lat]);
-    const horizontal = container.clientWidth <= 620 ? 56 : 104;
     const camera = this.map.cameraForBounds(bounds, {
-      padding: { top: 96, right: horizontal, bottom: Math.min(230, viewport.height * 0.32), left: horizontal },
+      padding: { top: visible.top, right: viewport.width-visible.right, bottom: viewport.height-visible.bottom, left: visible.left },
       bearing: this.map.getBearing(),
-      maxZoom: this.followZoom,
+      maxZoom: endpoints.length===1 ? this.map.getZoom() : Math.min(this.followZoom,this.map.getZoom()),
     });
     if (!camera) return false;
     this.map.easeTo({ ...camera, duration: this.reducedMotion ? 0 : 1400, essential: false, easeId: 'cartolite-live-follow' });

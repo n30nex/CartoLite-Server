@@ -1,3 +1,4 @@
+import { followViewport } from '../cinematicChrome';
 import { canvasEffects } from '../gpuEffects';
 import { canvasColorWithAlpha as colorWithAlpha, DISPLAY_EVENT, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime, prefersReducedMotion, effectStrength } from '../displayPreferences';
 import type { ViewportProjector } from '../audio';
@@ -355,11 +356,12 @@ export class NetgraphRenderer implements ViewportProjector {
     const ids = packet.mode === 'observer' ? [packet.observer.id] : packet.segments.flatMap(hop => [hop.from.id,hop.to.id]);
     const points = ids.map(id => this.layout.positions.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
     if (!points.length) return;
-    if (points.every(p => { const q=this.screenPoint(p.id); return q.x>72&&q.x<this.width-72&&q.y>100&&q.y<this.height-160; })) return;
+    const view=followViewport(this.stage);
+    if (points.every(p => { const q=this.screenPoint(p.id); return q.x>=view.left&&q.x<=view.right&&q.y>=view.top&&q.y<=view.bottom; })) return;
     const xs=points.map(p=>p.x),ys=points.map(p=>p.y);
     const left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);
-    const scale=Math.min(this.scale,Math.max(80,this.width-180)/Math.max(1,right-left),Math.max(80,this.height-300)/Math.max(1,bottom-top));
-    this.animateView((left+right)/2,(top+bottom)/2,Math.max(.015,scale));
+    const scale=Math.max(.015,Math.min(this.scale,(view.right-view.left)/Math.max(1,right-left),(view.bottom-view.top)/Math.max(1,bottom-top)));
+    this.animateView((left+right)/2-((view.left+view.right)/2-this.width/2)/scale,(top+bottom)/2-((view.top+view.bottom)/2-this.height/2)/scale,scale);
   }
 
   captureFollowArea(): (id: string) => boolean {
