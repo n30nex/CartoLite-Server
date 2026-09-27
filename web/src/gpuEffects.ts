@@ -148,7 +148,7 @@ export function mapEffects(map: LibreMap) {
   const lost=()=>batch.dispose();
   const restored=()=>{if(activeGL)batch.initialize(activeGL);attach();map.triggerRepaint();};
   map.on('styledata',attach); map.on('webglcontextlost',lost); map.on('webglcontextrestored',restored); attach();
-  return {batch,flush:()=>map.triggerRepaint(),destroy:()=>{map.off('styledata',attach);map.off('webglcontextlost',lost);map.off('webglcontextrestored',restored);if(map.getLayer?.(layer.id))map.removeLayer(layer.id);batch.dispose();}};
+  return {batch,flush:()=>{if(batch.ready)map.triggerRepaint();},destroy:()=>{map.off('styledata',attach);map.off('webglcontextlost',lost);map.off('webglcontextrestored',restored);if(map.getLayer?.(layer.id))map.removeLayer(layer.id);batch.dispose();}};
 }
 
 export function canvasEffects(parent: HTMLElement, before: HTMLCanvasElement) {

@@ -1,3 +1,4 @@
+import { requestedNode } from './selection';
 import { mountCinematicDock, mountLayerCombinations } from './cinematicChrome';
 import { browserStorage } from './browserStorage';
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from './soundScenes';
@@ -16,7 +17,7 @@ import {
   type RouteWindow
 } from './map';
 import { PacketAnimator, potentialLongHaulPacket } from './packetAnimator';
-import { FollowQueue, followSummary } from './liveFollow';
+import { FollowQueue, followSummary, followEndpoints, followsScope, type FollowScope } from './liveFollow';
 import {
   DEFAULT_UI_PREFERENCES,
   type BasemapStyle,
@@ -443,15 +444,51 @@ async function start(): Promise<void> {
     }, { once: true });
 
     const initial = await fetchState();
+    const requestedSelection = requestedNode();
+    if (requestedSelection) liveMap.map.once('idle', () => liveMap.selectNodeByID(requestedSelection, false));
     const liveStore = new LiveStore(initial);
     store = liveStore;
     let streamConnected = false;
     let liveFollow = false;
     let followPaused = false;
+    let held = false;
+    let currentFollowPacket: PacketView | undefined;
+    let followScope: FollowScope = { kind: 'everywhere' };
+    const followScopeControl = document.createElement('label');
+    followScopeControl.className = 'follow-scope';
+    followScopeControl.innerHTML = 'Follow area<select aria-label="Follow scope"><option value="everywhere">Everywhere</option><option value="area">This area</option><option value="node">Selected node</option></select>';
+    followCard.querySelector('header')!.after(followScopeControl);
+    const scopeSelect = followScopeControl.querySelector('select')!;
+    const actions = document.createElement('div'); actions.className = 'follow-actions';
+    actions.innerHTML = '<button id="follow-next" type="button">Next</button><button id="follow-inspect" type="button" disabled>Inspect</button>';
+    followCard.append(actions);
+    const inspectFollow = actions.querySelector<HTMLButtonElement>('#follow-inspect')!;
+    scopeSelect.addEventListener('change', () => {
+      if (scopeSelect.value === 'area') {
+        const bounds = liveMap.map.getBounds();
+        const wrap = (lng: number) => ((lng + 180) % 360 + 360) % 360 - 180;
+        followScope = { kind: 'area', bounds: bounds.getEast()-bounds.getWest()>=360 ? [-180,bounds.getSouth(),180,bounds.getNorth()] : [wrap(bounds.getWest()),bounds.getSouth(),wrap(bounds.getEast()),bounds.getNorth()] };
+      } else if (scopeSelect.value === 'node') {
+        const id = liveMap.getSelectedNodeID();
+        if (!id) { scopeSelect.value = 'everywhere'; followDetail.textContent = 'Select a node to follow its activity'; followScope = { kind: 'everywhere' }; }
+        else followScope = { kind: 'node', id };
+      } else followScope = { kind: 'everywhere' };
+      followQueue.clear(); held = false; followPause.textContent = 'Hold'; clearFollowActivity();
+    });
+    actions.querySelector('#follow-next')!.addEventListener('click', () => {
+      if (!liveFollow) return;
+      held = false; followQueue.next(); followPause.textContent = 'Hold'; liveMap.beginFollow(); tickFollow();
+    });
+    inspectFollow.addEventListener('click', () => {
+      const endpoint = currentFollowPacket && followEndpoints(currentFollowPacket)[0];
+      if (!endpoint) return;
+      held = true; followQueue.setHeld(true, Date.now()); followPause.textContent = 'Continue'; liveMap.selectNodeByID(endpoint.id, false);
+    });
     const followQueue = new FollowQueue();
     mapElement.dataset.followDwellMs = String(LIVE_FOLLOW_MIN_INTERVAL_MS);
 
     const clearFollowActivity = (): void => {
+      currentFollowPacket = undefined; inspectFollow.disabled = true;
       followTitle.textContent = 'Waiting for activity';
       followDetail.textContent = 'Nearby activity is shown first';
       delete followCard.dataset.packetAt;
@@ -461,9 +498,11 @@ async function start(): Promise<void> {
 
     const tickFollow = (): void => {
       if (!liveFollow || document.hidden) return;
+      if (held) { followState.textContent = 'Held · continue when ready'; return; }
       const now = Date.now();
       const packet = followQueue.take(now);
-      if (packet && liveMap.shouldFollow(packet)) {
+      if (packet && followsScope(packet, followScope)) {
+        currentFollowPacket = packet; inspectFollow.disabled = false;
         const summary = followSummary(packet);
         followTitle.textContent = summary.title;
         followDetail.textContent = summary.detail;
@@ -480,7 +519,7 @@ async function start(): Promise<void> {
     };
 
     const queueLiveFollow = (packet: PacketView): void => {
-      if (!liveFollow || !liveMap.shouldFollow(packet)) return;
+      if (!liveFollow || !followsScope(packet, followScope)) return;
       followQueue.offer(packet, liveMap.followPriority(packet), Date.now());
       tickFollow();
     };
@@ -491,14 +530,14 @@ async function start(): Promise<void> {
       if (followTimer !== undefined) window.clearInterval(followTimer);
       followTimer = undefined;
       liveFollow = enabled;
-      followPaused = paused;
+      followPaused = paused; held = false;
       followButton.setAttribute('aria-pressed', String(enabled));
       followButton.classList.toggle('selected', enabled);
       followButton.dataset.mode = enabled ? 'director' : 'manual';
       appElement.classList.toggle('director-enabled', enabled);
       followButton.title = enabled ? 'Stop following live packets' : 'Follow live packets';
       followCard.hidden = !enabled && !paused;
-      followPause.textContent = paused ? 'Resume' : 'Pause';
+      followPause.textContent = paused ? 'Resume' : 'Hold';
       followCard.dataset.state = enabled ? 'following' : paused ? 'paused' : 'off';
       followCountdown.value = '';
       followProgress.value = 0;
@@ -518,8 +557,11 @@ async function start(): Promise<void> {
       if (liveFollow) { liveMap.map.stop(); setLiveFollow(false, true); }
     };
     followPause.addEventListener('click', () => {
-      if (liveFollow) liveMap.map.stop();
-      setLiveFollow(followPaused, !followPaused);
+      if (followPaused) { setLiveFollow(true); return; }
+      held = !held; followQueue.setHeld(held, Date.now());
+      followPause.textContent = held ? 'Continue' : 'Hold';
+      if (held) liveMap.map.stop();
+      tickFollow();
     });
     required<HTMLButtonElement>('follow-close').addEventListener('click', () => setLiveFollow(false));
 

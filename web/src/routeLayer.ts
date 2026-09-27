@@ -366,7 +366,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
     gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
-    gl.uniform1f(uniforms.opacity!, this.opacity);
+    gl.uniform1f(uniforms.opacity!, this.opacity * (settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.routes.length / 150) * .1, .38, .9) : 1));
     gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
     if (this.lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);

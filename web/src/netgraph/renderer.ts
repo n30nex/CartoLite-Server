@@ -143,6 +143,7 @@ export class NetgraphRenderer implements ViewportProjector {
   private screenNodes: ScreenNode[] = [];
   private routeWindow: NetgraphWindow = '15m';
   private selectedNodeID: string | null = null;
+  private focusIDs: Set<string> | undefined;
   private hoveredNodeID: string | null = null;
   private activeRoutes: ActiveRoute[] = [];
   private observerWakes: ObserverWake[] = [];
@@ -347,6 +348,16 @@ export class NetgraphRenderer implements ViewportProjector {
     this.requestStaticDraw();
   }
 
+  setFocus(mode: 'all' | 'area' | 'component'): boolean {
+    const anchor = this.selectedNodeID ? this.layout.positions.get(this.selectedNodeID) : undefined;
+    if (mode !== 'all' && !anchor) return false;
+    this.focusIDs = mode === 'all' ? undefined : new Set([...this.layout.positions.values()].filter(point => mode === 'area' ? point.areaCode === anchor!.areaCode : point.component === anchor!.component).map(point => point.id));
+    this.screenPoints.clear(); this.nodesDirty = true; this.residueProjectionDirty = true;
+    this.stage.dataset.focusMode = mode;
+    this.requestStaticDraw(); this.requestMotionFrame();
+    return true;
+  }
+
   focusNode(nodeID: string): void {
     const position = this.layout.positions.get(nodeID);
     if (!position) return;
@@ -446,6 +457,7 @@ export class NetgraphRenderer implements ViewportProjector {
   setPaused(paused: boolean): void {
     this.paused = paused;
     if (paused) {
+      this.gpu.batch.clear(); this.gpu.flush(this.width,this.height,this.dpr);
       this.lastMotionAt = 0;
       this.quality.resetSamples();
       this.clearPointers();
@@ -736,6 +748,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   private appendRoute(context: CanvasRenderingContext2D, route: RouteV2): void {
+    if (this.focusIDs && (!this.focusIDs.has(route.fromId) || !this.focusIDs.has(route.toId))) return;
     const from = this.screenPoint(route.fromId);
     const to = this.screenPoint(route.toId);
     if (!segmentNearViewport(from, to, this.width, this.height, 8)) return;
@@ -817,17 +830,22 @@ export class NetgraphRenderer implements ViewportProjector {
       .filter(({ node, degree }) => (
         node.id === this.selectedNodeID
         || node.id === this.hoveredNodeID
+        || displayPreferences().detail === 'complete'
         || this.scale >= 0.42 && degree >= (this.scale < 0.7 ? 18 : this.scale < 1.3 ? 8 : 3)
       ))
       .sort((left, right) => Number(right.node.id === this.selectedNodeID) - Number(left.node.id === this.selectedNodeID) || right.degree - left.degree)
-      .slice(0, this.scale < 0.7 ? 22 : this.scale < 1.3 ? 54 : 120);
-    context.font = '600 10px Inter, ui-sans-serif, system-ui, sans-serif';
+      .slice(0, displayPreferences().detail === 'complete' ? 500 : this.scale < 0.7 ? 22 : this.scale < 1.3 ? 54 : 120);
+    const labelBoxes: LabelRect[] = [];
+    context.font = `600 ${displayPreferences().textSize === 'large' ? 13 : 11}px Inter, ui-sans-serif, system-ui, sans-serif`;
     context.textBaseline = 'middle';
     for (const { node, point, radius } of labelCandidates) {
       const label = truncateLabel(node.label, 28);
       const width = context.measureText(label).width;
       const x = point.x + radius + 6;
       const y = point.y;
+      const box = {x:x-3,y:y-9,width:width+6,height:18};
+      if (node.id !== this.selectedNodeID && labelBoxes.some(other => rectanglesOverlap(box,other,3))) continue;
+      labelBoxes.push(box);
       context.fillStyle = lightScene() ? 'rgba(247, 249, 241, 0.9)' : 'rgba(4, 14, 19, 0.78)';
       roundRect(context, x - 3, y - 8, width + 6, 16, 5);
       context.fill();
@@ -944,6 +962,13 @@ export class NetgraphRenderer implements ViewportProjector {
       ) continue;
 
       const color = PACKET_KIND_COLORS[frame.kind];
+      if (displayPreferences().detail === 'auto') {
+        const direction = frame.role === 'send' ? 'OUT' : frame.role === 'receive' ? 'IN' : 'LOCAL';
+        context.beginPath(); context.arc(point.x,point.y-radius-7,3.5,0,Math.PI*2);
+        context.fillStyle = colorWithAlpha(color, .55 + frame.intensity*.4); context.fill();
+        drawnRoles.push(`${regionTag.toUpperCase()}:${direction}`);
+        continue;
+      }
       const intensity = clamp(frame.intensity, 0, 1);
       const ringRadius = radius + 8 + frame.spread * (frame.longHaul ? 28 : 18);
       context.beginPath();
@@ -1280,6 +1305,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   private screenPoint(nodeID: string): ScreenPoint {
+    if (this.focusIDs && !this.focusIDs.has(nodeID)) return {x:-1_000_000,y:-1_000_000};
     const cached = this.screenPoints.get(nodeID);
     if (cached) return cached;
     const position = this.layout.positions.get(nodeID);

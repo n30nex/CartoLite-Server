@@ -1,3 +1,4 @@
+import { requestedNode, rememberNode, replaceInspector } from '../selection';
 import { mountCinematicDock } from '../cinematicChrome';
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from '../soundScenes';
 import { initializeDisplay } from '../displayPreferences';
@@ -115,7 +116,8 @@ async function start(): Promise<void> {
 
     const renderInspector = (): void => {
       const started = performance.now();
-      inspectorSheet.replaceChildren();
+      // Preserve keyboard focus when neighbour ordering changes.
+
       if (!selectedNodeID) {
         inspectorSheet.hidden = true;
         stage.dataset.inspectorApplyMs = (performance.now() - started).toFixed(1);
@@ -134,7 +136,7 @@ async function start(): Promise<void> {
         inspectorSheet.hidden = true;
         return;
       }
-      inspectorSheet.append(createNodeInspectorContent(document, model, {
+      replaceInspector(inspectorSheet, createNodeInspectorContent(document, model, {
         mobile: true,
         onClose: () => selectNode(null),
         onSelectNeighbor: (nodeID) => selectNode(nodeID, true),
@@ -146,6 +148,7 @@ async function start(): Promise<void> {
     selectNode = (nodeID: string | null, focus = false): void => {
       const started = performance.now();
       selectedNodeID = nodeID;
+      rememberNode(nodeID);
       graph.setSelectedNode(nodeID);
       renderInspector();
       if (nodeID && focus) graph.focusNode(nodeID);
@@ -178,6 +181,17 @@ async function start(): Promise<void> {
       if (changes.reset || selectedNodeChanged || adjacentRouteChanged) renderInspector();
     });
     app.dataset.loading = 'false';
+    const requestedSelection = requestedNode();
+    if (requestedSelection && graph.getNodes().has(requestedSelection)) selectNode(requestedSelection);
+    const focusControl = document.createElement('label'); focusControl.className = 'graph-focus';
+    focusControl.innerHTML = '<span>Focus</span><select aria-label="Topology focus"><option value="all">Show all</option><option value="area">Selected area</option><option value="component">Selected component</option></select><small role="status"></small>';
+    inspectorSheet.before(focusControl);
+    focusControl.querySelector('select')!.addEventListener('change', event => {
+      const select = event.target as HTMLSelectElement;
+      const applied = graph.setFocus(select.value as 'all' | 'area' | 'component');
+      focusControl.querySelector('small')!.textContent = applied ? '' : 'Select a node first';
+      if (!applied) select.value = 'all';
+    });
 
     const liveFeed = new LiveFeed(initial, {
       onConnection(connected) {

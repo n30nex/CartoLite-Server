@@ -1,3 +1,4 @@
+import { rememberNode, replaceInspector } from './selection';
 import * as maplibregl from 'maplibre-gl';
 import workerURL from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import {
@@ -722,6 +723,10 @@ export class LiveMap {
       }
     }
     this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'visibility', preferences.nodeLabels ? 'visible' : 'none');
+    const display = displayPreferences();
+    this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'text-padding', display.detail === 'complete' ? 2 : 7);
+    this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'text-size', ['interpolate', ['linear'], ['zoom'], DETAIL_ZOOM, display.textSize === 'large' ? 12 : 10, 12, display.textSize === 'large' ? 15 : 12, 16, display.textSize === 'large' ? 17 : 13]);
+    this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-opacity', .96);
     this.historicalRouteLayer.setOpacity(preferences.routeOpacity);
     this.historicalRouteLayer.refreshAppearance();
     this.container.dataset.routePreset = displayPreferences().preset;
@@ -737,6 +742,8 @@ export class LiveMap {
     }
     this.markRendering();
   }
+
+  getSelectedNodeID(): string | null { return this.selectedNodeID; }
 
   shouldFollow(packet: PacketView): boolean {
     return packetMatchesFollow(packet, this.selectedNodeID);
@@ -1486,6 +1493,7 @@ export class LiveMap {
     this.selectedNodeID = nodeID;
     this.selectedNodeLabel = nodeID ? label : '';
     this.container.dataset.selectedNodeId = nodeID ?? '';
+    rememberNode(nodeID);
     this.updateFocusData();
     this.applyFocusState();
     if (nodeID === null && this.tooltip.dataset.kind === 'route') this.hideTooltip();
@@ -1708,7 +1716,7 @@ export class LiveMap {
     });
     if (mobile) {
       this.closePopup(false);
-      this.inspectorSheet.replaceChildren(content);
+      replaceInspector(this.inspectorSheet, content);
       this.inspectorSheet.hidden = false;
       return;
     }
@@ -1754,7 +1762,7 @@ export class LiveMap {
   }
 
   private isMobileInspector(): boolean {
-    return this.container.clientWidth <= 620 || window.matchMedia('(pointer: coarse)').matches;
+    return document.documentElement.dataset.cinematic === 'true' || this.container.clientWidth <= 620 || window.matchMedia('(pointer: coarse)').matches;
   }
 
   private inspectorPopupAnchor(node: NodeV2): 'left' | 'right' {
