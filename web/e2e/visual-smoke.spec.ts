@@ -589,14 +589,17 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
     await expect(tooltip).toBeHidden();
   }
 
+  const beforeWheel=Number(await map.getAttribute('data-camera-zoom'));
   await page.mouse.move(box.x + 30, box.y + 100);
   await page.mouse.wheel(0, -120);
+  await expect.poll(()=>map.getAttribute('data-camera-zoom').then(Number)).toBeGreaterThan(beforeWheel);
+  await expect(map).toHaveAttribute('data-camera-moving','false');
   await expect(map).toHaveAttribute('data-selected-node-id', 'b');
   await expect(inspector).toBeVisible();
   await expect(inspector).toContainText('Bravo');
 
   await clickPoint(page, {
-    x: box.x + box.width * 0.84,
+    x: box.x + box.width * (page.viewportSize()!.height<=520 ? 0.22 : 0.84),
     y: box.y + box.height * (mobile ? 0.30 : 0.82),
   }, mobile);
   await expect(map).toHaveAttribute('data-selected-node-id', '');
