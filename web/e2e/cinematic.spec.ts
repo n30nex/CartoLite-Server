@@ -79,3 +79,42 @@ test('the Android shell owns keep-awake instead of a second browser lock', async
   await page.addInitScript(()=>Object.defineProperty(navigator,'userAgent',{get:()=> 'Mozilla/5.0 CartoLiteAndroid/1.1.0'}));
   for(const path of ['/','/netgraph/']) { await page.goto(path); await expect(page.locator(path==='/'?'#app':'#netgraph-app')).toHaveAttribute('data-screen-awake','native'); }
 });
+
+test('Netgraph Follow holds ten seconds, filters a selected node and waits honestly', async ({page},info) => {
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await visualFixture(page);await page.goto('/netgraph/?node=visual-a');
+  await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-selected-node-id','visual-a');
+  await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  await page.clock.install();await page.clock.pauseAt(new Date(Date.now()+1000));
+  await page.getByRole('button',{name:/Follow$/,exact:false}).click();
+  const card=page.locator('#follow-card');
+  await expect(card).toBeVisible();
+  await card.getByLabel('Follow scope').selectOption('node');
+  await visualPacket(page,1,'Text');
+  await expect(card.locator('[data-detail]')).toHaveText('Text · 1 confirmed hop');
+  await expect(card.locator('output')).toHaveText('10s');
+  await page.clock.fastForward(4000);await visualPacket(page,2,'Advert');
+  await expect(card.locator('output')).toHaveText('6s');
+  await expect(card.locator('[data-detail]')).toContainText('Text');
+  await page.clock.fastForward(6000);
+  await expect(card.locator('[data-detail]')).toContainText('Advert');
+  await card.getByRole('button',{name:'Hold',exact:true}).click();
+  await page.clock.fastForward(11000);
+  await expect(card.locator('[data-state]')).toContainText('Held');
+  await visualPacket(page,3,'Trace');
+  await card.getByRole('button',{name:'Next',exact:true}).click();
+  await expect(card.locator('[data-detail]')).toContainText('Trace');
+  await page.screenshot({path:info.outputPath('netgraph-follow.png')});
+  await card.getByRole('button',{name:'Inspect',exact:true}).click();
+  await expect(page.locator('.node-inspector')).toBeVisible();
+  await page.getByRole('button',{name:'Close node details',exact:true}).click();
+  await expect(card).toBeVisible();
+  await card.getByRole('button',{name:'Next',exact:true}).click();
+  await expect(card.locator('[data-title]')).toHaveText('Waiting for activity');
+  await expect(card.getByRole('button',{name:'Inspect',exact:true})).toBeDisabled();
+  // A confirmed link that does not touch the captured node must not be selected.
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:4,id:'unrelated',at:Date.now(),payloadType:'Text',mode:'route',segments:[{routeId:'other',fromId:'visual-b',toId:'visual-c'}]}})));
+  await expect(card.locator('[data-title]')).toHaveText('Waiting for activity');
+  await card.getByLabel('Follow scope').focus();await page.keyboard.press('Escape');
+  await expect(card).toBeHidden();
+});

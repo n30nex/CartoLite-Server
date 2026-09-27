@@ -362,9 +362,16 @@ export class NetgraphRenderer implements ViewportProjector {
     this.animateView((left+right)/2,(top+bottom)/2,Math.max(.015,scale));
   }
 
-  visibleNodeIDs(): Set<string> {
-    return new Set([...this.layout.positions.keys()].filter(id => this.pointVisible(this.screenPoint(id), 0)));
+  captureFollowArea(): (id: string) => boolean {
+    const left=this.centerX-this.width/(2*this.scale), right=this.centerX+this.width/(2*this.scale);
+    const top=this.centerY-this.height/(2*this.scale), bottom=this.centerY+this.height/(2*this.scale);
+    return id => {
+      const point=this.layout.positions.get(id);
+      return !!point && point.x>=left && point.x<=right && point.y>=top && point.y<=bottom;
+    };
   }
+
+  holdView(): void { this.cancelViewAnimation(); }
 
   selectedNode(): string | null { return this.selectedNodeID; }
 

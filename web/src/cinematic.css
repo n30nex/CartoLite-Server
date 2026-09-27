@@ -70,7 +70,7 @@ html:root[data-cinematic] .follow-card .follow-scope, html:root[data-cinematic] 
 
 html:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - 150px)); }
 
-@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] #app[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] :is(#app,#netgraph-app)[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }
 
 html:root[data-cinematic][data-text-size="large"] .control-button { font-size:15px; }
 :root[data-text-size="large"] #layers-panel .control-button { font-size:15px; }
@@ -89,3 +89,13 @@ html:root[data-cinematic] .control-button { min-width:44px; }
  html:root[data-cinematic] #app #legend[data-focused="true"] #legend-toggle { display:none; }
  html:root[data-cinematic] #app #legend[data-collapsed="true"][data-focused="false"]:not(:has(.region-legend:not([hidden]))) { background:transparent; border-color:transparent; box-shadow:none; }
 }
+
+html:root[data-cinematic] .follow-card { position:fixed; z-index:8; color:var(--ink); }
+html:root[data-cinematic] .follow-card[hidden] { display:none; }
+html:root[data-cinematic] .follow-card header { display:flex; align-items:center; padding-left:12px; }
+html:root[data-cinematic] .follow-card header strong { flex:1; font-size:12px; }
+html:root[data-cinematic] .follow-copy { display:grid; gap:6px; padding:8px 12px; overflow-wrap:anywhere; }
+html:root[data-cinematic] .follow-card footer { display:flex; justify-content:space-between; padding:8px 12px; }
+html:root[data-cinematic] .follow-card :is(footer,.follow-copy span) { color:var(--muted); font-size:12px; }
+html:root[data-cinematic] .follow-card progress { display:block; width:100%; height:3px; accent-color:var(--focus-ring); }
+html:root[data-cinematic] .director-enabled:not([data-follow-inspect="true"]) .node-inspector-sheet { visibility:hidden; pointer-events:none; }
