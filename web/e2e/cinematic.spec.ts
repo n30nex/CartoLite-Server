@@ -28,6 +28,12 @@ test('cinematic preferences migrate and layer combinations are reversible', asyn
   expect(box!.x+box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(box!.y+box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   await page.screenshot({path:info.outputPath('cinematic-accessible-controls.png')});
+  await page.keyboard.press('Escape');
+  const credits=page.locator('.maplibregl-ctrl-attrib-button');
+  if(await page.locator('.maplibregl-ctrl-attrib-inner').isVisible())await credits.click();
+  await credits.click();
+  await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toBeVisible();
+  await credits.click();
 });
 
 test('GPU live effects survive context loss with Canvas fallback', async ({page},info) => {

@@ -105,3 +105,8 @@ html:root[data-cinematic] .director-enabled:not([data-follow-inspect="true"]) .n
  html:root[data-cinematic] .node-inspector > header { position:sticky; top:0; z-index:1; flex:none; background:var(--panel-solid); }
  html:root[data-cinematic] .node-inspector .neighbor-list { flex:none; overflow:visible; }
 }
+
+@media(max-width:900px),(pointer:coarse) {
+ html:root[data-cinematic] .maplibregl-ctrl-bottom-right { top:max(68px,calc(env(safe-area-inset-top) + 64px)); bottom:auto; }
+}
+html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'©'; }
