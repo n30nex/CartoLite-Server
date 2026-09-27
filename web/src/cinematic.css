@@ -118,13 +118,15 @@ html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'©';
  html:root[data-cinematic] .controls { padding:3px; border-radius:12px; }
  html:root[data-cinematic] .controls .control-button:not(.layers-panel *, .sound-panel *, .find-panel *, .display-panel *) { min-width:34px; min-height:34px; padding-inline:8px; gap:4px; border-radius:8px; font-size:11px; }
  html:root[data-cinematic] .controls .icon-button { width:34px; }
+ html:root[data-cinematic] .controls > .route-window { min-height:34px; padding-inline:8px; }
+ html:root[data-cinematic] .controls > .route-window select { min-height:28px; }
  html:root[data-cinematic] .controls .zoom-controls { width:68px; }
  html:root[data-cinematic] .controls .zoom-controls .control-button { width:34px; height:34px; padding:0; font-size:18px; }
  html:root[data-cinematic][data-text-size="large"] .controls .control-button { font-size:15px; }
- html:root[data-cinematic] #legend { bottom:max(12px,env(safe-area-inset-bottom)); left:max(8px,env(safe-area-inset-left)); flex-direction:column; align-items:flex-start; gap:0; width:max-content; max-width:220px; padding:4px 8px; border-radius:8px; font-size:10px; }
- html:root[data-cinematic] #legend .legend-items { gap:8px; }
- html:root[data-cinematic] #legend .region-legend { font-size:10px; }
- html:root[data-cinematic] #legend .region-legend summary { min-height:24px; padding:4px 0; }
- html:root[data-cinematic] #legend .focus-chip { max-width:202px; }
+ html:root[data-cinematic] #app #legend { bottom:max(12px,env(safe-area-inset-bottom)); left:max(8px,env(safe-area-inset-left)); flex-direction:column; align-items:flex-start; gap:0; width:max-content; max-width:220px; padding:4px 8px; border-radius:8px; font-size:10px; }
+ html:root[data-cinematic] #app #legend .legend-items { gap:8px; }
+ html:root[data-cinematic] #app #legend .region-legend { font-size:10px; }
+ html:root[data-cinematic] #app #legend .region-legend summary { min-height:24px; padding:4px 0; }
+ html:root[data-cinematic] #app #legend .focus-chip { max-width:202px; }
  html:root[data-cinematic][data-dock-tight="true"] { --dock-bottom:max(100px,calc(env(safe-area-inset-bottom) + 96px)); }
 }
