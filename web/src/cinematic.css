@@ -61,3 +61,9 @@
 @media(max-height:520px) and (orientation:landscape) { :root[data-cinematic] #layers-panel { max-height:calc(100dvh - 95px); } }
 
 :root[data-native-app] .graph-summary { right:68px; }
+
+:root[data-cinematic] .graph-summary { left:auto; width:auto; }
+:root[data-cinematic] .follow-card header { gap:6px; }
+:root[data-cinematic] .follow-card header button { min-height:44px; min-width:44px; border:0; background:transparent; color:var(--ink); cursor:pointer; }
+:root[data-cinematic] .follow-card .follow-scope, :root[data-cinematic] .follow-card .follow-actions { margin:8px 12px; }
+@media(max-width:900px),(pointer:coarse) { :root[data-cinematic] .graph-summary { left:8px; right:auto; } }

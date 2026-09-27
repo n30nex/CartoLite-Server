@@ -480,7 +480,7 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
 
   await clickPoint(page, { x: alphaPoint.x + (mobile ? 12 : 0), y: alphaPoint.y }, mobile);
   await expect(map).toHaveAttribute('data-selected-node-id', 'a');
-  const inspector = mobile ? page.locator('#node-inspector-sheet') : page.locator('.node-inspector-popup');
+  const inspector = page.locator('#node-inspector-sheet');
   await expect(inspector).toBeVisible();
   await expect(inspector).toContainText('Alpha');
   // The traffic canvas normally ignores pointer hits, which can hide a paint-order bug.

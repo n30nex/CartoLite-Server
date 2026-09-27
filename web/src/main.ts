@@ -391,6 +391,7 @@ async function start(): Promise<void> {
         pauseLiveFollow();
         liveMap.selectNodeByID(nodeID, true);
         closeFindPanel();
+        document.querySelector<HTMLElement>('#node-inspector-sheet .node-inspector-close')?.focus({preventScroll:true});
         if (activeViewClass === 'mobile') setLayersOpen(false);
       },
       dismiss() {
@@ -500,7 +501,8 @@ async function start(): Promise<void> {
 
     const tickFollow = (): void => {
       if (!liveFollow || document.hidden) return;
-      if (held) { followState.textContent = 'Held · continue when ready'; return; }
+      if (held) { followCard.dataset.state = 'held'; followState.textContent = 'Held · continue when ready'; return; }
+      followCard.dataset.state = 'following';
       const now = Date.now();
       const packet = followQueue.take(now);
       if (packet && followsScope(packet, followScope)) {

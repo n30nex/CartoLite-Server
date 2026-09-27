@@ -84,12 +84,13 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   await page.clock.runFor(80);
   await page.screenshot({ path: testInfo.outputPath('live-follow-card.png') });
   await page.locator('#follow-pause').click();
-  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'paused');
+  await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'held');
   await emit(page, 3, 'Trace');
   await page.clock.fastForward(11_000);
   await expect(page.locator('#follow-detail')).toHaveText('Advert · 2 confirmed hops');
   await page.locator('#follow-pause').click();
   await emit(page, 4, 'Trace');
+  await page.locator('#follow-next').click();
   await expect(page.locator('#follow-detail')).toHaveText('Trace · 2 confirmed hops');
   // Native map gestures need their animation callbacks after the timed assertions.
   await page.clock.resume();
@@ -106,7 +107,7 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   await page.locator('#follow-button').click();
   await emit(page, 5, 'Text');
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
-  await expect(page.locator('.node-inspector')).toBeHidden();
+  await expect(page.locator('.node-inspector')).toBeVisible();
   // A new neighbour is a feed update, not a manual selection or a pause request.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('fixture-packet', { detail: {
     seq: 6, id: 'fixture-new-neighbour', at: Date.now(), mode: 'route', payloadType: 'Advert',

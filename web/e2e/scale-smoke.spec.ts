@@ -109,9 +109,7 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   await resetLongTasks(page);
   await page.locator('.node-search-result').first().click();
   await expect(map).toHaveAttribute('data-selected-node-id', 'node-0');
-  const inspector = testInfo.project.name.startsWith('mobile')
-    ? page.locator('#node-inspector-sheet')
-    : page.locator('.node-inspector-popup');
+  const inspector = page.locator('#node-inspector-sheet');
   await expect(inspector).toBeVisible();
   await expect(inspector.locator('.neighbor-row').first()).toBeVisible();
   expect(Number(await map.getAttribute('data-node-selection-apply-ms')), 'opening an indexed node inspector must finish within 100 ms').toBeLessThan(100);

@@ -1,3 +1,4 @@
+import { prefersReducedMotion as displayReducedMotion } from './displayPreferences';
 import { rememberNode, replaceInspector } from './selection';
 import * as maplibregl from 'maplibre-gl';
 import workerURL from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -208,7 +209,7 @@ export class LiveMap {
   private readonly originalOverlayColors = new Map<string, unknown>();
   private buildingSourceID?: string;
   private directorTimer?: number;
-  private readonly reducedMotion = prefersReducedMotion();
+  private reducedMotion = prefersReducedMotion();
   private freshnessTimer: number;
   private renderEpoch = 0;
   private renderingScheduled = false;
@@ -696,6 +697,7 @@ export class LiveMap {
   }
 
   setAppearance(preferences: UiPreferences, force = false): void {
+    this.reducedMotion = displayReducedMotion();
     const previous = this.appearance;
     this.appearance = { ...preferences };
     this.container.dataset.basemapStyle = preferences.basemap;
@@ -1749,9 +1751,11 @@ export class LiveMap {
   }
 
   private closeInspector(clearSelection: boolean): void {
+    const restoreFocus = this.inspectorSheet.contains(document.activeElement);
     this.closePopup(clearSelection);
     this.inspectorSheet.hidden = true;
     this.inspectorSheet.replaceChildren();
+    if (restoreFocus) document.getElementById('find-button')?.focus();
   }
 
   private closePopup(clearSelection: boolean): void {
@@ -1779,11 +1783,11 @@ export class LiveMap {
 
   private centerNodeIfNeeded(node: NodeV2): void {
     const point = this.map.project([node.lng, node.lat]);
-    const mobile = this.isMobileInspector();
+    const mobile = this.container.clientWidth <= 900 || window.matchMedia('(pointer: coarse)').matches;
     const margin = 72;
     const safeBottom = this.container.clientHeight - (mobile ? Math.min(360, this.container.clientHeight * 0.48) : margin);
     const inSafeView = point.x >= margin
-      && point.x <= this.container.clientWidth - margin
+      && point.x <= this.container.clientWidth - (mobile ? margin : 390)
       && point.y >= margin
       && point.y <= safeBottom;
     if (inSafeView && this.map.getZoom() >= DETAIL_ZOOM) return;
