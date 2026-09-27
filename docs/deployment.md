@@ -69,7 +69,7 @@ Actions tests native amd64 and arm64 images, including synthetic MQTT/privacy/lo
 
 ## Proxy content integrity
 
-Preserve the HTML response's `Cache-Control: no-cache, no-transform` header at
+Preserve the HTML response's `Cache-Control: public, no-cache, no-transform` header at
 reverse proxies and CDNs. This prevents automatic script injection, including
 Cloudflare Web Analytics, without weakening CartoLite's Content Security Policy.
 Do not add analytics hosts to the script allowlist to silence CSP errors. See

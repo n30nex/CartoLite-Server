@@ -39,7 +39,7 @@ func TestStaticCachePolicy(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "CartoLite Server") {
 		t.Fatalf("root did not serve the map entry: status=%d body=%q", response.Code, response.Body.String())
 	}
-	if cache := response.Header().Get("Cache-Control"); cache != "no-cache, no-transform" {
+	if cache := response.Header().Get("Cache-Control"); cache != "public, no-cache, no-transform" {
 		t.Fatalf("HTML cache policy = %q", cache)
 	}
 
@@ -123,7 +123,7 @@ func TestNetgraphPageAndCanonicalURL(t *testing.T) {
 	}
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/netgraph/", nil))
-	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-cache, no-transform" {
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "public, no-cache, no-transform" {
 		t.Fatalf("unexpected Netgraph response: %d", response.Code)
 	}
 	response = httptest.NewRecorder()
