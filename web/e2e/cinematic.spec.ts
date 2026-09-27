@@ -2,6 +2,54 @@ import { expect, test } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 
+test('compact map corners and dock fit desktop and touch screens', async ({page},info) => {
+  const desktop=info.project.name==='desktop';
+  await page.setViewportSize(desktop ? {width:1304,height:902} : info.project.name==='mobile-landscape' ? {width:568,height:320} : {width:320,height:640});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await visualFixture(page); await page.goto('/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  const shortcut=page.locator('#terrain-shortcut');
+  await expect(shortcut).toBeVisible();
+  if(await page.locator('#regions-button').count()) {
+    await openMapOptions(page); await page.locator('#regions-button').click(); await page.keyboard.press('Escape');
+    await expect(page.locator('#region-legend > summary')).toContainText('Regions in view');
+  }
+  const dock=await page.locator('.controls').boundingBox();
+  const legend=await page.locator('#legend').boundingBox();
+  const credits=await page.locator('.maplibregl-ctrl-attrib').boundingBox();
+  const size=page.viewportSize()!;
+  for(const box of [dock,legend,credits]) {
+    expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.x+box!.width).toBeLessThanOrEqual(size.width);
+    expect(box!.y+box!.height).toBeLessThanOrEqual(size.height);
+  }
+  if(desktop) {
+    expect(dock!.height).toBeLessThanOrEqual(42);
+    expect(legend!.x).toBeLessThanOrEqual(12);
+    expect(size.height-legend!.y-legend!.height).toBeLessThanOrEqual(16);
+    expect(legend!.width).toBeLessThanOrEqual(220);
+    expect(legend!.x+legend!.width).toBeLessThan(dock!.x);
+    expect(credits!.width).toBeLessThanOrEqual(230);
+    expect(credits!.x).toBeGreaterThan(dock!.x+dock!.width);
+  } else {
+    const target=await shortcut.boundingBox();
+    expect(target!.width).toBeGreaterThanOrEqual(44); expect(target!.height).toBeGreaterThanOrEqual(44);
+  }
+  await page.screenshot({path:info.outputPath('compact-map-dock.png')});
+  const attribution=page.locator('.maplibregl-ctrl-attrib-button');
+  if(await page.locator('.maplibregl-ctrl-attrib-inner').isVisible()) await attribution.click();
+  await attribution.press('Enter'); await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toBeVisible();
+  await openMapOptions(page); await page.locator('#basemap-style').selectOption('light'); await page.keyboard.press('Escape');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await page.screenshot({path:info.outputPath('compact-map-daylight.png')});
+  await attribution.press('Enter');
+  await page.getByRole('link',{name:'Open CartoLite Netgraph',exact:true}).click();
+  await expect(page.locator('#connected-count')).toHaveText('2');
+  await expect(shortcut).toHaveCount(0);
+  if(desktop) expect((await page.locator('.controls').boundingBox())!.height).toBeLessThanOrEqual(42);
+  await page.screenshot({path:info.outputPath('compact-netgraph-dock.png')});
+});
+
 test('cinematic preferences migrate and layer combinations are reversible', async ({page},info) => {
   await visualFixture(page); await page.goto('/');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');

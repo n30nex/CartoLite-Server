@@ -1,5 +1,5 @@
 /* Cinematic chrome is shared by Map and Netgraph; the scene keeps the space. */
-html:root[data-cinematic] { --dock-bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px)); --dock-height: 52px; }
+html:root[data-cinematic] { --dock-bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)); --dock-height: 42px; }
 html:root[data-cinematic] .glass { background: var(--panel-solid); border-color: var(--panel-border); box-shadow: 0 8px 28px #0003; }
 html:root[data-cinematic] .controls { position: fixed; top: auto; right: auto; bottom: var(--dock-bottom); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: nowrap; gap: 2px; max-width: calc(100vw - 24px); border-radius: 18px; padding: 4px; z-index: 20; }
 html:root[data-cinematic] .toolbar { position: static; }
@@ -90,6 +90,8 @@ html:root[data-cinematic] .control-button { min-width:44px; }
  html:root[data-cinematic] #app #legend[data-collapsed="true"][data-focused="false"]:not(:has(.region-legend:not([hidden]))) { background:transparent; border-color:transparent; box-shadow:none; }
 }
 
+
+
 html:root[data-cinematic] .follow-card { position:fixed; z-index:8; color:var(--ink); }
 html:root[data-cinematic] .follow-card[hidden] { display:none; }
 html:root[data-cinematic] .follow-card header { display:flex; align-items:center; padding-left:12px; }
@@ -110,3 +112,22 @@ html:root[data-cinematic] .director-enabled:not([data-follow-inspect="true"]) .n
  html:root[data-cinematic] .maplibregl-ctrl-bottom-right { top:max(68px,calc(env(safe-area-inset-top) + 64px)); bottom:auto; }
 }
 html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'©'; }
+
+/* Leave the map corners for the legend and credits, beside the desktop dock. */
+@media(min-width:901px) and (pointer:fine) {
+ html:root[data-cinematic] .controls { min-height:0; padding:3px; border-radius:12px; }
+ html:root[data-cinematic] #app .route-legend { bottom:max(calc(var(--dock-bottom) + 64px),calc(var(--map-credits-height,32px) + 20px)); }
+ html:root[data-cinematic] .controls .control-button:not(.layers-panel *, .sound-panel *, .find-panel *, .display-panel *) { min-width:34px; min-height:34px; padding-inline:8px; gap:4px; border-radius:8px; font-size:11px; }
+ html:root[data-cinematic] .controls .icon-button { width:34px; }
+ html:root[data-cinematic] .controls > .route-window { min-height:34px; padding-inline:8px; }
+ html:root[data-cinematic] .controls > .route-window select { min-height:28px; }
+ html:root[data-cinematic] .controls .zoom-controls { width:68px; }
+ html:root[data-cinematic] .controls .zoom-controls .control-button { width:34px; height:34px; padding:0; font-size:18px; }
+ html:root[data-cinematic][data-text-size="large"] .controls .control-button { font-size:15px; }
+ html:root[data-cinematic] #app #legend { bottom:max(12px,env(safe-area-inset-bottom)); left:max(8px,env(safe-area-inset-left)); flex-direction:column; align-items:flex-start; gap:0; width:max-content; max-width:220px; padding:4px 8px; border-radius:8px; font-size:10px; }
+ html:root[data-cinematic] #app #legend .legend-items { gap:8px; }
+ html:root[data-cinematic] #app #legend .region-legend { font-size:10px; }
+ html:root[data-cinematic] #app #legend .region-legend summary { min-height:24px; padding:4px 0; }
+ html:root[data-cinematic] #app #legend .focus-chip { max-width:202px; }
+ html:root[data-cinematic][data-dock-tight="true"] { --dock-bottom:max(100px,calc(env(safe-area-inset-bottom) + 96px)); }
+}

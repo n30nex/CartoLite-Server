@@ -22,8 +22,12 @@ export function mountCinematicDock(): void {
   controls.prepend(navigation);
   const zoomControls = document.querySelector<HTMLElement>('.zoom-controls');
   if (zoomControls) controls.append(zoomControls);
-  const sizeDock=()=>document.documentElement.style.setProperty('--dock-height',`${controls.offsetHeight}px`);
+  const sizeDock=()=>{
+    document.documentElement.style.setProperty('--dock-height',`${controls.offsetHeight}px`);
+    document.documentElement.dataset.dockTight = String(innerWidth - controls.offsetWidth < 480);
+  };
   const dockResize=new ResizeObserver(sizeDock);dockResize.observe(controls);sizeDock();
+  window.addEventListener('resize',sizeDock);
   window.addEventListener('pagehide',()=>dockResize.disconnect());
   window.addEventListener('pageshow',()=>dockResize.observe(controls));
   if (!graph) {
