@@ -592,7 +592,7 @@ async function start(): Promise<void> {
         : 'home-no-activity';
     } else {
       mapElement.dataset.viewSource = 'home';
-      liveMap.home(initial.nodes);
+      liveMap.home(initial.nodes, false);
     }
 
     liveMap.map.on('moveend', () => {

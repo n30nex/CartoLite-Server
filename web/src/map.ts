@@ -587,7 +587,7 @@ export class LiveMap {
     this.map.easeTo({ center, zoom, ...orientation, duration: 520, essential: false });
   }
 
-  home(nodes: readonly NodeV2[]): void {
+  home(nodes: readonly NodeV2[], animate = true): void {
     this.lastFollowMoveAt = 0;
     const now = Date.now();
     const active = nodes.filter((node) => validEndpoint(node) && Math.max(0, now - node.lastSeen) <= ACTIVE_NODE_WINDOW_MS);
@@ -602,7 +602,7 @@ export class LiveMap {
     }
     const bounds = new maplibregl.LngLatBounds();
     for (const node of visible) bounds.extend([node.lng, node.lat]);
-    const options = { padding: this.container.clientWidth <= 620 ? 48 : 72, maxZoom: 6, duration: this.reducedMotion ? 0 : 620 };
+    const options = { padding: this.container.clientWidth <= 620 ? 48 : 72, maxZoom: 6, duration: this.reducedMotion || !animate ? 0 : 620 };
     this.map.fitBounds(bounds, options);
   }
 

@@ -37,7 +37,7 @@
  :root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { position: fixed; top: auto; bottom: calc(var(--dock-bottom) + 112px); left: 8px; right: 8px; width: auto; max-height: min(50dvh, 420px); }
  :root[data-cinematic] :is(.legend,.route-legend) { bottom: calc(var(--dock-bottom) + 116px); }
  :root[data-cinematic] .graph-summary { top: 65px; left: 8px; right: auto; font-size: 10px; }
- :root[data-cinematic] .sound-state, :root[data-cinematic] #sound-state, :root[data-cinematic] .controls .icon-button { display: none; }
+ :root[data-cinematic] .sound-state, :root[data-cinematic] #sound-state, :root[data-cinematic] .controls > .icon-button { display: none; }
  :root[data-cinematic]:has(.layers-disclosure[open],.find-panel:not([hidden]),.sound-panel:not([hidden]),.display-panel:not([hidden])) :is(.node-inspector-sheet,.follow-card,.legend,.route-legend) { visibility: hidden; }
 }
 @media (max-height: 520px) and (orientation: landscape) {
@@ -59,3 +59,5 @@
 :root[data-cinematic] .director-enabled .node-inspector-sheet { visibility:visible; pointer-events:auto; }
 @media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
 @media(max-height:520px) and (orientation:landscape) { :root[data-cinematic] #layers-panel { max-height:calc(100dvh - 95px); } }
+
+:root[data-native-app] .graph-summary { right:68px; }

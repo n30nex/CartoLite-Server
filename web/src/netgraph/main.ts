@@ -1,3 +1,4 @@
+import { mountGraphFollow } from './follow';
 import { mountSoundPreview } from '../soundPreview';
 import { requestedNode, rememberNode, replaceInspector } from '../selection';
 import { mountCinematicDock } from '../cinematicChrome';
@@ -195,6 +196,8 @@ async function start(): Promise<void> {
       if (!applied) select.value = 'all';
     });
 
+    const director = mountGraphFollow(graph, id => selectNode(id));
+    window.addEventListener('pagehide',()=>director.destroy(),{once:true});
     const liveFeed = new LiveFeed(initial, {
       onConnection(connected) {
         streamConnected = connected;
@@ -211,6 +214,7 @@ async function start(): Promise<void> {
         const noteCount = routeSonifier.play(packet);
         if (noteCount > 0) pulseSound(noteCount);
         pulseTraffic(packet);
+        director.offer(packet);
       },
       onStatus(event) {
         liveStore.updateStatus(event.status, event.seq);

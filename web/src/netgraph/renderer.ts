@@ -348,6 +348,12 @@ export class NetgraphRenderer implements ViewportProjector {
     this.requestStaticDraw();
   }
 
+  visibleNodeIDs(): Set<string> {
+    return new Set([...this.layout.positions.keys()].filter(id => this.pointVisible(this.screenPoint(id), 0)));
+  }
+
+  selectedNode(): string | null { return this.selectedNodeID; }
+
   setFocus(mode: 'all' | 'area' | 'component'): boolean {
     const anchor = this.selectedNodeID ? this.layout.positions.get(this.selectedNodeID) : undefined;
     if (mode !== 'all' && !anchor) return false;

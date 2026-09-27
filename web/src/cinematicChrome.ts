@@ -32,6 +32,23 @@ export function mountCinematicDock(): void {
     });
     controls.insertBefore(display, controls.querySelector('.sound-control'));
   }
+  if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
+  const menuIDs = ['layers-panel', 'find-panel', 'sound-panel', 'display-panel'];
+  const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden; });
+  const syncHistory = () => {
+    const open = openMenu();
+    const current = history.state?.cartolitePanel;
+    if (open && current !== open) {
+      const state = { ...history.state, cartolitePanel: open };
+      if(current) history.replaceState(state,''); else history.pushState(state,'');
+    } else if(!open && current) history.back();
+  };
+  const observer = new MutationObserver(syncHistory);
+  for(const id of menuIDs) { const panel=document.getElementById(id); if(panel)observer.observe(panel,{attributes:true,attributeFilter:['hidden']}); }
+  window.addEventListener('popstate', () => {
+    for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) button.click();
+  });
+  window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
   // One menu at a time, including the independently mounted display control.
   let closing = false;
   controls.addEventListener('click', event => {
