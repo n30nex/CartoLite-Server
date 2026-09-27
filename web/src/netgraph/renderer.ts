@@ -9,7 +9,6 @@ import {
   interpolateScreenPoint,
   nodeWakeRadius,
   packetTrail,
-  residueSparkleProgress,
   residueStyle,
   routeDuration,
   routeMotion,
@@ -36,7 +35,7 @@ import {
   type PacketSignature,
 } from '../trafficVisuals';
 import type { EndpointV2, NodeRole, NodeV2, PacketView, RoutePacketView, RouteV2, StateV2 } from '../types';
-import type { NetgraphAreaAnchor } from './areas';
+import { nearestNetgraphArea, type NetgraphAreaAnchor } from './areas';
 import { NetgraphQuality } from './quality';
 import {
   buildNetgraphLayout,
@@ -226,6 +225,15 @@ export class NetgraphRenderer implements ViewportProjector {
     const started = performance.now();
     const firstLayout = this.layout.positions.size === 0;
     let visualChange = Boolean(changes.reset);
+    let movedArea = false;
+    if (changes.reset) this.assignedAreas.clear();
+    for (const node of changes.reset ? state.nodes : changes.nodes ?? []) {
+      const area = nearestNetgraphArea(node.lat, node.lng);
+      const previous = this.assignedAreas.get(node.id);
+      movedArea ||= Boolean(previous && previous.code !== area.code);
+      this.assignedAreas.set(node.id, area);
+    }
+    this.stage.dataset.regionAssignments = String(this.assignedAreas.size);
     if (changes.reset) {
       this.nodesByID = new Map(state.nodes.map((node) => [node.id, node]));
       this.coordinateNodeIDs = new Map(state.nodes.map((node) => [coordinateKey(node.lng, node.lat), node.id]));
@@ -259,8 +267,8 @@ export class NetgraphRenderer implements ViewportProjector {
       }
     }
 
-    if (changes.reset || graphTopologyChanged(this.topology, changes.routes ?? [], state.routes.length)) {
-      if (changes.reset || firstLayout) {
+    if (changes.reset || movedArea || graphTopologyChanged(this.topology, changes.routes ?? [], state.routes.length)) {
+      if (changes.reset || movedArea || firstLayout) {
         this.layout = buildNetgraphLayout(state.nodes, state.routes, this.assignedAreas);
       } else {
         this.layout = extendNetgraphLayout(this.layout, state.nodes, state.routes, this.assignedAreas);
@@ -321,11 +329,6 @@ export class NetgraphRenderer implements ViewportProjector {
 
   getNodes(): ReadonlyMap<string, NodeV2> {
     return this.nodesByID;
-  }
-
-  setAreaAssignments(assignments: ReadonlyMap<string, NetgraphAreaAnchor>): void {
-    this.assignedAreas = new Map(assignments);
-    this.stage.dataset.regionAssignments = String(this.assignedAreas.size);
   }
 
   connectedNodes(): NodeV2[] {
@@ -934,8 +937,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.stage.dataset.activeRegionRoles = drawnRegionRoles.join(',');
     const visibleMotion = drawnRegionRoles.length > 0
       || this.activeRoutes.some(({ packet }) => packet.segments.some((segment) => segmentNearViewport(this.screenPoint(segment.from.id), this.screenPoint(segment.to.id), this.width, this.height, 28)))
-      || this.observerWakes.some((wake) => this.pointVisible(this.screenPoint(wake.endpoint.id), 48))
-      || this.residue.some((item) => segmentNearViewport(this.screenPoint(item.fromId), this.screenPoint(item.toId), this.width, this.height, 12));
+      || this.observerWakes.some((wake) => this.pointVisible(this.screenPoint(wake.endpoint.id), 48));
     if (!prefersReducedMotion() && visibleMotion) {
       if (this.lastMotionAt && this.quality.sample(now - this.lastMotionAt, performance.now() - started)) {
         this.stage.dataset.qualityMode = this.quality.mode;
@@ -1025,7 +1027,7 @@ export class NetgraphRenderer implements ViewportProjector {
     return drawnRoles;
   }
 
-  private drawResidue(context: CanvasRenderingContext2D, now: number): void {
+  private drawResidue(_context: CanvasRenderingContext2D, now: number): void {
     const interval = this.quality.mode === 'low' ? 500 : this.quality.mode === 'balanced' ? 250 : 125;
     if (shouldRefreshResidueCache(this.residueCacheAt, now, this.residueProjectionDirty, prefersReducedMotion() && this.residueDirty, interval)) {
       this.residueContext.clearRect(0, 0, this.width, this.height);
@@ -1037,26 +1039,7 @@ export class NetgraphRenderer implements ViewportProjector {
     // The compositor retains this separate layer; do not copy a full-screen
     // canvas into the moving packet layer on every frame in Android WebView.
     if (prefersReducedMotion()) return;
-    // Slow fading ink is cached; travelling sparkles still move every frame.
-    const sparkleCount = this.quality.mode === 'full' && !this.lowPowerQuery.matches ? 2 : 1;
-    const limit = this.quality.mode === 'low' ? 16 : this.quality.mode === 'balanced' ? 40 : this.lowPowerQuery.matches ? 96 : 160;
-    for (let itemIndex = Math.max(0, this.residue.length - limit); itemIndex < this.residue.length; itemIndex += 1) {
-      const residue = this.residue[itemIndex]!;
-      const from = this.screenPoint(residue.fromId);
-      const to = this.screenPoint(residue.toId);
-      if (!segmentNearViewport(from, to, this.width, this.height, 12)) continue;
-      const age = now - residue.addedAt;
-      const style = residueStyle(displayResidueAge(age));
-      for (let index = 0; index < sparkleCount; index += 1) {
-        const progress = residueSparkleProgress(residue.routeId, age, index);
-        const spark = interpolateScreenPoint(from, to, progress);
-        const twinkle = 0.5 + 0.5 * Math.sin(age / 350 + index * 2.1);
-        context.beginPath();
-        context.arc(spark.x, spark.y, 0.9 + style.hot * 0.8, 0, Math.PI * 2);
-        context.fillStyle = colorWithAlpha(residue.color, style.life * (0.24 + style.hot * 0.42) * (0.55 + twinkle * 0.45));
-        context.fill();
-      }
-    }
+    // Residue fades in place; only new packets travel along links.
   }
 
   private drawResidueLines(context: CanvasRenderingContext2D, now: number): void {
@@ -1308,7 +1291,7 @@ export class NetgraphRenderer implements ViewportProjector {
       ...this.regionActivityCues.filter((cue) => cue.startedAt > now).map((cue) => cue.startedAt),
     ];
     if (expiries.length === 0) return;
-    const nextExpiry = Math.min(...expiries);
+    const nextExpiry = Math.min(...expiries, this.residue.length ? now + 250 : Infinity);
     this.residueCleanupTimer = window.setTimeout(() => {
       this.residueCleanupTimer = 0;
       this.requestMotionFrame();

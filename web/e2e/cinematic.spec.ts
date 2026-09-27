@@ -59,6 +59,9 @@ test('selected public node stays selected across views and browser Back closes m
   await expect(page.locator('.node-inspector')).toBeVisible();
   await page.goBack();
   await expect(page.locator('#node-inspector-sheet')).toBeHidden();
+  await page.goBack();
+  await expect(page.locator('#map .maplibregl-canvas')).toHaveCount(1);
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
 });
 
 test('rapidly reopening Finder after selection keeps its input available', async ({page}) => {
@@ -69,4 +72,10 @@ test('rapidly reopening Finder after selection keeps its input available', async
     await page.getByRole('option',{name:new RegExp(name)}).click();
   }
   await expect(page.locator('#map')).toHaveAttribute('data-selected-node-id','visual-a');
+});
+
+test('the Android shell owns keep-awake instead of a second browser lock', async ({page}) => {
+  await visualFixture(page);
+  await page.addInitScript(()=>Object.defineProperty(navigator,'userAgent',{get:()=> 'Mozilla/5.0 CartoLiteAndroid/1.1.0'}));
+  for(const path of ['/','/netgraph/']) { await page.goto(path); await expect(page.locator(path==='/'?'#app':'#netgraph-app')).toHaveAttribute('data-screen-awake','native'); }
 });

@@ -20,6 +20,10 @@ export function mountCinematicDock(): void {
   const labs = topbar.querySelector<HTMLAnchorElement>('#labs-link');
   if (labs) { labs.classList.add('control-button'); navigation.append(labs); }
   controls.prepend(navigation);
+  const sizeDock=()=>document.documentElement.style.setProperty('--dock-height',`${controls.offsetHeight}px`);
+  const dockResize=new ResizeObserver(sizeDock);dockResize.observe(controls);sizeDock();
+  window.addEventListener('pagehide',()=>dockResize.disconnect());
+  window.addEventListener('pageshow',()=>dockResize.observe(controls));
   if (!graph) {
     const display = document.createElement('button');
     display.type = 'button'; display.className = 'control-button'; display.textContent = '◐ Display';
@@ -53,6 +57,7 @@ export function mountCinematicDock(): void {
   observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
   controls.addEventListener('click', event => {
     const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a') : null;
+    if (event instanceof MouseEvent && (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return;
     if (closingHistory && link) { event.preventDefault(); pendingNavigation = link.href; }
   });
   window.addEventListener('popstate', () => {
@@ -70,7 +75,8 @@ export function mountCinematicDock(): void {
     if(target !== 'follow-card') document.querySelector<HTMLButtonElement>('#follow-card:not([hidden]) #follow-close')?.click();
     if(!target) document.querySelector<HTMLButtonElement>('#node-inspector-sheet:not([hidden]) .node-inspector-close')?.click();
   });
-  window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
+  window.addEventListener('pagehide',()=>observer.disconnect());
+  window.addEventListener('pageshow',()=>observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']}));
   // One menu at a time, including the independently mounted display control.
   let closing = false;
   controls.addEventListener('click', event => {

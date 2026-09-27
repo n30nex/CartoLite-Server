@@ -527,6 +527,7 @@ export class PacketAnimator {
     this.frameId = 0;
     if (this.paused) return;
     this.clearCanvas();
+    this.gpu.prepare();
     this.gpu.batch.begin(this.canvas.width / this.dpr, this.canvas.height / this.dpr);
     this.canvas.dataset.effectsRenderer = this.gpu.batch.ready ? 'webgl2' : 'canvas2d';
     if (!this.reducedMotion) {
@@ -550,7 +551,6 @@ export class PacketAnimator {
     this.context.globalCompositeOperation = 'source-over';
     this.context.lineCap = 'round';
     if (!this.reducedMotion) {
-      if (effectStrength() > 0.5) this.drawResidueSparkles(now);
       for (const item of this.nodeWakes) this.drawNodeWake(this.context, item, now);
     }
     this.activeRoutes = this.activeRoutes.filter(
@@ -566,7 +566,7 @@ export class PacketAnimator {
     for (const observer of this.activeObservers) this.drawObserver(observer, now);
     this.context.restore();
     this.gpu.flush();
-    if (!this.reducedMotion && this.hasVisibleEffects()) this.requestFrame();
+    if (!this.reducedMotion && (this.activeRoutes.length || this.activeObservers.length || this.nodeWakes.length)) this.requestFrame();
     else this.requestTimedFrame(now);
   }
 
@@ -608,30 +608,6 @@ export class PacketAnimator {
     context.lineWidth = Math.max(1, coreWidth * detail) * (displayPreferences().width / 1.6) * (item.longHaul ? 1.18 : 1);
     context.stroke();
     context.setLineDash([]);
-  }
-
-  private drawResidueSparkles(now: number): void {
-    if (this.map.getZoom() < 5 || displayPreferences().glow < 0.25) return;
-    const quality = this.qualityMode();
-    const count = quality === 'full' ? 3 : quality === 'balanced' ? 2 : 1;
-    const limit = quality === 'full' ? 160 : quality === 'balanced' ? 120 : 96;
-    for (const item of this.residue.slice(-limit)) {
-      const path = this.projection.projectSegment(item.segment);
-      const style = residueStyle(displayResidueAge(now - item.addedAt));
-      if (style.life <= 0.025) continue;
-      const age = Math.max(0, now - item.addedAt);
-      const sparkleCount = Math.min(4, count + (item.longHaul ? 1 : 0));
-      for (let index = 0; index < sparkleCount; index += 1) {
-        const progress = residueSparkleProgress(item.segment.routeId, age, index);
-        const point = surfacePathPoint(path, progress);
-        const twinkle = 0.32 + 0.68 * Math.abs(Math.sin(age / 240 + index * 2.1));
-        const radius = quality === 'low' ? 0.85 : 0.9 + index * 0.12;
-        this.context.fillStyle = withAlpha(item.color, style.life * twinkle * 0.82);
-        this.context.beginPath();
-        this.context.arc(point.x, point.y, radius * (point.scale ?? 1), 0, Math.PI * 2);
-        this.context.fill();
-      }
-    }
   }
 
   private drawNodeWake(context: CanvasRenderingContext2D, item: NodeWake, now: number): void {

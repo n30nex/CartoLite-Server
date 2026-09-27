@@ -198,7 +198,7 @@ async function start(): Promise<void> {
     });
 
     const director = mountGraphFollow(graph, id => selectNode(id));
-    window.addEventListener('pagehide',()=>director.destroy(),{once:true});
+    window.addEventListener('pagehide',event=>{if(!event.persisted)director.destroy();});
     const liveFeed = new LiveFeed(initial, {
       onConnection(connected) {
         streamConnected = connected;
@@ -299,7 +299,8 @@ async function start(): Promise<void> {
       updateSummary();
       if (selectedNodeID) renderInspector();
     }, 60_000);
-    window.addEventListener('beforeunload', () => {
+    window.addEventListener('pagehide', (event) => {
+      if (event.persisted) return;
       if (minuteTimer !== undefined) window.clearInterval(minuteTimer);
       if (trafficTimer !== undefined) window.clearTimeout(trafficTimer);
       if (soundPulseTimer !== undefined) window.clearTimeout(soundPulseTimer);
@@ -308,7 +309,7 @@ async function start(): Promise<void> {
       routeSonifier.destroy();
       graph.destroy();
       releaseScreenAwake();
-    }, { once: true });
+    });
   } catch (error) {
     if (minuteTimer !== undefined) window.clearInterval(minuteTimer);
     feed?.stop();
@@ -482,6 +483,7 @@ function isNetgraphWindow(value: unknown): value is NetgraphWindow {
 }
 
 function requestScreenAwake(): Promise<void> {
+  if (/CartoLiteAndroid\//.test(navigator.userAgent)) { app.dataset.screenAwake = 'native'; return Promise.resolve(); }
   screenAwakeWanted = true;
   if (!matchMedia('(pointer: coarse)').matches) {
     app.dataset.screenAwake = 'desktop';

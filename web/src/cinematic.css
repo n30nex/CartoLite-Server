@@ -71,3 +71,9 @@
 :root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - 150px)); }
 
 @media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #app[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }
+
+:root[data-cinematic][data-text-size="large"] .control-button { font-size:15px; }
+:root[data-text-size="large"] #layers-panel .control-button { font-size:15px; }
+:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px)); max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px); }
+:root[data-cinematic] .controls :is(.find-panel,.sound-panel,.display-panel) { max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px); }
+@media(max-width:900px),(pointer:coarse) { :root[data-cinematic] :is(.node-inspector-sheet,.follow-card,.legend,.route-legend) { bottom:calc(var(--dock-height) + var(--dock-bottom) + 12px); } }

@@ -115,7 +115,7 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
     seq: 6, id: 'fixture-new-neighbour', at: Date.now(), mode: 'route', payloadType: 'Advert',
     segments: [{ routeId: 'new-neighbour', fromId: 'summit', toId: 'meadow' }],
   } })));
-  await page.clock.runFor(80); // Flush the store's batched update while virtual time is paused.
+  await page.clock.runFor(1000); // Flush frame batching and coalesced route hydration under virtual time.
   await expect(page.locator('#map')).toHaveAttribute('data-neighbor-route-count', '3');
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
   await page.clock.fastForward(10_000);
