@@ -443,9 +443,10 @@ export class PacketAnimator {
   }
 
   private handleReducedMotionChange = (event: MediaQueryListEvent): void => {
-    if (this.reducedMotion === event.matches) return;
+    const reduced = displayPreferences().motion === 'system' ? event.matches : prefersReducedMotion();
+    if (this.reducedMotion === reduced) return;
     const now = performance.now();
-    this.reducedMotion = event.matches;
+    this.reducedMotion = reduced;
     if (this.reducedMotion) {
       this.reducedModeStartedAt = now;
       for (const route of this.activeRoutes) {

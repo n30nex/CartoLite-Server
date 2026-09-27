@@ -33,7 +33,7 @@ export function mountCinematicDock(): void {
     controls.insertBefore(display, controls.querySelector('.sound-control'));
   }
   if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
-  const menuIDs = ['layers-panel', 'find-panel', 'sound-panel', 'display-panel'];
+  const menuIDs = ['layers-panel', 'find-panel', 'sound-panel', 'display-panel', 'follow-card', 'node-inspector-sheet'];
   const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden; });
   let closingHistory = false;
   let closingURL = location.href;
@@ -43,12 +43,14 @@ export function mountCinematicDock(): void {
     const open = openMenu();
     const current = history.state?.cartolitePanel;
     if (open && current !== open) {
-      const state = { ...history.state, cartolitePanel: open };
-      if(current) history.replaceState(state,''); else history.pushState(state,'');
+      if (open === history.state?.cartoliteParent) { closingHistory = true; closingURL = location.href; history.back(); return; }
+      const replacing = current && current !== 'node-inspector-sheet' && current !== 'follow-card';
+      const state = { ...history.state, cartolitePanel: open, cartoliteParent: replacing ? history.state?.cartoliteParent : current };
+      if(replacing) history.replaceState(state,''); else history.pushState(state,'');
     } else if(!open && current) { closingHistory = true; closingURL = location.href; history.back(); }
   };
   const observer = new MutationObserver(syncHistory);
-  for(const id of menuIDs) { const panel=document.getElementById(id); if(panel)observer.observe(panel,{attributes:true,attributeFilter:['hidden']}); }
+  observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
   controls.addEventListener('click', event => {
     const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a') : null;
     if (closingHistory && link) { event.preventDefault(); pendingNavigation = link.href; }
@@ -61,7 +63,12 @@ export function mountCinematicDock(): void {
       else syncHistory();
       return;
     }
-    for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) button.click();
+    const target = history.state?.cartolitePanel;
+    for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
+      if(button.getAttribute('aria-controls') !== target) button.click();
+    }
+    if(target !== 'follow-card') document.querySelector<HTMLButtonElement>('#follow-card:not([hidden]) #follow-close')?.click();
+    if(!target) document.querySelector<HTMLButtonElement>('#node-inspector-sheet:not([hidden]) .node-inspector-close')?.click();
   });
   window.addEventListener('pagehide',()=>observer.disconnect(),{once:true});
   // One menu at a time, including the independently mounted display control.

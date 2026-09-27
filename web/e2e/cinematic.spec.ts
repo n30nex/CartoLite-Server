@@ -56,6 +56,9 @@ test('selected public node stays selected across views and browser Back closes m
   await page.locator('#display-button').click();await expect(page.locator('#display-panel')).toBeVisible();
   await page.goBack();await expect(page.locator('#display-panel')).toBeHidden();
   await expect(page).toHaveURL(/netgraph/);
+  await expect(page.locator('.node-inspector')).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('#node-inspector-sheet')).toBeHidden();
 });
 
 test('rapidly reopening Finder after selection keeps its input available', async ({page}) => {

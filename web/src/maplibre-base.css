@@ -37,3 +37,9 @@
 .maplibregl-popup-anchor-right { flex-direction:row-reverse; }
 .maplibregl-popup-tip { display:none; }
 @media(forced-colors:active) { .maplibregl-ctrl-attrib { border:1px solid CanvasText; } }
+
+summary.maplibregl-ctrl-attrib-button { list-style:none; display:grid; place-items:center; }
+summary.maplibregl-ctrl-attrib-button::-webkit-details-marker { display:none; }
+.maplibregl-ctrl-attrib.maplibregl-compact { position:relative; width:44px; }
+.maplibregl-ctrl-attrib.maplibregl-compact-show { width:auto; max-width:min(480px,calc(100vw - 12px)); }
+.maplibregl-compact-show .maplibregl-ctrl-attrib-button { position:absolute; right:0; top:0; }

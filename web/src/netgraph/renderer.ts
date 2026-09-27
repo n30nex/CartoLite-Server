@@ -348,6 +348,17 @@ export class NetgraphRenderer implements ViewportProjector {
     this.requestStaticDraw();
   }
 
+  followPacket(packet: PacketView): void {
+    const ids = packet.mode === 'observer' ? [packet.observer.id] : packet.segments.flatMap(hop => [hop.from.id,hop.to.id]);
+    const points = ids.map(id => this.layout.positions.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
+    if (!points.length) return;
+    if (points.every(p => { const q=this.screenPoint(p.id); return q.x>72&&q.x<this.width-72&&q.y>100&&q.y<this.height-160; })) return;
+    const xs=points.map(p=>p.x),ys=points.map(p=>p.y);
+    const left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);
+    const scale=Math.min(this.scale,Math.max(80,this.width-180)/Math.max(1,right-left),Math.max(80,this.height-300)/Math.max(1,bottom-top));
+    this.animateView((left+right)/2,(top+bottom)/2,Math.max(.015,scale));
+  }
+
   visibleNodeIDs(): Set<string> {
     return new Set([...this.layout.positions.keys()].filter(id => this.pointVisible(this.screenPoint(id), 0)));
   }
