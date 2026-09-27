@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 
-test('compact map corners and dock keep a synchronized, keyboard-accessible 3D shortcut', async ({page},info) => {
+test('compact map corners and dock fit desktop and touch screens', async ({page},info) => {
   const desktop=info.project.name==='desktop';
   await page.setViewportSize(desktop ? {width:1304,height:902} : info.project.name==='mobile-landscape' ? {width:568,height:320} : {width:320,height:640});
   await page.emulateMedia({reducedMotion:'reduce'});
@@ -40,11 +40,25 @@ test('compact map corners and dock keep a synchronized, keyboard-accessible 3D s
   if(await page.locator('.maplibregl-ctrl-attrib-inner').isVisible()) await attribution.click();
   await attribution.press('Enter'); await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toBeVisible();
   await attribution.press('Enter');
+  await page.getByRole('link',{name:'Open CartoLite Netgraph',exact:true}).click();
+  await expect(page.locator('#connected-count')).toHaveText('2');
+  await expect(shortcut).toHaveCount(0);
+  if(desktop) expect((await page.locator('.controls').boundingBox())!.height).toBeLessThanOrEqual(42);
+  await page.screenshot({path:info.outputPath('compact-netgraph-dock.png')});
+});
+
+test('dock 3D shortcut shares layer state, persistence and reset', async ({page},info) => {
+  const desktop=info.project.name==='desktop';
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await visualFixture(page); await page.goto('/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  const shortcut=page.locator('#terrain-shortcut');
+  const attribution=page.locator('.maplibregl-ctrl-attrib-button');
   await shortcut.press('Enter');
   await expect(shortcut).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('#terrain-button')).toHaveAttribute('aria-pressed','true');
   for(const id of ['hillshade-button','buildings-button']) await expect(page.locator('#'+id)).toHaveAttribute('aria-pressed','true');
-  await attribution.press('Enter');
+  if(!await page.locator('.maplibregl-ctrl-attrib-inner').isVisible()) await attribution.press('Enter');
   await expect(page.locator('.maplibregl-ctrl-attrib-inner')).toContainText('Mapterhorn');
   if(desktop) await expect.poll(async()=>{
     const packet=await page.locator('#route-legend').boundingBox();
@@ -57,12 +71,6 @@ test('compact map corners and dock keep a synchronized, keyboard-accessible 3D s
   await expect(shortcut).toHaveAttribute('aria-pressed','false');
   await page.keyboard.press('Escape'); await shortcut.click(); await openMapOptions(page);
   await page.locator('#reset-layers').click(); await expect(shortcut).toHaveAttribute('aria-pressed','false');
-  await page.keyboard.press('Escape');
-  await page.getByRole('link',{name:'Open CartoLite Netgraph',exact:true}).click();
-  await expect(page.locator('#connected-count')).toHaveText('2');
-  await expect(shortcut).toHaveCount(0);
-  if(desktop) expect((await page.locator('.controls').boundingBox())!.height).toBeLessThanOrEqual(42);
-  await page.screenshot({path:info.outputPath('compact-netgraph-dock.png')});
 });
 
 test('cinematic preferences migrate and layer combinations are reversible', async ({page},info) => {
