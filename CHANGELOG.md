@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.2 - Compact map controls
+
+- Fit the map legend into the bottom-left corner, with a narrow region disclosure in Canada.
+- Shrink desktop Map and Netgraph dock buttons while retaining full-size touch targets on phones and tablets.
+- Put a 3D shortcut directly in the map dock, synchronized with Layers and saved preferences; entering 3D still enables Topo and Buildings.
+- Compact map credits and center their toggle, preserving all attribution links and keyboard access.
+
 ## 0.6.1 - Edge content integrity
 
 - Prevent automatic proxy/CDN script injection into Map and Netgraph HTML with `Cache-Control: public, no-cache, no-transform`; keep the existing strict Content Security Policy and traffic API unchanged.
