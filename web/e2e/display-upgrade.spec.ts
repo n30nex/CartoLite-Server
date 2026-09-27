@@ -191,11 +191,14 @@ test('can disable lingering trails without disabling live packets', async ({ pag
   await page.getByLabel('After-trails', { exact: true }).press('Home');
   await expect(page.getByLabel('After-trails', { exact: true })).toHaveValue('0');
   await page.keyboard.press('Escape');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await page.clock.install();await page.clock.pauseAt(new Date(Date.now()+1000));
   const beforePacket = await sceneFrame(page);
   await visualPacket(page, 1);
+  await page.clock.runFor(600);
   await expect.poll(() => packetInk(page, false, beforePacket)).toBeGreaterThan(2);
   // Includes the existing six-second node wake, independently of route residue.
-  await page.waitForTimeout(9500);
+  await page.clock.fastForward(9500);await page.clock.runFor(32);
   const painted = await page.locator('#packet-canvas').evaluate((element) => {
     const canvas = element as HTMLCanvasElement;
     return canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data.some((value, index) => index % 4 === 3 && value > 0);
