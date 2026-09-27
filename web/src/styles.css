@@ -508,7 +508,7 @@ button { font: inherit; }
 .about-close:hover, .about-close:focus-visible { color: #ffffff; background: rgba(41, 184, 169, 0.14); outline: 2px solid #63d9cc; outline-offset: -3px; }
 
 .maplibregl-ctrl-bottom-right { z-index: 3; opacity: 0.45; }
-.maplibregl-ctrl-attrib { color: #8794a0; background: rgba(3, 7, 11, 0.72) !important; font-size: 9px; }
+.maplibregl-ctrl-attrib { color: var(--muted); background: var(--panel-solid); font-size: 10px; }
 .maplibregl-ctrl-attrib a { color: #9cb4c4; }
 .maplibregl-ctrl-attrib-button { filter: invert(1); }
 

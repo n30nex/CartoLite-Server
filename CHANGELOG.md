@@ -2,10 +2,10 @@
 
 ## 0.6.2 - Compact map controls
 
-- Fit the map legend into the bottom-left corner, with a narrow region disclosure in Canada.
+- Fit the map legend into the bottom-left corner.
 - Shrink desktop Map and Netgraph dock buttons while retaining full-size touch targets on phones and tablets.
 - Put a 3D shortcut directly in the map dock, synchronized with Layers and saved preferences; entering 3D still enables Topo and Buildings.
-- Compact map credits and center their toggle, preserving all attribution links and keyboard access.
+- Compact theme-aware map credits and center their toggle, preserving all attribution links and keyboard access.
 
 ## 0.6.1 - Edge content integrity
 
