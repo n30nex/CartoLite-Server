@@ -1,3 +1,4 @@
+import { mountSoundPreview } from './soundPreview';
 import { requestedNode } from './selection';
 import { mountCinematicDock, mountLayerCombinations } from './cinematicChrome';
 import { browserStorage } from './browserStorage';
@@ -6,7 +7,7 @@ import { mountDisplayControls } from './displayControls';
 import { loadBasemapConfiguration } from './basemap';
 import { attachMapNotice } from './mapNotice';
 import { DEFAULT_DISPLAY, DISPLAY_EVENT, displayPreferences, initializeDisplay, updateDisplay, applyDisplayChrome } from './displayPreferences';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import './maplibre-base.css';
 import './styles.css';
 import { fetchState, LiveFeed } from './api';
 import { RouteSonifier, type SoundScene, type SoundStatus } from './audio';
@@ -252,6 +253,7 @@ async function start(): Promise<void> {
     animator = liveAnimator;
     const routeSonifier = new RouteSonifier(liveAnimator.projection, packetCanvas);
     sonifier = routeSonifier;
+    mountSoundPreview(routeSonifier, soundPanel);
     soundVolume.value = String(Math.round(routeSonifier.getVolume() * 100));
     soundVolumeOutput.value = `${soundVolume.value}%`;
     syncSoundScene(soundScene, routeSonifier.getScene());

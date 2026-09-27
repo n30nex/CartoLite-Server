@@ -322,6 +322,18 @@ export class RouteSonifier {
     return notes.length;
   }
 
+  /** Explicit preview gesture; does not enable or save live sound. */
+  async preview(): Promise<void> {
+    if (!this.supported() || this.paused) return;
+    const context = !this.context || this.context.state === 'closed' ? this.createContext() : this.context;
+    this.unlockMobileOutput(context);
+    if (context.state !== 'running') await context.resume();
+    if (context.state !== 'running') return;
+    this.setMasterLevel(MASTER_LEVEL * this.volume);
+    const scene = SCENES[this.scene];
+    this.schedule({ frequency: 440, startMS: 0, durationMS: Math.min(420,scene.maxDurationMS), brightness: Math.max(scene.minBrightness,1800*scene.brightnessScale), pan: 0, variation: 0, scene: this.scene, character: 'map' }, .8);
+  }
+
   destroy(): void {
     this.enabled = false;
     this.stopActive();

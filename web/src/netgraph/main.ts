@@ -1,3 +1,4 @@
+import { mountSoundPreview } from '../soundPreview';
 import { requestedNode, rememberNode, replaceInspector } from '../selection';
 import { mountCinematicDock } from '../cinematicChrome';
 import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from '../soundScenes';
@@ -107,6 +108,7 @@ async function start(): Promise<void> {
     renderer = graph;
     const routeSonifier = new RouteSonifier(graph, stage);
     sonifier = routeSonifier;
+    mountSoundPreview(routeSonifier, soundPanel);
     configureSound(routeSonifier);
     graph.setRouteWindow(settings.routeWindow);
 

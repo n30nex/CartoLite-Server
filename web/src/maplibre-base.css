@@ -1,0 +1,39 @@
+/* CartoLite supplies its own controls and inspector. Only MapLibre's canvas,
+   gestures and attribution need library chrome (MapLibre GL JS 6.4.1 DOM). */
+.maplibregl-map { position:relative; overflow:hidden; font:12px/20px system-ui,sans-serif; -webkit-tap-highlight-color:transparent; }
+.maplibregl-canvas { position:absolute; left:0; top:0; }
+.maplibregl-map:fullscreen { width:100%; height:100%; }
+.maplibregl-interactive { cursor:grab; user-select:none; }
+.maplibregl-interactive:active { cursor:grabbing; }
+.maplibregl-track-pointer { cursor:pointer; }
+.maplibregl-touch-zoom-rotate, .maplibregl-touch-zoom-rotate .maplibregl-canvas { touch-action:pan-x pan-y; }
+.maplibregl-touch-drag-pan, .maplibregl-touch-drag-pan .maplibregl-canvas { touch-action:pinch-zoom; }
+.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan, .maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan .maplibregl-canvas { touch-action:none; }
+.maplibregl-canvas:focus-visible { outline:2px solid var(--focus-ring); outline-offset:-2px; }
+.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-bottom-left,.maplibregl-ctrl-top-right,.maplibregl-ctrl-top-left { position:absolute; pointer-events:none; z-index:3; }
+.maplibregl-ctrl-bottom-right { right:0; bottom:0; }
+.maplibregl-ctrl-bottom-left { left:0; bottom:0; }
+.maplibregl-ctrl-top-right { right:0; top:0; }
+.maplibregl-ctrl-top-left { left:0; top:0; }
+.maplibregl-ctrl { clear:both; pointer-events:auto; transform:translate(0,0); }
+.maplibregl-ctrl-attrib { margin:0 6px 4px; padding:3px 8px; border-radius:6px; color:var(--ink); background:var(--panel-solid); font-size:10px; line-height:18px; max-width:calc(100vw - 12px); }
+.maplibregl-ctrl-attrib a { color:inherit; text-decoration:none; }
+.maplibregl-ctrl-attrib a:hover { text-decoration:underline; }
+.maplibregl-ctrl-attrib-button { display:none; border:1px solid currentColor; border-radius:50%; background:var(--panel-solid); color:var(--ink); cursor:pointer; width:44px; height:44px; filter:none !important; }
+.maplibregl-ctrl-attrib-button::before { content:'i'; font:bold 16px Georgia,serif; }
+.maplibregl-compact { padding:0; min-height:44px; }
+.maplibregl-compact .maplibregl-ctrl-attrib-button { display:block; float:right; }
+.maplibregl-compact .maplibregl-ctrl-attrib-inner { display:none; }
+.maplibregl-compact-show .maplibregl-ctrl-attrib-inner { display:block; padding:8px 48px 8px 10px; }
+.maplibregl-ctrl-attrib.maplibregl-attrib-empty { display:none; }
+.maplibregl-boxzoom { position:absolute; top:0; left:0; width:0; height:0; border:2px dashed var(--focus-ring); background:#72ffe118; }
+.maplibregl-crosshair,.maplibregl-crosshair .maplibregl-interactive { cursor:crosshair; }
+.maplibregl-popup { position:absolute; display:flex; top:0; left:0; pointer-events:none; }
+.maplibregl-popup-content { position:relative; background:var(--panel-solid); border:1px solid var(--panel-border); border-radius:12px; pointer-events:auto; }
+.maplibregl-popup-close-button { position:absolute; right:0; top:0; width:44px; height:44px; border:0; background:transparent; color:var(--ink); }
+.maplibregl-popup-anchor-top,.maplibregl-popup-anchor-top-left,.maplibregl-popup-anchor-top-right { flex-direction:column; }
+.maplibregl-popup-anchor-bottom,.maplibregl-popup-anchor-bottom-left,.maplibregl-popup-anchor-bottom-right { flex-direction:column-reverse; }
+.maplibregl-popup-anchor-left { flex-direction:row; }
+.maplibregl-popup-anchor-right { flex-direction:row-reverse; }
+.maplibregl-popup-tip { display:none; }
+@media(forced-colors:active) { .maplibregl-ctrl-attrib { border:1px solid CanvasText; } }

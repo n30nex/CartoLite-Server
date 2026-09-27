@@ -11,3 +11,5 @@ Target Canada 0.15.0, Worldwide 0.6.0 and Canada Android 1.1.0.
 
 No public API changes. Existing topology and packet/audio clocks remain authoritative.
 Builds, tests and browser artifacts run in GitHub Actions only.
+
+The app supplies compact MapLibre canvas/gesture/attribution styling rather than shipping unused provider-control icons. The existing total byte limits remain unchanged.

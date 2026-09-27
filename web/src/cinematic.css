@@ -50,3 +50,12 @@
 .graph-focus select { min-height: 36px; background: var(--field-bg); color: var(--ink-strong); border: 0; }
 .graph-focus small:empty { display: none; }
 @media(max-width:900px) { .graph-focus { top: 106px; left: 8px; } }
+
+:root[data-cinematic] .controls > :is(.layers-disclosure,.find-control,.sound-control,.popover-control), :root[data-cinematic] .display-disclosure { position:static; }
+:root[data-cinematic] #layers-panel { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); width:min(370px,calc(100vw - 24px)); max-height:calc(100dvh - 150px); }
+:root[data-cinematic] .maplibregl-ctrl-bottom-right { opacity:1; }
+.gpu-packet-canvas { z-index:2; }
+.sound-preview-actions { display:flex; gap:8px; }
+:root[data-cinematic] .director-enabled .node-inspector-sheet { visibility:visible; pointer-events:auto; }
+@media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
+@media(max-height:520px) and (orientation:landscape) { :root[data-cinematic] #layers-panel { max-height:calc(100dvh - 95px); } }
