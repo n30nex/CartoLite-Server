@@ -485,7 +485,7 @@ async function start(): Promise<void> {
     inspectFollow.addEventListener('click', () => {
       const endpoint = currentFollowPacket && followEndpoints(currentFollowPacket)[0];
       if (!endpoint) return;
-      held = true; followQueue.setHeld(true, Date.now()); followPause.textContent = 'Continue'; liveMap.selectNodeByID(endpoint.id, false);
+      held = true; followQueue.setHeld(true, Date.now()); followPause.textContent = 'Continue'; appElement.dataset.followInspect = 'true'; liveMap.selectNodeByID(endpoint.id, false);
     });
     const followQueue = new FollowQueue();
     mapElement.dataset.followDwellMs = String(LIVE_FOLLOW_MIN_INTERVAL_MS);
@@ -534,7 +534,7 @@ async function start(): Promise<void> {
       if (followTimer !== undefined) window.clearInterval(followTimer);
       followTimer = undefined;
       liveFollow = enabled;
-      followPaused = paused; held = false;
+      followPaused = paused; held = false; delete appElement.dataset.followInspect;
       followButton.setAttribute('aria-pressed', String(enabled));
       followButton.classList.toggle('selected', enabled);
       followButton.dataset.mode = enabled ? 'director' : 'manual';
@@ -562,7 +562,7 @@ async function start(): Promise<void> {
     };
     followPause.addEventListener('click', () => {
       if (followPaused) { setLiveFollow(true); return; }
-      held = !held; followQueue.setHeld(held, Date.now());
+      held = !held; delete appElement.dataset.followInspect; followQueue.setHeld(held, Date.now());
       followPause.textContent = held ? 'Continue' : 'Hold';
       if (held) liveMap.map.stop();
       tickFollow();

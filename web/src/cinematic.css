@@ -56,7 +56,7 @@
 :root[data-cinematic] .maplibregl-ctrl-bottom-right { opacity:1; }
 .gpu-packet-canvas { z-index:2; }
 .sound-preview-actions { display:flex; gap:8px; }
-:root[data-cinematic] .director-enabled .node-inspector-sheet { visibility:visible; pointer-events:auto; }
+:root[data-cinematic] .director-enabled[data-follow-inspect="true"] .node-inspector-sheet { visibility:visible; pointer-events:auto; }
 @media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
 @media(max-height:520px) and (orientation:landscape) { :root[data-cinematic] #layers-panel { max-height:calc(100dvh - 95px); } }
 
@@ -67,3 +67,7 @@
 :root[data-cinematic] .follow-card header button { min-height:44px; min-width:44px; border:0; background:transparent; color:var(--ink); cursor:pointer; }
 :root[data-cinematic] .follow-card .follow-scope, :root[data-cinematic] .follow-card .follow-actions { margin:8px 12px; }
 @media(max-width:900px),(pointer:coarse) { :root[data-cinematic] .graph-summary { left:8px; right:auto; } }
+
+:root[data-cinematic] #layers-panel { height:min(750px,calc(100dvh - 150px)); }
+
+@media(max-width:900px),(pointer:coarse) { :root[data-cinematic] #app[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }

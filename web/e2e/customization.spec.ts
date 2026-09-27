@@ -107,7 +107,7 @@ test('Live Follow holds its activity card for ten seconds and pauses when the us
   await page.locator('#follow-button').click();
   await emit(page, 5, 'Text');
   await expect(page.locator('#follow-card')).toHaveAttribute('data-state', 'following');
-  await expect(page.locator('.node-inspector')).toBeVisible();
+  await expect(page.locator('.node-inspector')).toBeHidden();
   // A new neighbour is a feed update, not a manual selection or a pause request.
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('fixture-packet', { detail: {
     seq: 6, id: 'fixture-new-neighbour', at: Date.now(), mode: 'route', payloadType: 'Advert',

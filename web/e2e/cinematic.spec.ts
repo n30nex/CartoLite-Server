@@ -57,3 +57,13 @@ test('selected public node stays selected across views and browser Back closes m
   await page.goBack();await expect(page.locator('#display-panel')).toBeHidden();
   await expect(page).toHaveURL(/netgraph/);
 });
+
+test('rapidly reopening Finder after selection keeps its input available', async ({page}) => {
+  await visualFixture(page);await page.goto('/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  for (const name of ['Visual Alpha','Visual Bravo','Visual Alpha']) {
+    await page.locator('#find-button').click(); await page.locator('#node-search').fill(name);
+    await page.getByRole('option',{name:new RegExp(name)}).click();
+  }
+  await expect(page.locator('#map')).toHaveAttribute('data-selected-node-id','visual-a');
+});
