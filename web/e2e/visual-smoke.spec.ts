@@ -570,6 +570,9 @@ test('focuses recent route neighbors and clears selection on the map', async ({ 
   await page.locator('#route-window').selectOption('24h');
   await closeLayers(page);
 
+  // In a short landscape view the right-hand inspector covers this fixture node.
+  // Dismiss it before testing the real map hit target.
+  if (page.viewportSize()!.height <= 520) await page.getByRole('button', {name:'Close node details',exact:true}).click();
   await clickPoint(page, bravoPoint, mobile);
   await expect(map).toHaveAttribute('data-selected-node-id', 'b');
   await expect(inspector).toContainText('Bravo');

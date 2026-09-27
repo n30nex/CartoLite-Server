@@ -98,7 +98,7 @@ export function mountLayerCombinations(): void {
   if (!header) return;
   const bar = document.createElement('section'); bar.className = 'layer-combinations'; bar.setAttribute('aria-label', 'Layer combinations');
   bar.innerHTML = '<span>Quick views</span><div><button type="button" data-combination="network">Network</button><button type="button" data-combination="activity">Activity</button><button type="button" data-combination="landscape">Landscape</button><button type="button" data-undo hidden>Undo</button></div><p>Changes layers only. Your camera and sound stay as they are.</p>';
-  header.after(bar);
+  (document.querySelector('#layers-panel section.map-layer-group') ?? header).after(bar);
   const ids = ['routes-button', 'heatmap-button', 'node-labels-button', 'hillshade-button', 'buildings-button', 'live-packets-button'];
   let previous: boolean[] | undefined;
   const apply = (values: boolean[]) => ids.forEach((id, i) => {
