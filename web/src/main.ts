@@ -639,10 +639,10 @@ async function start(): Promise<void> {
       onNode(event) {
         liveStore.upsertNode(event.node, event.seq);
       },
-      onPacket(event) {
+      onPacket(event, replayed) {
         const packet = liveStore.applyPacket(event);
         lastUpdate.textContent = formatUpdate(event.at);
-        if (!packet) return;
+        if (!packet || replayed) return;
         liveAnimator.add(packet, { longHaul: potentialLongHaulPacket(packet) });
         const scheduled = uiPreferences.livePackets ? routeSonifier.play(packet) : 0;
         if (scheduled > 0) pulseSoundChrome(scheduled);

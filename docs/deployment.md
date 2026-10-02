@@ -4,7 +4,7 @@
 
 Docker Engine and Compose v2 are required. Published images support `linux/amd64` and `linux/arm64`, including 64-bit Raspberry Pi hosts. No Node, Go, source build or map-provider account is required.
 
-In a new directory, download `compose.yml` and `default.env.example` from the latest release. Save the environment example as `.env`, then set your MQTT broker, topic and any required username/password. Choose a unique `MQTT_CLIENT_ID` for each instance.
+In a new directory, download `compose.yml` and `default.env.example` from the latest release. Save the environment example as `.env`, then set your MQTT broker, topic and any required username/password. Leave `MQTT_CLIENT_ID` empty for an automatically unique clean-session identity, or set a unique ID if your broker requires one. Existing configured IDs are preserved; installations using the old shared `cartolite-server` default should clear it or choose their own ID.
 
 ```sh
 docker compose pull
@@ -25,7 +25,7 @@ The map is at `http://localhost:8080/`; Netgraph is at `/netgraph/`. Default map
 | `CARTOLITE_PORT` | `8080` | Host HTTP port |
 | `MQTT_BROKER_URL` | required | Your MeshCore broker URL (`tcp`, `ssl`, `ws`, or `wss`) |
 | `MQTT_TOPIC` | `meshcore/#` | Subscription filter |
-| `MQTT_CLIENT_ID` | `cartolite-server` | Must be unique per instance |
+| `MQTT_CLIENT_ID` | generated per process | Optional explicit ID; must be unique per instance |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | empty | Configure both when authentication is required |
 | `REGION_ALLOWLIST` | empty | Accept all valid regions, or exact comma-separated labels |
 | `MQTT_INGEST_QUEUE_SIZE` | `4096` | Bounded ingest queue |

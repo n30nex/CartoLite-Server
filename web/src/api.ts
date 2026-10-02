@@ -34,7 +34,7 @@ export async function fetchState(signal?: AbortSignal): Promise<StateV2> {
 export interface LiveFeedHandlers {
   onConnection(connected: boolean): void;
   onNode(event: NodeEventV2): void;
-  onPacket(event: PacketEventV2): void;
+  onPacket(event: PacketEventV2, replayed: boolean): void;
   onStatus(event: StatusEventV2): void;
   recover(): Promise<StateV2>;
   onError(error: Error): void;
@@ -44,6 +44,7 @@ export class LiveFeed {
   private source?: EventSource;
   private bootId: string;
   private seq: number;
+  private replayThrough = 0;
   private recovering?: Promise<void>;
   private recoveryTimer?: number;
   private recoveryFailures = 0;
@@ -72,6 +73,7 @@ export class LiveFeed {
 
   private connect(): void {
     if (this.source || this.stopped) return;
+    this.replayThrough = this.seq;
     const cursor = new URLSearchParams({ bootId: this.bootId, after: String(this.seq) });
     const source = new EventSource(`/api/events?${cursor.toString()}`, { withCredentials: true });
     this.source = source;
@@ -96,7 +98,7 @@ export class LiveFeed {
       if (current()) this.handleSequenced<NodeEventV2>(event, this.handlers.onNode);
     });
     source.addEventListener('packet', (event) => {
-      if (current()) this.handleSequenced<PacketEventV2>(event, this.handlers.onPacket);
+      if (current()) this.handleSequenced<PacketEventV2>(event, packet => this.handlers.onPacket(packet, packet.seq <= this.replayThrough));
     });
     source.addEventListener('status', (event) => {
       if (current()) this.handleSequenced<StatusEventV2>(event, this.handlers.onStatus);
@@ -114,8 +116,14 @@ export class LiveFeed {
   private handleHello(raw: Event): void {
     try {
       const hello = parseEvent<HelloV2>(raw);
+      if (!Number.isSafeInteger(hello.seq) || hello.seq < 0 || typeof hello.bootId !== 'string' || !hello.bootId) {
+        throw new Error('invalid stream hello');
+      }
       if (hello.bootId !== this.bootId) {
         void this.requestRecovery();
+      } else {
+        // A hello precedes each initial connection and native reconnect replay.
+        this.replayThrough = hello.seq;
       }
     } catch (error) {
       this.report(error);

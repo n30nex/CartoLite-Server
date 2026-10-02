@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3 - Reliability and ingest performance
+
+- Replace full-table node identity scans on every update with an incremental index; retain known positions across coordinate-free region aliases and prevent stale alias events from moving nodes backwards.
+- Keep reconnect catch-up in state and route counts without replaying it as fresh animation, sound, or Follow activity.
+- Avoid rebuilding attached route geometry when only a node label or freshness changes.
+- Drain accepted observations into the final checkpoint and cancel active event streams during shutdown.
+- Generate unique clean-session MQTT identities for unconfigured installations; explicit broker IDs remain unchanged. Clear an old shared default when upgrading multiple installs on one broker.
+- Record the end-to-end audit, synthetic regressions and index benchmark in docs/audit-2026-10-02.md.
+
 ## 0.6.2 - Compact map controls
 
 - Fit the map legend into the bottom-left corner.

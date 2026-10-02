@@ -13,7 +13,7 @@ const initial: StateV2 = {
   seq: 7,
   serverTime: 1,
   status: { feed: 'connected', activity: 'active', dropped: 0, version: '0.4.0', gitSha: 'abc' },
-  map: { center: [0, 20], zoom: 1.4 },
+  map: { center: [-96, 56], zoom: 3.4 },
   nodes,
   routes: []
 };
@@ -28,6 +28,17 @@ describe('sequenceAction', () => {
 });
 
 describe('LiveStore', () => {
+  it('keeps route geometry stable for freshness and label updates, but invalidates a moved endpoint', () => {
+    const store = new LiveStore({ ...initial, routes: [existingRoute()] });
+    const updates = vi.fn();
+    store.subscribe(updates);
+    store.upsertNode({ ...nodes[0]!, label: 'Renamed', lastSeen: 200 }, 8);
+    expect(updates).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ routeGeometry: [] }));
+    store.upsertNode({ ...nodes[0]!, lng: nodes[0]!.lng + 0.1, lastSeen: 300 }, 9);
+    expect(updates).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ routeGeometry: ['r1'] }));
+    store.destroy();
+  });
+
   it('upserts nodes without duplicating IDs and marks their routes dirty', () => {
     const route = existingRoute();
     const store = new LiveStore({ ...initial, routes: [route] });

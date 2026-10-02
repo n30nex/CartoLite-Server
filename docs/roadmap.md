@@ -1,5 +1,7 @@
 # Audit roadmap
 
+Latest reliability review: [2 October 2026 end-to-end audit](audit-2026-10-02.md). The paired 0.15.3 / 0.6.3 patch addresses ingest indexing, region aliases, replay, redraws, shutdown and installation identity. Exact-commit Actions and release receipts determine delivery status; older rows below are historical.
+
 Latest UI review: [2026-09-13 audit and refinement](ui-ux-audit-2026-09-13.md). The paired refinement implements A07, A08, A10 and part of A09, with layer organization and scoped reset; release evidence is separate.
 
 Updated: 12 September 2026. This roadmap turns the end-to-end audit into tracked delivery work. Audit IDs A01–A12 are retained; F IDs track features and R IDs track validation risks.

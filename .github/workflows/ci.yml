@@ -35,6 +35,9 @@ jobs:
         run: go vet ./...
       - working-directory: backend
         run: go test -race ./...
+      - name: Synthetic ingest index benchmark
+        working-directory: backend
+        run: go test ./internal/engine -run '^$' -bench BenchmarkNodeRepresentative -benchmem -benchtime=200ms -count=3
 
   frontend:
     name: Frontend test and build
@@ -197,7 +200,8 @@ jobs:
           candidate="${IMAGE_NAME}:sha-${GITHUB_SHA}-${{ matrix.arch }}"
           docker tag cartolite-server:ci "$candidate"
           docker push "$candidate"
-          digest="$(docker buildx imagetools inspect "$candidate" | awk '$1 == "Digest:" {print $2; exit}')"
+          docker buildx imagetools inspect "$candidate" > "$RUNNER_TEMP/candidate-inspect.txt"
+          digest="$(awk '$1 == "Digest:" {print $2; exit}' "$RUNNER_TEMP/candidate-inspect.txt")"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           mkdir -p artifacts/candidate
           printf '%s\n' "$digest" > artifacts/candidate/${{ matrix.arch }}.txt
@@ -269,7 +273,8 @@ jobs:
           candidate="${IMAGE_NAME}:sha-${GITHUB_SHA}"
           docker buildx imagetools create --tag "$candidate" "${IMAGE_NAME}@${amd64}" "${IMAGE_NAME}@${arm64}"
           docker buildx imagetools inspect "$candidate" --raw | jq -e '[.manifests[].platform | .os + "/" + .architecture] | sort == ["linux/amd64","linux/arm64"]'
-          digest="$(docker buildx imagetools inspect "$candidate" | awk '$1 == "Digest:" {print $2; exit}')"
+          docker buildx imagetools inspect "$candidate" > "$RUNNER_TEMP/candidate-inspect.txt"
+          digest="$(awk '$1 == "Digest:" {print $2; exit}' "$RUNNER_TEMP/candidate-inspect.txt")"
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "image=${IMAGE_NAME}@${digest}" >> "$GITHUB_OUTPUT"

@@ -33,7 +33,7 @@ func Load(version, gitSHA string) (Config, error) {
 		MQTTEnabled:   envBool("MQTT_ENABLED", true),
 		MQTTBrokerURL: strings.TrimSpace(os.Getenv("MQTT_BROKER_URL")),
 		MQTTTopic:     env("MQTT_TOPIC", "meshcore/#"),
-		MQTTClientID:  env("MQTT_CLIENT_ID", "cartolite-server"),
+		MQTTClientID:  strings.TrimSpace(os.Getenv("MQTT_CLIENT_ID")),
 		MQTTUsername:  strings.TrimSpace(os.Getenv("MQTT_USERNAME")),
 		MQTTPassword:  strings.TrimSpace(os.Getenv("MQTT_PASSWORD")),
 		QueueSize:     envInt("MQTT_INGEST_QUEUE_SIZE", 4096),
@@ -46,6 +46,12 @@ func Load(version, gitSHA string) (Config, error) {
 		return Config{}, err
 	}
 	c.Regions = regions
+	if c.MQTTClientID == "" {
+		c.MQTTClientID, err = defaultClientID()
+		if err != nil {
+			return Config{}, err
+		}
+	}
 	if c.MapProvider != "openfreemap" && c.MapProvider != "carto" {
 		return Config{}, fmt.Errorf("BASEMAP_PROVIDER must be openfreemap or carto")
 	}

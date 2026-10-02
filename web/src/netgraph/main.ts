@@ -207,9 +207,9 @@ async function start(): Promise<void> {
       onNode(event) {
         liveStore.upsertNode(event.node, event.seq);
       },
-      onPacket(event) {
+      onPacket(event, replayed) {
         const packet = liveStore.applyPacket(event);
-        if (!packet) return;
+        if (!packet || replayed) return;
         graph.preparePacket(packet);
         graph.addPacket(packet);
         const noteCount = routeSonifier.play(packet);
