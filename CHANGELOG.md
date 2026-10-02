@@ -8,6 +8,7 @@
 - Drain accepted observations into the final checkpoint and cancel active event streams during shutdown.
 - Generate unique clean-session MQTT identities for unconfigured installations; explicit broker IDs remain unchanged. Clear an old shared default when upgrading multiple installs on one broker.
 - Record the end-to-end audit, synthetic regressions and index benchmark in docs/audit-2026-10-02.md.
+- Verify anonymous published-image upgrades from the exact 0.6.2 image on AMD64 and ARM64, retaining the legacy 0.4.1 migration check.
 
 ## 0.6.2 - Compact map controls
 

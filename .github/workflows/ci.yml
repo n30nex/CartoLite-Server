@@ -15,6 +15,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
+  # Exact published 0.6.2, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:acb8a95101655cc0ded3971d1999390c5aff3dd276c97d3dc1f44dbfd408331d
 
 jobs:
   backend:
@@ -305,8 +307,10 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/anonymous-docker"
           DOCKER_CONFIG="$RUNNER_TEMP/anonymous-docker" docker pull "$CANDIDATE_IMAGE"
+          DOCKER_CONFIG="$RUNNER_TEMP/anonymous-docker" docker pull "$UPGRADE_FROM_IMAGE"
           test "$(docker image inspect "$CANDIDATE_IMAGE" --format '{{.Architecture}}')" = "${{ matrix.arch }}"
-          bash scripts/compose-smoke.sh "$CANDIDATE_IMAGE" "$GITHUB_SHA"
+          test "$(docker image inspect "$UPGRADE_FROM_IMAGE" --format '{{.Architecture}}')" = "${{ matrix.arch }}"
+          bash scripts/compose-smoke.sh "$CANDIDATE_IMAGE" "$GITHUB_SHA" "$UPGRADE_FROM_IMAGE"
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
