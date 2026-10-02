@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -77,7 +78,7 @@ func run() error {
 		state.Wait()
 		return err
 	}
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 75 * time.Second}
+	server := newHTTPServer(ctx, cfg.HTTPAddr, api.Handler())
 	errors := make(chan error, 1)
 	go func() {
 		log.Info("cartolite listening", "address", cfg.HTTPAddr, "broker", mqtt.RedactBroker(cfg.MQTTBrokerURL), "version", cfg.Version, "gitSha", cfg.GitSHA)
@@ -97,11 +98,17 @@ func run() error {
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := server.Shutdown(shutdownCtx); err != nil {
-		return err
-	}
+	shutdownErr := server.Shutdown(shutdownCtx)
 	state.Wait()
-	return nil
+	return shutdownErr
+}
+
+func newHTTPServer(ctx context.Context, addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr: addr, Handler: handler,
+		ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 75 * time.Second,
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
 }
 
 func reportOperationalStats(ctx context.Context, log *slog.Logger, state *engine.Engine, hub *httpapi.Hub) {

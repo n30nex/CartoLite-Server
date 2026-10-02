@@ -82,6 +82,8 @@ export class LiveStore {
 
   upsertNode(node: NodeV2, seq: number): void {
     const index = this.nodeIndexes.get(node.id);
+    const previous = index === undefined ? undefined : this.current.nodes[index];
+    const moved = !previous || previous.lat !== node.lat || previous.lng !== node.lng;
     const nodes = [...this.current.nodes];
     if (index !== undefined) nodes[index] = node;
     else {
@@ -89,7 +91,7 @@ export class LiveStore {
       nodes.push(node);
     }
     this.current = { ...this.current, seq, nodes };
-    this.emit({ nodes: [node], routeGeometry: [...(this.nodeRoutes.get(node.id) ?? [])] });
+    this.emit({ nodes: [node], routeGeometry: moved ? [...(this.nodeRoutes.get(node.id) ?? [])] : [] });
   }
 
   updateStatus(status: StatusV2, seq: number): void {

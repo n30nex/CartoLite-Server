@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode"
@@ -57,6 +58,8 @@ type Engine struct {
 	bootID               string
 	log                  *slog.Logger
 	input                chan mqtt.Message
+	inputMu              sync.RWMutex
+	stopping             bool
 	feedWake             chan struct{}
 	desiredFeed          atomic.Bool
 	dropped              atomic.Int64
@@ -127,10 +130,7 @@ func New(options Options) (*Engine, error) {
 		e.lastCheckpointAt.Store(info.ModTime().UnixMilli())
 	}
 	for key, node := range e.nodes {
-		id := nodePublicID(node)
-		if current := e.nodeIDs[id]; current == nil || node.LastSeen > current.LastSeen {
-			e.nodeIDs[id] = node
-		}
+		e.selectNodeID(node)
 		e.indexNode(key, node)
 	}
 	prunedRoutes, prunedNodes := e.pruneDurableState(time.Now().UnixMilli())
@@ -144,6 +144,11 @@ func New(options Options) (*Engine, error) {
 func (e *Engine) SetPublisher(publish func(Event)) { e.publish = publish }
 
 func (e *Engine) Submit(message mqtt.Message) bool {
+	e.inputMu.RLock()
+	defer e.inputMu.RUnlock()
+	if e.stopping {
+		return false
+	}
 	select {
 	case e.input <- message:
 		return true
@@ -173,6 +178,17 @@ func (e *Engine) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Stop admission before draining so every accepted observation is saved.
+			e.inputMu.Lock()
+			e.stopping = true
+			e.inputMu.Unlock()
+			for len(e.input) > 0 {
+				message := <-e.input
+				e.processed.Add(1)
+				if e.process(message) {
+					dirtyCheckpoint = true
+				}
+			}
 			_, _ = e.flushCheckpoint(time.Now(), dirtyCheckpoint)
 			e.updateSnapshot(time.Now())
 			return
@@ -309,8 +325,8 @@ func (e *Engine) observePublisher(message mqtt.Message) (*privateNode, bool) {
 		node.LastSeen = message.HeardAt
 		changed = true
 	}
-	e.refreshNodeID(nodePublicID(node))
-	if node.HasCoords && (topologyChanged || shouldPublishFreshness(node, message.HeardAt)) {
+	representativeChanged := e.selectNodeID(node)
+	if node.HasCoords && (representativeChanged || topologyChanged || shouldPublishFreshness(node, message.HeardAt)) {
 		e.emitNode(node)
 	}
 	return node, changed
@@ -409,7 +425,6 @@ func (e *Engine) upsertNode(region, key, name, role string, observer bool, lat, 
 		node = &privateNode{Region: region, Key: key, Role: normalizeRole(role), Observer: observer, LastSeen: seenAt}
 		node.Label = sanitizeLabel(name, node.Role, observer)
 		e.nodes[mapKey] = node
-		e.nodeIDs[nodePublicID(node)] = node
 		e.indexNode(mapKey, node)
 	}
 	changed := created
@@ -440,14 +455,19 @@ func (e *Engine) upsertNode(region, key, name, role string, observer bool, lat, 
 		node.LastSeen = seenAt
 		changed = true
 	}
-	e.refreshNodeID(nodePublicID(node))
-	if node.HasCoords && (topologyChanged || shouldPublishFreshness(node, seenAt)) {
+	representativeChanged := e.selectNodeID(node)
+	if node.HasCoords && (representativeChanged || topologyChanged || shouldPublishFreshness(node, seenAt)) {
 		e.emitNode(node)
 	}
 	return node, changed
 }
 
 func (e *Engine) emitNode(node *privateNode) {
+	// Region aliases share a public ID. Older aliases must not overwrite the
+	// representative used by snapshots with a stale location or label over SSE.
+	if e.nodeIDs[nodePublicID(node)] != node {
+		return
+	}
 	node.LastPublished = node.LastSeen
 	seq := e.seq.Add(1)
 	e.emit(Event{Name: "node", Seq: seq, Data: NodeEventV2{Seq: seq, Node: publicNode(node)}})
@@ -676,15 +696,25 @@ func (e *Engine) evictOldestNode() {
 	}
 }
 
+// Prefer a known position, then the most recent alias. LastSeen only increases,
+// so updates can maintain the representative in O(1).
+// Removal still uses the full scan to find the best remaining region alias.
+func (e *Engine) selectNodeID(node *privateNode) bool {
+	id := nodePublicID(node)
+	if current := e.nodeIDs[id]; current == nil || (node.HasCoords && !current.HasCoords) || (node.HasCoords == current.HasCoords && node.LastSeen > current.LastSeen) {
+		e.nodeIDs[id] = node
+		return true
+	}
+	return false
+}
+
 func (e *Engine) refreshNodeID(id string) {
 	delete(e.nodeIDs, id)
 	for _, node := range e.nodes {
 		if nodePublicID(node) != id {
 			continue
 		}
-		if current := e.nodeIDs[id]; current == nil || node.LastSeen > current.LastSeen {
-			e.nodeIDs[id] = node
-		}
+		e.selectNodeID(node)
 	}
 }
 
