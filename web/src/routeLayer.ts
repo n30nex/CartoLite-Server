@@ -23,31 +23,31 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   readonly type = 'custom' as const;
   // Terrain/buildings provide context; confirmed paths deliberately remain visible.
   readonly renderingMode = '3d' as const;
-  private map?: MapLibreMap;
-  private gl?: GL;
-  private resources?: Resources;
-  private routes: readonly Feature<LineString>[] = [];
-  private hitPaths: HitPath[] = [];
-  private vertexCount = 0;
-  private dirty = true;
-  private visible = false;
-  private maximumBand = 3;
-  private opacity = 0.8;
-  private lightBackground = false;
-  private origin: [number, number, number] = [0, 0, 0];
-  private lastUploadAt = -Infinity;
-  private refreshTimer?: ReturnType<typeof setTimeout>;
-  private hitMatrix?: Float32Array;
-  private building = false;
-  private buildEpoch = 0;
-  private prepared?: PreparedMesh;
-  private cameraKey = '';
-  private buffers: GPUChunk[] = [];
-  private bufferTerrain = false;
+  #map?: MapLibreMap;
+  #gl?: GL;
+  #resources?: Resources;
+  #routes: readonly Feature<LineString>[] = [];
+  #hitPaths: HitPath[] = [];
+  #vertexCount = 0;
+  #dirty = true;
+  #visible = false;
+  #maximumBand = 3;
+  #opacity = 0.8;
+  #lightBackground = false;
+  #origin: [number, number, number] = [0, 0, 0];
+  #lastUploadAt = -Infinity;
+  #refreshTimer?: ReturnType<typeof setTimeout>;
+  #hitMatrix?: Float32Array;
+  #building = false;
+  #buildEpoch = 0;
+  #prepared?: PreparedMesh;
+  #cameraKey = '';
+  #buffers: GPUChunk[] = [];
+  #bufferTerrain = false;
 
   onAdd(map: MapLibreMap, gl: GL): void {
-    this.map = map;
-    this.gl = gl;
+    this.#map = map;
+    this.#gl = gl;
     const program = createProgram(gl);
     const uniforms: Record<string, WebGLUniformLocation> = {};
     for (const name of ['matrix', 'viewport', 'width', 'glow', 'opacity', 'maximum_band', 'pattern', 'casing', 'outline', 'simple']) {
@@ -60,91 +60,91 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       if (location < 0) throw new Error(`Missing route attribute: ${name}`);
       return location;
     });
-    this.resources = { program, uniforms, attributes };
-    map.on('move', this.cameraChanged);
-    map.on('moveend', this.cameraChanged);
-    map.on('terrain', this.terrainChanged);
-    map.on('sourcedata', this.sourceChanged);
-    this.dirty = true;
+    this.#resources = { program, uniforms, attributes };
+    map.on('move', this.#cameraChanged);
+    map.on('moveend', this.#cameraChanged);
+    map.on('terrain', this.#terrainChanged);
+    map.on('sourcedata', this.#sourceChanged);
+    this.#dirty = true;
   }
   onRemove(map: MapLibreMap, gl: GL): void {
-    map.off('move', this.cameraChanged);
-    map.off('moveend', this.cameraChanged);
-    map.off('terrain', this.terrainChanged);
-    map.off('sourcedata', this.sourceChanged);
-    this.clearBuffers();
-    if (this.resources) gl.deleteProgram(this.resources.program);
-    this.resources = undefined;
-    this.cancelBuild();
-    this.map = undefined;
-    this.gl = undefined;
-    if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
-    this.refreshTimer = undefined;
+    map.off('move', this.#cameraChanged);
+    map.off('moveend', this.#cameraChanged);
+    map.off('terrain', this.#terrainChanged);
+    map.off('sourcedata', this.#sourceChanged);
+    this.#clearBuffers();
+    if (this.#resources) gl.deleteProgram(this.#resources.program);
+    this.#resources = undefined;
+    this.#cancelBuild();
+    this.#map = undefined;
+    this.#gl = undefined;
+    if (this.#refreshTimer !== undefined) clearTimeout(this.#refreshTimer);
+    this.#refreshTimer = undefined;
   }
-  private cameraChanged = (): void => {
-    if (!this.map) return;
-    const location = this.map.getCenter();
-    const canvas = this.map.getCanvas();
-    const key = [location.lng.toFixed(7), location.lat.toFixed(7), this.map.getZoom().toFixed(3),
-      this.map.getPitch().toFixed(2), this.map.getBearing().toFixed(2), canvas.clientWidth, canvas.clientHeight,
-      JSON.stringify(this.map.getPadding())].join(':');
-    if (key === this.cameraKey) return;
-    this.cameraKey = key;
+  #cameraChanged = (): void => {
+    if (!this.#map) return;
+    const location = this.#map.getCenter();
+    const canvas = this.#map.getCanvas();
+    const key = [location.lng.toFixed(7), location.lat.toFixed(7), this.#map.getZoom().toFixed(3),
+      this.#map.getPitch().toFixed(2), this.#map.getBearing().toFixed(2), canvas.clientWidth, canvas.clientHeight,
+      JSON.stringify(this.#map.getPadding())].join(':');
+    if (key === this.#cameraKey) return;
+    this.#cameraKey = key;
     const center = MercatorCoordinate.fromLngLat(location);
-    if (this.map.getTerrain() || Math.abs(center.x - this.origin[0]) > 1 / 256 || Math.abs(center.y - this.origin[1]) > 1 / 256) this.scheduleResample();
+    if (this.#map.getTerrain() || Math.abs(center.x - this.#origin[0]) > 1 / 256 || Math.abs(center.y - this.#origin[1]) > 1 / 256) this.#scheduleResample();
   };
-  private sourceChanged = (event: { sourceId?: string; sourceDataType?: string }): void => {
-    if ((!event.sourceDataType || event.sourceDataType === 'content') && event.sourceId && event.sourceId === this.map?.getTerrain()?.source) this.scheduleResample();
+  #sourceChanged = (event: { sourceId?: string; sourceDataType?: string }): void => {
+    if ((!event.sourceDataType || event.sourceDataType === 'content') && event.sourceId && event.sourceId === this.#map?.getTerrain()?.source) this.#scheduleResample();
   };
-  private scheduleResample(): void {
-    if (!this.visible) { this.dirty = true; return; }
-    const delay = Math.max(0, 200 - (performance.now() - this.lastUploadAt));
-    if (delay === 0) { this.invalidate(); return; }
-    if (this.refreshTimer !== undefined) return;
-    this.refreshTimer = setTimeout(() => { this.refreshTimer = undefined; this.invalidate(); }, delay);
+  #scheduleResample(): void {
+    if (!this.#visible) { this.#dirty = true; return; }
+    const delay = Math.max(0, 200 - (performance.now() - this.#lastUploadAt));
+    if (delay === 0) { this.#invalidate(); return; }
+    if (this.#refreshTimer !== undefined) return;
+    this.#refreshTimer = setTimeout(() => { this.#refreshTimer = undefined; this.#invalidate(); }, delay);
   }
-  private invalidate = (): void => { this.dirty = true; if (this.visible) this.map?.triggerRepaint(); };
-  private terrainChanged = (): void => {
-    this.cancelBuild();
+  #invalidate = (): void => { this.#dirty = true; if (this.#visible) this.#map?.triggerRepaint(); };
+  #terrainChanged = (): void => {
+    this.#cancelBuild();
     // A flat mesh has neither terrain heights nor viewport culling. Do not draw
     // it in the new 3D camera while the correct terrain geometry is prepared.
-    if (Boolean(this.map?.getTerrain()) !== this.bufferTerrain) this.clearBuffers();
-    this.invalidate();
+    if (Boolean(this.#map?.getTerrain()) !== this.#bufferTerrain) this.#clearBuffers();
+    this.#invalidate();
   };
-  private clearBuffers(): void {
-    if (this.gl) for (const chunk of this.buffers) this.gl.deleteBuffer(chunk.buffer);
-    this.buffers = []; this.vertexCount = 0; this.hitPaths = []; this.hitMatrix = undefined;
+  #clearBuffers(): void {
+    if (this.#gl) for (const chunk of this.#buffers) this.#gl.deleteBuffer(chunk.buffer);
+    this.#buffers = []; this.#vertexCount = 0; this.#hitPaths = []; this.#hitMatrix = undefined;
   }
-  private cancelBuild(): void {
-    if (this.gl && this.prepared) for (const chunk of this.prepared.buffers) this.gl.deleteBuffer(chunk.buffer);
-    this.buildEpoch += 1; this.building = false; this.prepared = undefined; this.dirty = true;
-    if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
+  #cancelBuild(): void {
+    if (this.#gl && this.#prepared) for (const chunk of this.#prepared.buffers) this.#gl.deleteBuffer(chunk.buffer);
+    this.#buildEpoch += 1; this.#building = false; this.#prepared = undefined; this.#dirty = true;
+    if (this.#map) this.#map.getContainer().dataset.routeMeshBusy = 'false';
   }
-  setRoutes(routes: readonly Feature<LineString>[]): void { this.cancelBuild(); this.routes = routes; this.invalidate(); }
-  setOpacity(opacity: number): void { this.opacity = clamp(opacity, 0.2, 1); this.map?.triggerRepaint(); }
-  setLightBackground(light: boolean): void { if (light !== this.lightBackground) { this.cancelBuild(); this.lightBackground = light; this.invalidate(); } }
+  setRoutes(routes: readonly Feature<LineString>[]): void { this.#cancelBuild(); this.#routes = routes; this.#invalidate(); }
+  setOpacity(opacity: number): void { this.#opacity = clamp(opacity, 0.2, 1); this.#map?.triggerRepaint(); }
+  setLightBackground(light: boolean): void { if (light !== this.#lightBackground) { this.#cancelBuild(); this.#lightBackground = light; this.#invalidate(); } }
   setVisible(visible: boolean): void {
-    if (this.visible === visible) return;
-    this.visible = visible;
-    if (!visible) this.cancelBuild();
-    this.map?.triggerRepaint();
+    if (this.#visible === visible) return;
+    this.#visible = visible;
+    if (!visible) this.#cancelBuild();
+    this.#map?.triggerRepaint();
   }
   setMaximumBand(band: number): void {
     const next = clamp(Math.round(band), 0, 3);
-    if (next === this.maximumBand) return;
-    this.maximumBand = next;
-    if (this.map?.getTerrain()) this.cancelBuild();
-    if (this.visible) this.map?.triggerRepaint();
+    if (next === this.#maximumBand) return;
+    this.#maximumBand = next;
+    if (this.#map?.getTerrain()) this.#cancelBuild();
+    if (this.#visible) this.#map?.triggerRepaint();
   }
-  refreshAppearance(): void { this.map?.triggerRepaint(); }
+  refreshAppearance(): void { this.#map?.triggerRepaint(); }
 
   pick(point: { x: number; y: number }, allowed: (id: string) => boolean): string | undefined {
-    if (!this.visible || !this.map?.getTerrain()) return undefined;
-    if (!this.hitMatrix) return undefined;
-    const matrix = this.hitMatrix;
-    const width = this.map.getCanvas().clientWidth; const height = this.map.getCanvas().clientHeight;
+    if (!this.#visible || !this.#map?.getTerrain()) return undefined;
+    if (!this.#hitMatrix) return undefined;
+    const matrix = this.#hitMatrix;
+    const width = this.#map.getCanvas().clientWidth; const height = this.#map.getCanvas().clientHeight;
     const project = (position: readonly number[]): SurfacePoint | undefined => {
-      const x = position[0]! - this.origin[0]; const y = position[1]! - this.origin[1]; const z = position[2]!;
+      const x = position[0]! - this.#origin[0]; const y = position[1]! - this.#origin[1]; const z = position[2]!;
       const w = matrix[3]! * x + matrix[7]! * y + matrix[11]! * z + matrix[15]!;
       if (w <= 0) return undefined;
       return { x: ((matrix[0]! * x + matrix[4]! * y + matrix[8]! * z + matrix[12]!) / w + 1) * width / 2,
@@ -152,8 +152,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     };
     let best = 7 + displayPreferences().width / 2;
     let found: string | undefined;
-    for (const path of this.hitPaths) {
-      if (path.band > this.maximumBand || !allowed(path.id)) continue;
+    for (const path of this.#hitPaths) {
+      if (path.band > this.#maximumBand || !allowed(path.id)) continue;
       const points = path.positions.map(project);
       for (let i = 1; i < points.length; i += 1) {
         const a = points[i - 1]; const b = points[i];
@@ -167,17 +167,17 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     return found;
   }
 
-  private async upload(matrix: readonly number[]): Promise<void> {
-    if (!this.map || !this.gl || !this.resources) return;
-    const map = this.map;
+  async #upload(matrix: readonly number[]): Promise<void> {
+    if (!this.#map || !this.#gl || !this.#resources) return;
+    const map = this.#map;
     const started = performance.now();
     const center = MercatorCoordinate.fromLngLat(map.getCenter());
     const origin: [number, number, number] = [center.x, center.y, 0];
-    const epoch = ++this.buildEpoch;
-    this.building = true;
-    this.dirty = false;
+    const epoch = ++this.#buildEpoch;
+    this.#building = true;
+    this.#dirty = false;
     map.getContainer().dataset.routeMeshBusy = 'true';
-    const routes = this.routes;
+    const routes = this.#routes;
     const terrain = Boolean(map.getTerrain());
     const sampleElevation = terrain ? terrainBatchSampler(map) : () => 0;
     const bounds = map.getBounds();
@@ -232,11 +232,11 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       const rawFrom = route.geometry.coordinates[0]; const rawTo = route.geometry.coordinates.at(-1);
       if (!rawFrom || !rawTo) continue;
       const band = Number(route.properties?.windowBand ?? 3);
-      if (terrain && band > this.maximumBand) continue;
-      const color = displayColor(String(route.properties?.color ?? '#73d9cf'), this.lightBackground);
+      if (terrain && band > this.#maximumBand) continue;
+      const color = displayColor(String(route.properties?.color ?? '#73d9cf'), this.#lightBackground);
       const rawOpacity = clamp(Number(route.properties?.opacity ?? 0.4), 0, 1);
       if (rawOpacity === 0) continue;
-      const opacity = Math.max(this.lightBackground ? 0.95 : 0.55, rawOpacity);
+      const opacity = Math.max(this.#lightBackground ? 0.95 : 0.55, rawOpacity);
       const pieces = splitWorldRoute([rawFrom[0]!, rawFrom[1]!], [rawTo[0]!, rawTo[1]!]);
       for (const pair of pieces) {
         if (!terrain) {
@@ -270,7 +270,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
             maximumSlice = Math.max(maximumSlice, elapsed);
             workMs += elapsed;
             await new Promise<void>(resolve => setTimeout(resolve, 0));
-            if (this.map !== map || this.buildEpoch !== epoch) return;
+            if (this.#map !== map || this.#buildEpoch !== epoch) return;
             sliceStarted = performance.now();
           }
         }
@@ -280,26 +280,26 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       const remainder = packed as Float32Array | undefined;
       if (remainder && packedOffset) chunks.push(remainder.subarray(0, packedOffset));
     } else chunks.push(strokeVertices(segments, origin));
-    if (this.map !== map || this.buildEpoch !== epoch) return;
+    if (this.#map !== map || this.#buildEpoch !== epoch) return;
     const finalSlice = performance.now() - sliceStarted;
     workMs += finalSlice;
     maximumSlice = Math.max(maximumSlice, finalSlice);
-    this.prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0, maximumAllocationBytes: 0, terrain };
-    this.building = false;
-    if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
-    this.refreshTimer = undefined;
+    this.#prepared = { chunks, buffers: [], nextChunk: 0, origin, hitPaths, startedAt: started, workMs, maximumSliceMs: maximumSlice, samples: terrain ? projections.size : 0, maximumUploadBytes: 0, maximumAllocationBytes: 0, terrain };
+    this.#building = false;
+    if (this.#refreshTimer !== undefined) clearTimeout(this.#refreshTimer);
+    this.#refreshTimer = undefined;
     if (terrain) map.triggerRepaint();
   }
   render(gl: GL, options: CustomRenderMethodInput): void {
-    if (!this.resources || !this.map || !this.visible) return;
-    if (this.dirty && !this.building && !this.prepared) void this.upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
-      this.building = false;
-      if (this.map) this.map.getContainer().dataset.routeMeshBusy = 'false';
+    if (!this.#resources || !this.#map || !this.#visible) return;
+    if (this.#dirty && !this.#building && !this.#prepared) void this.#upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
+      this.#building = false;
+      if (this.#map) this.#map.getContainer().dataset.routeMeshBusy = 'false';
       console.warn('Historical route geometry could not be prepared');
     });
-    if (this.prepared) {
+    if (this.#prepared) {
       const commitStarted = performance.now();
-      const mesh = this.prepared;
+      const mesh = this.#prepared;
       do {
         const data = mesh.chunks[mesh.nextChunk];
         if (!data) break;
@@ -307,7 +307,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
         if (!target || target.written + data.byteLength > target.capacity) {
           const capacity = mesh.chunks.slice(mesh.nextChunk, mesh.nextChunk + 8).reduce((size, part) => size + part.byteLength, 0);
           const buffer = gl.createBuffer();
-          if (!buffer) { this.cancelBuild(); return; }
+          if (!buffer) { this.#cancelBuild(); return; }
           gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
           gl.bufferData(gl.ARRAY_BUFFER, capacity, gl.DYNAMIC_DRAW);
           target = { buffer, count: 0, capacity, written: 0 };
@@ -324,32 +324,32 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
       const commitMs = performance.now() - commitStarted;
       mesh.workMs += commitMs;
       mesh.maximumSliceMs = Math.max(mesh.maximumSliceMs, commitMs);
-      const container = this.map.getContainer();
+      const container = this.#map.getContainer();
       if (mesh.nextChunk === mesh.chunks.length) {
-        for (const chunk of this.buffers) gl.deleteBuffer(chunk.buffer);
-        this.buffers = mesh.buffers;
-        this.bufferTerrain = mesh.terrain;
-        this.origin = mesh.origin;
-        this.hitPaths = mesh.hitPaths;
-        this.vertexCount = this.buffers.reduce((count, chunk) => count + chunk.count, 0);
-        this.prepared = undefined;
-        this.lastUploadAt = performance.now();
+        for (const chunk of this.#buffers) gl.deleteBuffer(chunk.buffer);
+        this.#buffers = mesh.buffers;
+        this.#bufferTerrain = mesh.terrain;
+        this.#origin = mesh.origin;
+        this.#hitPaths = mesh.hitPaths;
+        this.#vertexCount = this.#buffers.reduce((count, chunk) => count + chunk.count, 0);
+        this.#prepared = undefined;
+        this.#lastUploadAt = performance.now();
         container.dataset.routeMeshUploadMs = mesh.workMs.toFixed(1);
-        container.dataset.routeMeshDurationMs = (this.lastUploadAt - mesh.startedAt).toFixed(1);
+        container.dataset.routeMeshDurationMs = (this.#lastUploadAt - mesh.startedAt).toFixed(1);
         container.dataset.routeMeshMaxSliceMs = mesh.maximumSliceMs.toFixed(1);
         container.dataset.routeMeshMaxUploadBytes = String(mesh.maximumUploadBytes);
         container.dataset.routeMeshMaxAllocationBytes = String(mesh.maximumAllocationBytes);
         container.dataset.routeTerrainSamples = String(mesh.samples);
         container.dataset.routeMeshBusy = 'false';
       }
-      if (this.prepared || this.dirty) this.map.triggerRepaint();
+      if (this.#prepared || this.#dirty) this.#map.triggerRepaint();
     }
-    if (!this.vertexCount) return;
-    const { program, uniforms, attributes } = this.resources;
+    if (!this.#vertexCount) return;
+    const { program, uniforms, attributes } = this.#resources;
     const settings = displayPreferences();
     // Preserve every core stroke and pattern; omit decorative passes when a
     // dense close view carries as much geometry as a regional overview.
-    const denseOverview = this.routes.length > 2000 && (this.map.getZoom() < 11 || this.vertexCount > 12000);
+    const denseOverview = this.#routes.length > 2000 && (this.#map.getZoom() < 11 || this.#vertexCount > 12000);
     const depth = gl.isEnabled(gl.DEPTH_TEST);
     const cull = gl.isEnabled(gl.CULL_FACE);
     const depthMask = gl.getParameter(gl.DEPTH_WRITEMASK) as boolean;
@@ -362,20 +362,20 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     for (const attribute of attributes) gl.enableVertexAttribArray(attribute);
     // Rebase in double precision before uploading floats, keeping close-zoom endpoints aligned.
     const matrix = Array.from(options.defaultProjectionData.mainMatrix);
-    for (let row = 0; row < 4; row += 1) matrix[12 + row] = matrix[12 + row]! + matrix[row]! * this.origin[0] + matrix[4 + row]! * this.origin[1];
-    this.hitMatrix = new Float32Array(matrix);
-    gl.uniformMatrix4fv(uniforms.matrix!, false, this.hitMatrix);
-    gl.uniform2f(uniforms.viewport!, Math.max(1, this.map.getCanvas().clientWidth), Math.max(1, this.map.getCanvas().clientHeight));
+    for (let row = 0; row < 4; row += 1) matrix[12 + row] = matrix[12 + row]! + matrix[row]! * this.#origin[0] + matrix[4 + row]! * this.#origin[1];
+    this.#hitMatrix = new Float32Array(matrix);
+    gl.uniformMatrix4fv(uniforms.matrix!, false, this.#hitMatrix);
+    gl.uniform2f(uniforms.viewport!, Math.max(1, this.#map.getCanvas().clientWidth), Math.max(1, this.#map.getCanvas().clientHeight));
     gl.uniform1f(uniforms.width!, settings.width);
-    gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.map.getZoom() - 3) / 7, 0.15, 1));
+    gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.#map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
     gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
-    gl.uniform1f(uniforms.opacity!, this.opacity * (settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.routes.length / 150) * .1, .38, .9) : 1));
-    gl.uniform1f(uniforms.maximum_band!, this.maximumBand);
+    gl.uniform1f(uniforms.opacity!, this.#opacity * (settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.#routes.length / 150) * .1, .38, .9) : 1));
+    gl.uniform1f(uniforms.maximum_band!, this.#maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
-    if (this.lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
+    if (this.#lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
     else gl.uniform3f(uniforms.casing!, 0.025, 0.055, 0.075);
-    for (const chunk of this.buffers) {
+    for (const chunk of this.#buffers) {
       gl.bindBuffer(gl.ARRAY_BUFFER, chunk.buffer);
       let offset = 0;
       [3, 3, 2, 3, 1, 1].forEach((size, index) => {

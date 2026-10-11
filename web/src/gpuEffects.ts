@@ -32,28 +32,28 @@ void main() {
 
 /** Screen geometry comes from the same projector as hit testing and audio. */
 export class GPUEffects {
-  private gl?: WebGL2RenderingContext;
-  private program?: WebGLProgram;
-  private buffer?: WebGLBuffer;
-  private vao?: WebGLVertexArrayObject;
-  private resolution?: WebGLUniformLocation | null;
-  private readonly vertices = new Float32Array(CAPACITY);
-  private used = 0;
-  private enabled = true;
-  get hasInk(): boolean { return this.used > 0; }
-  setEnabled(enabled: boolean): void { this.enabled = enabled; }
-  private width = 1;
-  private height = 1;
-  get ready(): boolean { return this.enabled && !!this.program && !!this.gl && !this.gl.isContextLost(); }
+  #gl?: WebGL2RenderingContext;
+  #program?: WebGLProgram;
+  #buffer?: WebGLBuffer;
+  #vao?: WebGLVertexArrayObject;
+  #resolution?: WebGLUniformLocation | null;
+  readonly #vertices = new Float32Array(CAPACITY);
+  #used = 0;
+  #enabled = true;
+  get hasInk(): boolean { return this.#used > 0; }
+  setEnabled(enabled: boolean): void { this.#enabled = enabled; }
+  #width = 1;
+  #height = 1;
+  get ready(): boolean { return this.#enabled && !!this.#program && !!this.#gl && !this.#gl.isContextLost(); }
 
   initialize(gl: WebGL2RenderingContext): void {
-    this.dispose(); this.gl = gl;
+    this.dispose(); this.#gl = gl;
     const shaders: WebGLShader[] = [];
     const oldVAO = gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null;
     const oldBuffer = gl.getParameter(gl.ARRAY_BUFFER_BINDING) as WebGLBuffer | null;
     try {
       const program = gl.createProgram(); if (!program) throw new Error('GPU program unavailable');
-      this.program = program;
+      this.#program = program;
       for (const [kind, source] of [[gl.VERTEX_SHADER, VERTEX], [gl.FRAGMENT_SHADER, FRAGMENT]] as const) {
         const shader = gl.createShader(kind); if (!shader) throw new Error('GPU shader unavailable');
         shaders.push(shader); gl.shaderSource(shader, source); gl.compileShader(shader);
@@ -62,41 +62,41 @@ export class GPUEffects {
       }
       gl.linkProgram(program);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error('GPU effects link failed');
-      this.buffer = gl.createBuffer() ?? undefined; this.vao = gl.createVertexArray() ?? undefined;
-      if (!this.buffer || !this.vao) throw new Error('GPU effect buffers unavailable');
-      gl.bindVertexArray(this.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, this.vertices.byteLength, gl.DYNAMIC_DRAW);
+      this.#buffer = gl.createBuffer() ?? undefined; this.#vao = gl.createVertexArray() ?? undefined;
+      if (!this.#buffer || !this.#vao) throw new Error('GPU effect buffers unavailable');
+      gl.bindVertexArray(this.#vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.#buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, this.#vertices.byteLength, gl.DYNAMIC_DRAW);
       for (const [index, size, offset] of [[0,2,0],[1,2,2],[2,4,4],[3,1,8]]) {
         gl.enableVertexAttribArray(index!); gl.vertexAttribPointer(index!, size!, gl.FLOAT, false, STRIDE*4, offset!*4);
       }
-      this.resolution = gl.getUniformLocation(program, 'resolution');
+      this.#resolution = gl.getUniformLocation(program, 'resolution');
     } catch { this.dispose(); }
     finally { shaders.forEach(shader => gl.deleteShader(shader)); gl.bindVertexArray(oldVAO); gl.bindBuffer(gl.ARRAY_BUFFER, oldBuffer); }
   }
 
-  begin(width: number, height: number): void { this.used = 0; this.width = Math.max(1,width); this.height = Math.max(1,height); }
-  clear(): void { this.used = 0; }
+  begin(width: number, height: number): void { this.#used = 0; this.#width = Math.max(1,width); this.#height = Math.max(1,height); }
+  clear(): void { this.#used = 0; }
 
-  private quad(points: readonly SurfacePoint[], color: string, opacity: number, shape: number, tail = 1): void {
+  #quad(points: readonly SurfacePoint[], color: string, opacity: number, shape: number, tail = 1): void {
     const hex = Number.parseInt(displayColor(color).slice(1),16);
     const rgb = [(hex>>16&255)/255,(hex>>8&255)/255,(hex&255)/255];
     const coords = [[-1,-1],[1,-1],[1,1],[-1,1]];
     for (const i of [0,1,2,0,2,3]) {
       const point = points[i]!; const uv = coords[i]!;
-      this.vertices.set([point.x,point.y,uv[0]!,uv[1]!,...rgb,Math.max(0,Math.min(1,opacity*(i===0||i===3?tail:1))),shape],this.used);
-      this.used += STRIDE;
+      this.#vertices.set([point.x,point.y,uv[0]!,uv[1]!,...rgb,Math.max(0,Math.min(1,opacity*(i===0||i===3?tail:1))),shape],this.#used);
+      this.#used += STRIDE;
     }
   }
 
   disc(point: SurfacePoint, radius: number, color: string, opacity: number, shape = 0, grounded = false): boolean {
-    if (!this.ready || this.used+54>CAPACITY || !Number.isFinite(point.x+point.y+radius)) return false;
+    if (!this.ready || this.#used+54>CAPACITY || !Number.isFinite(point.x+point.y+radius)) return false;
     const g = grounded && point.ground ? point.ground : [1,0,0,1];
-    this.quad([[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y]) => ({x:point.x+radius*(x!*g[0]!+y!*g[2]!),y:point.y+radius*(x!*g[1]!+y!*g[3]!)})),color,opacity,shape);
+    this.#quad([[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y]) => ({x:point.x+radius*(x!*g[0]!+y!*g[2]!),y:point.y+radius*(x!*g[1]!+y!*g[3]!)})),color,opacity,shape);
     return true;
   }
 
   packet(points: readonly SurfacePoint[], head: SurfacePoint, color: string, signature: PacketSignature, emphasis = 1): boolean {
-    if (!this.ready || this.used+(points.length+7)*54>CAPACITY) return false; // Canvas draws overflow; no live hop is dropped.
+    if (!this.ready || this.#used+(points.length+7)*54>CAPACITY) return false; // Canvas draws overflow; no live hop is dropped.
     const settings = displayPreferences(); const strength = effectStrength();
     const radius = 3.1 * settings.packetSize * emphasis * Math.max(.65,Math.min(1.35,head.scale ?? 1));
     const glow = strength * (settings.quality === 'economy' ? .12 : .6);
@@ -104,7 +104,7 @@ export class GPUEffects {
       const a=points[i-1]!, b=points[i]!; if(b.breakBefore) continue;
       const length=Math.hypot(b.x-a.x,b.y-a.y); if(length<.01) continue;
       const width=radius*.55, nx=-(b.y-a.y)/length*width, ny=(b.x-a.x)/length*width;
-      this.quad([{x:a.x+nx,y:a.y+ny},{x:b.x+nx,y:b.y+ny},{x:b.x-nx,y:b.y-ny},{x:a.x-nx,y:a.y-ny}],color,.95,3,Math.max(.06,(i-1)/Math.max(1,points.length-1)));
+      this.#quad([{x:a.x+nx,y:a.y+ny},{x:b.x+nx,y:b.y+ny},{x:b.x-nx,y:b.y-ny},{x:a.x-nx,y:a.y-ny}],color,.95,3,Math.max(.06,(i-1)/Math.max(1,points.length-1)));
     }
     if(glow) this.disc(head,radius*3.2,color,glow,1);
     const shape=signature==='orbit'?4:signature==='tick'?5:0;
@@ -118,7 +118,7 @@ export class GPUEffects {
   }
 
   draw(): void {
-    const gl=this.gl; if(!gl || !this.ready || !this.used) return;
+    const gl=this.#gl; if(!gl || !this.ready || !this.#used) return;
     const program=gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram|null;
     const vao=gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject|null;
     const buffer=gl.getParameter(gl.ARRAY_BUFFER_BINDING) as WebGLBuffer|null;
@@ -126,12 +126,12 @@ export class GPUEffects {
     const depthMask=gl.getParameter(gl.DEPTH_WRITEMASK) as boolean;
     const blendState=[gl.BLEND_SRC_RGB,gl.BLEND_DST_RGB,gl.BLEND_SRC_ALPHA,gl.BLEND_DST_ALPHA].map(p=>gl.getParameter(p) as number);
     try {
-      gl.useProgram(this.program!); gl.bindVertexArray(this.vao!); gl.bindBuffer(gl.ARRAY_BUFFER,this.buffer!);
-      gl.bufferSubData(gl.ARRAY_BUFFER,0,this.vertices.subarray(0,this.used));
-      gl.uniform2f(this.resolution!,this.width,this.height);
+      gl.useProgram(this.#program!); gl.bindVertexArray(this.#vao!); gl.bindBuffer(gl.ARRAY_BUFFER,this.#buffer!);
+      gl.bufferSubData(gl.ARRAY_BUFFER,0,this.#vertices.subarray(0,this.#used));
+      gl.uniform2f(this.#resolution!,this.#width,this.#height);
       gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.depthMask(false); gl.enable(gl.BLEND);
       gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
-      gl.drawArrays(gl.TRIANGLES,0,this.used/STRIDE);
+      gl.drawArrays(gl.TRIANGLES,0,this.#used/STRIDE);
     } finally {
       gl.depthMask(depthMask); (depth?gl.enable:gl.disable).call(gl,gl.DEPTH_TEST); (cull?gl.enable:gl.disable).call(gl,gl.CULL_FACE); (blend?gl.enable:gl.disable).call(gl,gl.BLEND);
       gl.blendFuncSeparate(blendState[0]!,blendState[1]!,blendState[2]!,blendState[3]!);
@@ -139,8 +139,8 @@ export class GPUEffects {
     }
   }
   dispose(): void {
-    if(this.gl && !this.gl.isContextLost()) { if(this.program)this.gl.deleteProgram(this.program); if(this.buffer)this.gl.deleteBuffer(this.buffer); if(this.vao)this.gl.deleteVertexArray(this.vao); }
-    this.program=undefined; this.buffer=undefined; this.vao=undefined; this.used=0;
+    if(this.#gl && !this.#gl.isContextLost()) { if(this.#program)this.#gl.deleteProgram(this.#program); if(this.#buffer)this.#gl.deleteBuffer(this.#buffer); if(this.#vao)this.#gl.deleteVertexArray(this.#vao); }
+    this.#program=undefined; this.#buffer=undefined; this.#vao=undefined; this.#used=0;
   }
 }
 

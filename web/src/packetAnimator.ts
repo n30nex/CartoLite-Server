@@ -281,60 +281,61 @@ export function capNewest<T>(items: readonly T[], limit: number): T[] {
   return kept === 0 ? [] : items.slice(-kept);
 }
 
+// Native private members keep renderer internals minifiable without renaming public/browser APIs.
 export class PacketAnimator {
   readonly projection: TerrainProjector;
-  private readonly gpu: ReturnType<typeof mapEffects>;
-  private readonly context: CanvasRenderingContext2D;
-  private readonly residueCanvas: HTMLCanvasElement;
-  private readonly residueContext: CanvasRenderingContext2D;
-  private readonly reducedMotionQuery: MediaQueryList;
-  private readonly lowPowerQuery: MediaQueryList;
+  readonly #gpu: ReturnType<typeof mapEffects>;
+  readonly #context: CanvasRenderingContext2D;
+  readonly #residueCanvas: HTMLCanvasElement;
+  readonly #residueContext: CanvasRenderingContext2D;
+  readonly #reducedMotionQuery: MediaQueryList;
+  readonly #lowPowerQuery: MediaQueryList;
   private activeRoutes: ActiveRoute[] = [];
-  private activeObservers: ActiveObserver[] = [];
+  #activeObservers: ActiveObserver[] = [];
   private residue: Residue[] = [];
-  private nodeWakes: NodeWake[] = [];
-  private frameId = 0;
-  private residueTimer?: number;
-  private paused = false;
-  private reducedMotion: boolean;
-  private lowPower: boolean;
-  private reducedModeStartedAt = Number.NEGATIVE_INFINITY;
-  private residueProjectionDirty = true;
-  private residueContentDirty = true;
-  private residueCacheUpdatedAt = Number.NEGATIVE_INFINITY;
-  private dpr = 1;
-  private scheduledWakeCount = 0;
-  private appliedQuality?: VisualQuality;
+  #nodeWakes: NodeWake[] = [];
+  #frameId = 0;
+  #residueTimer?: number;
+  #paused = false;
+  #reducedMotion: boolean;
+  #lowPower: boolean;
+  #reducedModeStartedAt = Number.NEGATIVE_INFINITY;
+  #residueProjectionDirty = true;
+  #residueContentDirty = true;
+  #residueCacheUpdatedAt = Number.NEGATIVE_INFINITY;
+  #dpr = 1;
+  #scheduledWakeCount = 0;
+  #appliedQuality?: VisualQuality;
 
   constructor(private readonly map: maplibregl.Map, private readonly canvas: HTMLCanvasElement) {
     this.projection = new TerrainProjector(map);
-    this.gpu = mapEffects(map);
+    this.#gpu = mapEffects(map);
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Canvas2D is unavailable');
-    this.context = context;
-    this.residueCanvas = canvas.ownerDocument.createElement('canvas');
-    const residueContext = this.residueCanvas.getContext('2d');
+    this.#context = context;
+    this.#residueCanvas = canvas.ownerDocument.createElement('canvas');
+    const residueContext = this.#residueCanvas.getContext('2d');
     if (!residueContext) throw new Error('Canvas2D residue cache is unavailable');
-    this.residueContext = residueContext;
-    this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    this.lowPowerQuery = window.matchMedia('(max-width: 620px), (pointer: coarse)');
-    this.reducedMotion = prefersReducedMotion();
-    this.lowPower = this.lowPowerQuery.matches;
-    if (this.reducedMotion) this.reducedModeStartedAt = performance.now();
-    this.updateMotionMode();
+    this.#residueContext = residueContext;
+    this.#reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    this.#lowPowerQuery = window.matchMedia('(max-width: 620px), (pointer: coarse)');
+    this.#reducedMotion = prefersReducedMotion();
+    this.#lowPower = this.#lowPowerQuery.matches;
+    if (this.#reducedMotion) this.#reducedModeStartedAt = performance.now();
+    this.#updateMotionMode();
     this.draw = this.draw.bind(this);
     this.resize = this.resize.bind(this);
-    this.reducedMotionQuery.addEventListener('change', this.handleReducedMotionChange);
-    this.lowPowerQuery.addEventListener('change', this.handleLowPowerChange);
+    this.#reducedMotionQuery.addEventListener('change', this.#handleReducedMotionChange);
+    this.#lowPowerQuery.addEventListener('change', this.#handleLowPowerChange);
     this.map.on('resize', this.resize);
-    this.map.on('move', this.handleMapMove);
-    this.map.on('terrain', this.handleMapMove);
-    this.map.on('sourcedata', this.handleTerrainData);
+    this.map.on('move', this.#handleMapMove);
+    this.map.on('terrain', this.#handleMapMove);
+    this.map.on('sourcedata', this.#handleTerrainData);
     this.resize();
   }
 
   add(packet: PacketView, emphasis: PacketAnimationEmphasis = {}): void {
-    if (this.paused || !this.packetNearViewport(packet)) return;
+    if (this.#paused || !this.#packetNearViewport(packet)) return;
     const color = payloadColor(packet.payloadType);
     const kind = normalizePacketKind(packet.payloadType);
     const signature = packetSignature(packet.payloadType);
@@ -354,7 +355,7 @@ export class PacketAnimator {
         completedSegments: 0,
         longHaul: Boolean(emphasis.longHaul),
       };
-      if (this.reducedMotion) {
+      if (this.#reducedMotion) {
         route.staticOnly = true;
         route.staticMotion = {
           segmentIndex: packet.segments.length - 1,
@@ -364,214 +365,214 @@ export class PacketAnimator {
         route.completedSegments = packet.segments.length;
         for (const segment of packet.segments) {
           this.residue.push({ segment, color, signature, addedAt: started, longHaul: route.longHaul });
-          this.addNodeWake(segment.to, color, signature, started);
+          this.#addNodeWake(segment.to, color, signature, started);
         }
-        this.residue = capNewest(this.residue, this.residueLimit());
-        this.nodeWakes = capNewest(this.nodeWakes, this.nodeWakeLimit());
-        this.residueContentDirty = true;
+        this.residue = capNewest(this.residue, this.#residueLimit());
+        this.#nodeWakes = capNewest(this.#nodeWakes, this.#nodeWakeLimit());
+        this.#residueContentDirty = true;
       }
       const source = packet.segments[0]?.from;
-      if (source) this.addNodeWake(source, color, signature, started);
-      this.residueContentDirty = true;
+      if (source) this.#addNodeWake(source, color, signature, started);
+      this.#residueContentDirty = true;
       this.activeRoutes.push(route);
     } else {
-      this.activeObservers.push({ packet, color, signature, started });
+      this.#activeObservers.push({ packet, color, signature, started });
     }
-    this.trimDecorations();
-    this.updateMotionMode();
-    this.requestFrame();
+    this.#trimDecorations();
+    this.#updateMotionMode();
+    this.#requestFrame();
   }
 
   setPaused(paused: boolean): void {
-    this.paused = paused;
+    this.#paused = paused;
     if (paused) {
       this.activeRoutes = [];
-      this.activeObservers = [];
+      this.#activeObservers = [];
       this.residue = [];
-      this.nodeWakes = [];
+      this.#nodeWakes = [];
       this.projection.reset();
-      this.residueContentDirty = true;
-      window.cancelAnimationFrame(this.frameId);
-      if (this.residueTimer !== undefined) window.clearTimeout(this.residueTimer);
-      this.frameId = 0;
-      this.residueTimer = undefined;
-      this.clearCanvas();
-      this.gpu.batch.clear(); this.gpu.flush();
-      this.clearResidueCanvas();
+      this.#residueContentDirty = true;
+      window.cancelAnimationFrame(this.#frameId);
+      if (this.#residueTimer !== undefined) window.clearTimeout(this.#residueTimer);
+      this.#frameId = 0;
+      this.#residueTimer = undefined;
+      this.#clearCanvas();
+      this.#gpu.batch.clear(); this.#gpu.flush();
+      this.#clearResidueCanvas();
     } else {
-      this.requestFrame();
+      this.#requestFrame();
     }
   }
 
   refreshAppearance(): void {
-    this.handleReducedMotionChange({ matches: prefersReducedMotion() } as MediaQueryListEvent);
-    this.residueContentDirty = true;
-    this.residueProjectionDirty = true;
+    this.#handleReducedMotionChange({ matches: prefersReducedMotion() } as MediaQueryListEvent);
+    this.#residueContentDirty = true;
+    this.#residueProjectionDirty = true;
     this.canvas.dataset.routePreset = displayPreferences().preset;
-    this.requestFrame();
+    this.#requestFrame();
   }
 
   destroy(): void {
     this.setPaused(true);
-    this.reducedMotionQuery.removeEventListener('change', this.handleReducedMotionChange);
-    this.lowPowerQuery.removeEventListener('change', this.handleLowPowerChange);
+    this.#reducedMotionQuery.removeEventListener('change', this.#handleReducedMotionChange);
+    this.#lowPowerQuery.removeEventListener('change', this.#handleLowPowerChange);
     this.map.off('resize', this.resize);
-    this.map.off('move', this.handleMapMove);
-    this.map.off('terrain', this.handleMapMove);
-    this.map.off('sourcedata', this.handleTerrainData);
+    this.map.off('move', this.#handleMapMove);
+    this.map.off('terrain', this.#handleMapMove);
+    this.map.off('sourcedata', this.#handleTerrainData);
     this.projection.reset();
-    this.gpu.destroy();
+    this.#gpu.destroy();
   }
 
   private resize(): void {
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(this.qualityMode() === 'low' ? 1.25 : 1.5, window.devicePixelRatio || 1);
+    const dpr = Math.min(this.#qualityMode() === 'low' ? 1.25 : 1.5, window.devicePixelRatio || 1);
     const width = Math.max(1, Math.floor(rect.width * dpr));
     const height = Math.max(1, Math.floor(rect.height * dpr));
     this.canvas.dataset.pixelRatio = String(dpr);
-    if (this.dpr === dpr && this.canvas.width === width && this.canvas.height === height) return;
+    if (this.#dpr === dpr && this.canvas.width === width && this.canvas.height === height) return;
     this.projection.reset();
-    this.dpr = dpr;
+    this.#dpr = dpr;
     this.canvas.width = width;
     this.canvas.height = height;
-    this.residueCanvas.width = width;
-    this.residueCanvas.height = height;
-    this.context.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.residueContext.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.residueProjectionDirty = true;
-    this.residueContentDirty = true;
-    this.requestFrame();
+    this.#residueCanvas.width = width;
+    this.#residueCanvas.height = height;
+    this.#context.setTransform(this.#dpr, 0, 0, this.#dpr, 0, 0);
+    this.#residueContext.setTransform(this.#dpr, 0, 0, this.#dpr, 0, 0);
+    this.#residueProjectionDirty = true;
+    this.#residueContentDirty = true;
+    this.#requestFrame();
   }
 
-  private handleReducedMotionChange = (event: MediaQueryListEvent): void => {
+  #handleReducedMotionChange = (event: MediaQueryListEvent): void => {
     const reduced = displayPreferences().motion === 'system' ? event.matches : prefersReducedMotion();
-    if (this.reducedMotion === reduced) return;
+    if (this.#reducedMotion === reduced) return;
     const now = performance.now();
-    this.reducedMotion = reduced;
-    if (this.reducedMotion) {
-      this.reducedModeStartedAt = now;
+    this.#reducedMotion = reduced;
+    if (this.#reducedMotion) {
+      this.#reducedModeStartedAt = now;
       for (const route of this.activeRoutes) {
-        this.completeRoute(route, now);
+        this.#completeRoute(route, now);
         route.staticMotion = routeMotion(route.weights, now - route.started, route.duration);
       }
     } else {
       this.activeRoutes = this.activeRoutes.filter((route) => !route.staticOnly);
       for (const route of this.activeRoutes) route.staticMotion = undefined;
     }
-    this.updateMotionMode();
-    this.residueContentDirty = true;
-    this.requestFrame();
+    this.#updateMotionMode();
+    this.#residueContentDirty = true;
+    this.#requestFrame();
   };
 
-  private handleLowPowerChange = (event: MediaQueryListEvent): void => {
-    if (this.lowPower === event.matches) return;
-    this.lowPower = event.matches;
-    this.trimDecorations();
-    this.residue = capNewest(this.residue, this.residueLimit());
-    this.nodeWakes = capNewest(this.nodeWakes, this.nodeWakeLimit());
-    this.updateMotionMode();
+  #handleLowPowerChange = (event: MediaQueryListEvent): void => {
+    if (this.#lowPower === event.matches) return;
+    this.#lowPower = event.matches;
+    this.#trimDecorations();
+    this.residue = capNewest(this.residue, this.#residueLimit());
+    this.#nodeWakes = capNewest(this.#nodeWakes, this.#nodeWakeLimit());
+    this.#updateMotionMode();
   };
 
-  private handleMapMove = (): void => {
+  #handleMapMove = (): void => {
     this.projection.reset();
-    this.residueProjectionDirty = true;
-    this.requestFrame();
+    this.#residueProjectionDirty = true;
+    this.#requestFrame();
   };
 
-  private handleTerrainData = (event: { sourceId?: string; sourceDataType?: string }): void => {
+  #handleTerrainData = (event: { sourceId?: string; sourceDataType?: string }): void => {
     const source = this.map.getTerrain?.()?.source;
-    if (source && event.sourceId === source && (!event.sourceDataType || event.sourceDataType === 'content')) this.handleMapMove();
+    if (source && event.sourceId === source && (!event.sourceDataType || event.sourceDataType === 'content')) this.#handleMapMove();
   };
 
-  private requestFrame = (): void => {
-    if (this.paused || this.frameId !== 0 || !this.hasVisibleEffects()) return;
-    if (this.residueTimer !== undefined) window.clearTimeout(this.residueTimer);
-    this.residueTimer = undefined;
-    this.frameId = window.requestAnimationFrame(this.draw);
+  #requestFrame = (): void => {
+    if (this.#paused || this.#frameId !== 0 || !this.#hasVisibleEffects()) return;
+    if (this.#residueTimer !== undefined) window.clearTimeout(this.#residueTimer);
+    this.#residueTimer = undefined;
+    this.#frameId = window.requestAnimationFrame(this.draw);
   };
 
-  private requestTimedFrame(now: number): void {
-    if (this.paused || this.residueTimer !== undefined || this.frameId !== 0) return;
+  #requestTimedFrame(now: number): void {
+    if (this.#paused || this.#residueTimer !== undefined || this.#frameId !== 0) return;
     let delay = Number.POSITIVE_INFINITY;
     if (this.residue.length > 0) {
-      const redraw = this.qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS;
-      delay = Math.max(0, this.residueCacheUpdatedAt + redraw - now);
+      const redraw = this.#qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS;
+      delay = Math.max(0, this.#residueCacheUpdatedAt + redraw - now);
       for (const item of this.residue) delay = Math.min(delay, Math.max(0, item.addedAt + residueLifetime() - now));
     }
-    if (this.nodeWakes.length > 0) {
-      const redraw = this.qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS;
-      delay = Math.min(delay, Math.max(0, this.residueCacheUpdatedAt + redraw - now));
-      for (const item of this.nodeWakes) delay = Math.min(delay, Math.max(0, item.addedAt + NODE_WAKE_MS - now));
+    if (this.#nodeWakes.length > 0) {
+      const redraw = this.#qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS;
+      delay = Math.min(delay, Math.max(0, this.#residueCacheUpdatedAt + redraw - now));
+      for (const item of this.#nodeWakes) delay = Math.min(delay, Math.max(0, item.addedAt + NODE_WAKE_MS - now));
     }
-    if (this.reducedMotion) {
+    if (this.#reducedMotion) {
       for (const item of this.activeRoutes) {
-        const staticStarted = Math.max(item.started, this.reducedModeStartedAt);
+        const staticStarted = Math.max(item.started, this.#reducedModeStartedAt);
         const staticEnds = staticStarted + AFTERGLOW_MS;
         if (staticEnds > now) delay = Math.min(delay, staticEnds - now);
         delay = Math.min(delay, Math.max(0, item.started + item.duration + DESTINATION_BLOOM_MS - now));
       }
-      for (const item of this.activeObservers) {
-        const staticStarted = Math.max(item.started, this.reducedModeStartedAt);
+      for (const item of this.#activeObservers) {
+        const staticStarted = Math.max(item.started, this.#reducedModeStartedAt);
         const staticEnds = staticStarted + AFTERGLOW_MS;
         if (staticEnds > now) delay = Math.min(delay, staticEnds - now);
         delay = Math.min(delay, Math.max(0, item.started + OBSERVER_PING_MS - now));
       }
     }
     if (!Number.isFinite(delay)) return;
-    this.residueTimer = window.setTimeout(() => {
-      this.residueTimer = undefined;
-      this.requestFrame();
+    this.#residueTimer = window.setTimeout(() => {
+      this.#residueTimer = undefined;
+      this.#requestFrame();
     }, delay);
   }
 
   private draw(now: number): void {
-    this.frameId = 0;
-    if (this.paused) return;
-    this.clearCanvas();
-    this.gpu.prepare();
-    this.gpu.batch.begin(this.canvas.width / this.dpr, this.canvas.height / this.dpr);
-    this.canvas.dataset.effectsRenderer = this.gpu.batch.ready ? 'webgl2' : 'canvas2d';
-    if (!this.reducedMotion) {
-      for (const route of this.activeRoutes) this.completeRoute(route, now);
+    this.#frameId = 0;
+    if (this.#paused) return;
+    this.#clearCanvas();
+    this.#gpu.prepare();
+    this.#gpu.batch.begin(this.canvas.width / this.#dpr, this.canvas.height / this.#dpr);
+    this.canvas.dataset.effectsRenderer = this.#gpu.batch.ready ? 'webgl2' : 'canvas2d';
+    if (!this.#reducedMotion) {
+      for (const route of this.activeRoutes) this.#completeRoute(route, now);
     }
     const liveResidue = this.residue.filter((item) => now - item.addedAt < residueLifetime());
     if (liveResidue.length !== this.residue.length) {
       this.residue = liveResidue;
-      this.residueContentDirty = true;
+      this.#residueContentDirty = true;
     }
-    const liveWakes = this.nodeWakes.filter((item) => now - item.addedAt < NODE_WAKE_MS);
-    if (liveWakes.length !== this.nodeWakes.length) {
-      this.nodeWakes = liveWakes;
-      this.residueContentDirty = true;
+    const liveWakes = this.#nodeWakes.filter((item) => now - item.addedAt < NODE_WAKE_MS);
+    if (liveWakes.length !== this.#nodeWakes.length) {
+      this.#nodeWakes = liveWakes;
+      this.#residueContentDirty = true;
     }
-    this.renderResidueCache(now);
-    this.drawResidueCache();
-    this.context.save();
+    this.#renderResidueCache(now);
+    this.#drawResidueCache();
+    this.#context.save();
     // Source-over preserves packet hue during bursts; additive blending made
     // overlapping cyan and amber effects wash out to white.
-    this.context.globalCompositeOperation = 'source-over';
-    this.context.lineCap = 'round';
-    if (!this.reducedMotion) {
-      for (const item of this.nodeWakes) this.drawNodeWake(this.context, item, now);
+    this.#context.globalCompositeOperation = 'source-over';
+    this.#context.lineCap = 'round';
+    if (!this.#reducedMotion) {
+      for (const item of this.#nodeWakes) this.#drawNodeWake(this.#context, item, now);
     }
     this.activeRoutes = this.activeRoutes.filter(
       (item) => now - item.started < item.duration + DESTINATION_BLOOM_MS,
     );
-    this.activeObservers = this.activeObservers.filter(
+    this.#activeObservers = this.#activeObservers.filter(
       (item) => now - item.started < OBSERVER_PING_MS,
     );
-    this.updateMotionMode();
+    this.#updateMotionMode();
     this.canvas.dataset.residueCount = String(this.residue.length);
-    this.canvas.dataset.activeCount = String(this.activeRoutes.length + this.activeObservers.length);
-    for (const route of this.activeRoutes) this.drawRoute(route, now);
-    for (const observer of this.activeObservers) this.drawObserver(observer, now);
-    this.context.restore();
-    this.gpu.flush();
-    if (!this.reducedMotion && (this.activeRoutes.length || this.activeObservers.length || this.nodeWakes.length)) this.requestFrame();
-    else this.requestTimedFrame(now);
+    this.canvas.dataset.activeCount = String(this.activeRoutes.length + this.#activeObservers.length);
+    for (const route of this.activeRoutes) this.#drawRoute(route, now);
+    for (const observer of this.#activeObservers) this.#drawObserver(observer, now);
+    this.#context.restore();
+    this.#gpu.flush();
+    if (!this.#reducedMotion && (this.activeRoutes.length || this.#activeObservers.length || this.#nodeWakes.length)) this.#requestFrame();
+    else this.#requestTimedFrame(now);
   }
 
-  private completeRoute(item: ActiveRoute, now: number): void {
+  #completeRoute(item: ActiveRoute, now: number): void {
     const motion = routeMotion(item.weights, now - item.started, item.duration);
     let added = false;
     while (item.completedSegments < motion.completedSegments) {
@@ -580,26 +581,26 @@ export class PacketAnimator {
       if (!segment) break;
       const addedAt = item.started + cumulativeWeight(item.weights, index) * item.duration;
       this.residue.push({ segment, color: item.color, signature: item.signature, addedAt, longHaul: item.longHaul });
-      this.addNodeWake(segment.to, item.color, item.signature, addedAt);
+      this.#addNodeWake(segment.to, item.color, item.signature, addedAt);
       item.completedSegments += 1;
       added = true;
     }
     if (added) {
-      this.residue = capNewest(this.residue, this.residueLimit());
-      this.nodeWakes = capNewest(this.nodeWakes, this.nodeWakeLimit());
-      this.residueContentDirty = true;
+      this.residue = capNewest(this.residue, this.#residueLimit());
+      this.#nodeWakes = capNewest(this.#nodeWakes, this.#nodeWakeLimit());
+      this.#residueContentDirty = true;
     }
   }
 
-  private drawResidue(context: CanvasRenderingContext2D, item: Residue, now: number): void {
+  #drawResidue(context: CanvasRenderingContext2D, item: Residue, now: number): void {
     const style = residueStyle(displayResidueAge(now - item.addedAt));
     const rangeBoost = item.longHaul ? 1.28 : 1;
     const detail = Math.max(0.3, Math.min(1, (this.map.getZoom() - 3) / 7));
-    const bloomOpacity = this.reducedMotion ? style.life * 0.12 : style.bloomOpacity;
-    const coreOpacity = this.reducedMotion ? style.life * 0.34 : style.coreOpacity;
-    const bloomWidth = this.reducedMotion ? 5.2 : style.bloomWidth;
-    const coreWidth = this.reducedMotion ? 1.8 : style.coreWidth;
-    const coreColor = this.reducedMotion ? item.color : blendWithWhite(item.color, style.hot * 0.16);
+    const bloomOpacity = this.#reducedMotion ? style.life * 0.12 : style.bloomOpacity;
+    const coreOpacity = this.#reducedMotion ? style.life * 0.34 : style.coreOpacity;
+    const bloomWidth = this.#reducedMotion ? 5.2 : style.bloomWidth;
+    const coreWidth = this.#reducedMotion ? 1.8 : style.coreWidth;
+    const coreColor = this.#reducedMotion ? item.color : blendWithWhite(item.color, style.hot * 0.16);
     traceSurfacePath(context, this.projection.projectSegment(item.segment));
     context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost * detail) * displayPreferences().glow);
     context.lineWidth = bloomWidth * rangeBoost * detail;
@@ -611,11 +612,11 @@ export class PacketAnimator {
     context.setLineDash([]);
   }
 
-  private drawNodeWake(context: CanvasRenderingContext2D, item: NodeWake, now: number): void {
+  #drawNodeWake(context: CanvasRenderingContext2D, item: NodeWake, now: number): void {
     const life = nodeWakeLife(now - item.addedAt);
     if (life <= 0) return;
-    const point = this.point(item.endpoint);
-    const radius = nodeWakeRadius(now - item.addedAt, item.signature, this.reducedMotion);
+    const point = this.#point(item.endpoint);
+    const radius = nodeWakeRadius(now - item.addedAt, item.signature, this.#reducedMotion);
     context.strokeStyle = withAlpha(item.color, life * (item.signature === 'double' ? 0.6 : 0.38));
     context.lineWidth = item.signature === 'double' ? 1.5 : 1;
     context.beginPath();
@@ -628,47 +629,47 @@ export class PacketAnimator {
     }
   }
 
-  private renderResidueCache(now: number): void {
+  #renderResidueCache(now: number): void {
     if (!shouldRefreshResidueCache(
-      this.residueCacheUpdatedAt,
+      this.#residueCacheUpdatedAt,
       now,
-      this.residueProjectionDirty,
-      this.residueContentDirty,
-      this.qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS,
+      this.#residueProjectionDirty,
+      this.#residueContentDirty,
+      this.#qualityMode() === 'low' ? RESIDUE_REDRAW_MS * 2 : RESIDUE_REDRAW_MS,
     )) return;
 
-    this.clearResidueCanvas();
-    this.residueContext.save();
-    this.residueContext.globalCompositeOperation = 'source-over';
-    this.residueContext.lineCap = 'round';
+    this.#clearResidueCanvas();
+    this.#residueContext.save();
+    this.#residueContext.globalCompositeOperation = 'source-over';
+    this.#residueContext.lineCap = 'round';
     for (const item of this.residue) {
-      this.drawResidue(this.residueContext, item, now);
+      this.#drawResidue(this.#residueContext, item, now);
     }
-    if (this.reducedMotion) {
-      for (const item of this.nodeWakes) this.drawNodeWake(this.residueContext, item, now);
+    if (this.#reducedMotion) {
+      for (const item of this.#nodeWakes) this.#drawNodeWake(this.#residueContext, item, now);
     }
-    this.residueContext.restore();
-    this.residueProjectionDirty = false;
-    this.residueContentDirty = false;
-    this.residueCacheUpdatedAt = now;
+    this.#residueContext.restore();
+    this.#residueProjectionDirty = false;
+    this.#residueContentDirty = false;
+    this.#residueCacheUpdatedAt = now;
   }
 
-  private drawResidueCache(): void {
-    this.context.save();
-    this.context.setTransform(1, 0, 0, 1, 0, 0);
-    this.context.globalCompositeOperation = 'source-over';
-    this.context.drawImage(this.residueCanvas, 0, 0);
-    this.context.restore();
+  #drawResidueCache(): void {
+    this.#context.save();
+    this.#context.setTransform(1, 0, 0, 1, 0, 0);
+    this.#context.globalCompositeOperation = 'source-over';
+    this.#context.drawImage(this.#residueCanvas, 0, 0);
+    this.#context.restore();
   }
 
-  private drawRoute(item: ActiveRoute, now: number): void {
+  #drawRoute(item: ActiveRoute, now: number): void {
     const elapsed = Math.max(0, now - item.started);
-    const quality = this.qualityMode();
-    if (this.reducedMotion) {
-      const staticAge = Math.max(0, now - Math.max(item.started, this.reducedModeStartedAt));
+    const quality = this.#qualityMode();
+    if (this.#reducedMotion) {
+      const staticAge = Math.max(0, now - Math.max(item.started, this.#reducedModeStartedAt));
       const opacity = Math.max(0, 1 - staticAge / AFTERGLOW_MS);
-      if (item.staticOnly) this.drawStaticEndpoints(item, opacity);
-      else this.drawStaticRoute(item, opacity, item.staticMotion);
+      if (item.staticOnly) this.#drawStaticEndpoints(item, opacity);
+      else this.#drawStaticRoute(item, opacity, item.staticMotion);
       return;
     }
     const motion = routeMotion(item.weights, elapsed, item.duration);
@@ -692,22 +693,22 @@ export class PacketAnimator {
         }
       }
       this.canvas.dataset.projectionSamples = String(path.length);
-      const gpuDrawn = this.gpu.batch.packet(points, head, item.color, item.signature, item.longHaul ? 1.15 : 1);
+      const gpuDrawn = this.#gpu.batch.packet(points, head, item.color, item.signature, item.longHaul ? 1.15 : 1);
       if (!gpuDrawn) {
-      this.drawProgressiveTrail(trail, item.color, quality, item.longHaul);
+      this.#drawProgressiveTrail(trail, item.color, quality, item.longHaul);
       if (quality !== 'low') {
-        this.drawTrailSparks(trail, item.color, item.packet.id, elapsed, quality === 'full' ? 3 : 2);
+        this.#drawTrailSparks(trail, item.color, item.packet.id, elapsed, quality === 'full' ? 3 : 2);
       }
-      this.drawPacketCore(head, item.color, quality, item.longHaul);
+      this.#drawPacketCore(head, item.color, quality, item.longHaul);
       if (quality !== 'low') {
-        this.drawPacketSignature(head, tangent, item.color, item.signature, elapsed);
-        if (item.longHaul) this.drawLongHaulMarker(head, tangent, item.color, elapsed);
+        drawPacketSignature(this.#context, head, tangent, item.color, item.signature, elapsed);
+        if (item.longHaul) this.#drawLongHaulMarker(head, tangent, item.color, elapsed);
       }
     }
     }
     const first = item.packet.segments[0];
-    if (first) this.drawBloom(
-      this.point(first.from),
+    if (first) this.#drawBloom(
+      this.#point(first.from),
       item.color,
       pulseTiming(elapsed, SOURCE_IGNITION_MS),
       item.longHaul ? 13 : 10,
@@ -719,12 +720,12 @@ export class PacketAnimator {
       const timing = pulseTiming(elapsed - arrivedAt, RELAY_SPARK_MS);
       const relay = item.packet.segments[index]?.to;
       const next = item.packet.segments[index + 1]?.to;
-      if (relay && next && timing.opacity > 0 && quality !== 'low') this.drawRelaySpark(this.point(relay), this.point(next), item.color, timing);
+      if (relay && next && timing.opacity > 0 && quality !== 'low') this.#drawRelaySpark(this.#point(relay), this.#point(next), item.color, timing);
     }
     const last = item.packet.segments[item.packet.segments.length - 1];
     if (last) {
-      this.drawDestinationShimmer(
-        this.point(last.to),
+      this.#drawDestinationShimmer(
+        this.#point(last.to),
         item.color,
         pulseTiming(elapsed - item.duration, DESTINATION_BLOOM_MS),
         quality === 'low',
@@ -733,34 +734,34 @@ export class PacketAnimator {
     }
   }
 
-  private drawProgressiveTrail(
+  #drawProgressiveTrail(
     trail: PacketTrail,
     color: string,
     quality: VisualQuality,
     longHaul = false,
   ): void {
     if (trail.length <= 0.01) return;
-    const glow = this.context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
+    const glow = this.#context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
     glow.addColorStop(0, withAlpha(color, 0));
     glow.addColorStop(0.42, withAlpha(color, quality === 'low' ? 0.08 : longHaul ? 0.18 : 0.12));
     glow.addColorStop(1, withAlpha(color, quality === 'low' ? (longHaul ? 0.56 : 0.42) : longHaul ? 0.72 : 0.56));
-    this.context.strokeStyle = glow;
+    this.#context.strokeStyle = glow;
     const width = quality === 'full' ? 7.2 : quality === 'balanced' ? 5.8 : 3.8;
-    this.context.lineWidth = width * (longHaul ? 1.42 : 1) * (trail.head.scale ?? 1);
-    traceSurfacePath(this.context, trail.points ?? [trail.tail, trail.head]);
-    this.context.globalAlpha = displayPreferences().glow * effectStrength();
-    this.context.stroke();
-    this.context.globalAlpha = 1;
-    const core = this.context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
+    this.#context.lineWidth = width * (longHaul ? 1.42 : 1) * (trail.head.scale ?? 1);
+    traceSurfacePath(this.#context, trail.points ?? [trail.tail, trail.head]);
+    this.#context.globalAlpha = displayPreferences().glow * effectStrength();
+    this.#context.stroke();
+    this.#context.globalAlpha = 1;
+    const core = this.#context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
     core.addColorStop(0, withAlpha(color, 0));
     core.addColorStop(0.58, withAlpha(color, longHaul ? 0.5 : 0.36));
     core.addColorStop(1, withAlpha(color, 0.98));
-    this.context.strokeStyle = core;
-    this.context.lineWidth = (quality === 'low' ? 1.3 : 1.65) * (longHaul ? 1.2 : 1) * (trail.head.scale ?? 1) * displayPreferences().packetSize;
-    this.context.stroke();
+    this.#context.strokeStyle = core;
+    this.#context.lineWidth = (quality === 'low' ? 1.3 : 1.65) * (longHaul ? 1.2 : 1) * (trail.head.scale ?? 1) * displayPreferences().packetSize;
+    this.#context.stroke();
   }
 
-  private drawTrailSparks(
+  #drawTrailSparks(
     trail: PacketTrail,
     color: string,
     seed: string,
@@ -773,102 +774,102 @@ export class PacketAnimator {
       const point = surfacePathPoint(trail.points ?? [trail.tail, trail.head], progress);
       const shimmer = 0.32 + 0.48 * Math.abs(Math.sin(elapsed / 180 + (hash % 17) + index * 1.8));
       const radius = 0.65 + ((hash >>> (index * 3)) & 3) * 0.12;
-      this.context.fillStyle = withAlpha(color, shimmer);
-      this.context.beginPath();
-      this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      this.context.fill();
+      this.#context.fillStyle = withAlpha(color, shimmer);
+      this.#context.beginPath();
+      this.#context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      this.#context.fill();
     }
   }
 
-  private drawStaticRoute(item: ActiveRoute, opacity: number, motion?: RouteMotion): void {
+  #drawStaticRoute(item: ActiveRoute, opacity: number, motion?: RouteMotion): void {
     const completedSegments = motion?.completedSegments ?? item.packet.segments.length;
     let visibleEndpoint: ScreenPoint | undefined;
     for (let index = 0; index < completedSegments; index += 1) {
       const segment = item.packet.segments[index];
       if (!segment) continue;
       const path = this.projection.projectSegment(segment);
-      this.drawStaticSegment(path, item.color, opacity, item.signature);
+      this.#drawStaticSegment(path, item.color, opacity, item.signature);
       visibleEndpoint = path[path.length - 1];
     }
     if (motion && completedSegments < item.packet.segments.length) {
       const segment = item.packet.segments[motion.segmentIndex];
       if (segment) {
         const path = surfaceTrail(this.projection.projectSegment(segment), motion.localProgress, Infinity);
-        this.drawStaticSegment(path, item.color, opacity, item.signature);
+        this.#drawStaticSegment(path, item.color, opacity, item.signature);
         visibleEndpoint = path[path.length - 1];
       }
     }
     const first = item.packet.segments[0];
-    if (first) this.endpointGlow(this.point(first.from), item.color, opacity);
-    if (visibleEndpoint) this.endpointGlow(visibleEndpoint, item.color, opacity);
+    if (first) this.#endpointGlow(this.#point(first.from), item.color, opacity);
+    if (visibleEndpoint) this.#endpointGlow(visibleEndpoint, item.color, opacity);
   }
 
-  private drawStaticEndpoints(item: ActiveRoute, opacity: number): void {
+  #drawStaticEndpoints(item: ActiveRoute, opacity: number): void {
     const first = item.packet.segments[0];
     const last = item.packet.segments[item.packet.segments.length - 1];
-    if (first) this.endpointGlow(this.point(first.from), item.color, opacity);
-    if (last) this.endpointGlow(this.point(last.to), item.color, opacity);
+    if (first) this.#endpointGlow(this.#point(first.from), item.color, opacity);
+    if (last) this.#endpointGlow(this.#point(last.to), item.color, opacity);
   }
 
-  private drawStaticSegment(points: readonly ScreenPoint[], color: string, opacity: number, _signature: PacketSignature): void {
-    this.context.strokeStyle = withAlpha(color, opacity * 0.2 * displayPreferences().glow);
-    this.context.lineWidth = 7;
-    traceSurfacePath(this.context, points);
-    this.context.stroke();
-    this.context.strokeStyle = withAlpha(color, opacity * 0.75);
-    this.context.lineWidth = displayPreferences().width;
-    this.context.setLineDash(lineDash());
-    this.context.stroke();
-    this.context.setLineDash([]);
+  #drawStaticSegment(points: readonly ScreenPoint[], color: string, opacity: number, _signature: PacketSignature): void {
+    this.#context.strokeStyle = withAlpha(color, opacity * 0.2 * displayPreferences().glow);
+    this.#context.lineWidth = 7;
+    traceSurfacePath(this.#context, points);
+    this.#context.stroke();
+    this.#context.strokeStyle = withAlpha(color, opacity * 0.75);
+    this.#context.lineWidth = displayPreferences().width;
+    this.#context.setLineDash(lineDash());
+    this.#context.stroke();
+    this.#context.setLineDash([]);
   }
 
-  private drawObserver(item: ActiveObserver, now: number): void {
+  #drawObserver(item: ActiveObserver, now: number): void {
     const age = Math.max(0, now - item.started);
-    const visibleAge = this.reducedMotion ? Math.max(0, now - Math.max(item.started, this.reducedModeStartedAt)) : age;
+    const visibleAge = this.#reducedMotion ? Math.max(0, now - Math.max(item.started, this.#reducedModeStartedAt)) : age;
     const life = Math.pow(Math.max(0, 1 - visibleAge / OBSERVER_PING_MS), 1.5);
-    const point = this.point(item.packet.observer);
-    if (this.reducedMotion) {
-      this.endpointGlow(point, item.color, life);
+    const point = this.#point(item.packet.observer);
+    if (this.#reducedMotion) {
+      this.#endpointGlow(point, item.color, life);
       return;
     }
-    this.context.strokeStyle = withAlpha(item.color, life * 0.95);
-    this.context.lineWidth = 1.35;
-    this.context.beginPath();
-    surfaceArc(this.context, point, observerRadius(age));
-    this.context.stroke();
-    this.context.fillStyle = withAlpha('#ffffff', life * 0.9);
-    this.context.beginPath();
-    this.context.arc(point.x, point.y, 1.25, 0, Math.PI * 2);
-    this.context.fill();
+    this.#context.strokeStyle = withAlpha(item.color, life * 0.95);
+    this.#context.lineWidth = 1.35;
+    this.#context.beginPath();
+    surfaceArc(this.#context, point, observerRadius(age));
+    this.#context.stroke();
+    this.#context.fillStyle = withAlpha('#ffffff', life * 0.9);
+    this.#context.beginPath();
+    this.#context.arc(point.x, point.y, 1.25, 0, Math.PI * 2);
+    this.#context.fill();
   }
 
-  private drawPacketCore(point: ScreenPoint, color: string, quality: VisualQuality, longHaul = false): void {
+  #drawPacketCore(point: ScreenPoint, color: string, quality: VisualQuality, longHaul = false): void {
     const scale = (point.scale ?? 1) * displayPreferences().packetSize;
     const radius = (quality === 'low' ? 4 : 6.5) * (longHaul ? 1.38 : 1) * scale;
-    const glow = this.context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+    const glow = this.#context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     glow.addColorStop(0, withAlpha(color, 0.86));
     glow.addColorStop(0.35, withAlpha(color, 0.42));
     glow.addColorStop(1, withAlpha(color, 0));
-    this.context.fillStyle = glow;
-    this.context.beginPath();
-    this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    this.context.globalAlpha = displayPreferences().glow * effectStrength();
-    this.context.fill();
-    this.context.globalAlpha = 1;
-    this.context.fillStyle = displayColor(color);
-    this.context.beginPath();
-    this.context.arc(point.x, point.y, (quality === 'low' ? 1.5 : 1.85) * (longHaul ? 1.18 : 1) * scale, 0, Math.PI * 2);
-    this.context.fill();
+    this.#context.fillStyle = glow;
+    this.#context.beginPath();
+    this.#context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    this.#context.globalAlpha = displayPreferences().glow * effectStrength();
+    this.#context.fill();
+    this.#context.globalAlpha = 1;
+    this.#context.fillStyle = displayColor(color);
+    this.#context.beginPath();
+    this.#context.arc(point.x, point.y, (quality === 'low' ? 1.5 : 1.85) * (longHaul ? 1.18 : 1) * scale, 0, Math.PI * 2);
+    this.#context.fill();
     if (quality !== 'low') {
-      this.context.strokeStyle = withAlpha(color, 0.9);
-      this.context.lineWidth = 0.85;
-      this.context.beginPath();
-      this.context.arc(point.x, point.y, (longHaul ? 4.2 : 2.8) * scale, 0, Math.PI * 2);
-      this.context.stroke();
+      this.#context.strokeStyle = withAlpha(color, 0.9);
+      this.#context.lineWidth = 0.85;
+      this.#context.beginPath();
+      this.#context.arc(point.x, point.y, (longHaul ? 4.2 : 2.8) * scale, 0, Math.PI * 2);
+      this.#context.stroke();
     }
   }
 
-  private drawLongHaulMarker(
+  #drawLongHaulMarker(
     point: ScreenPoint,
     tangent: ScreenPoint,
     color: string,
@@ -880,69 +881,22 @@ export class PacketAnimator {
     const x = point.x + normalX * 13;
     const y = point.y + normalY * 13;
     const breath = 0.72 + Math.sin(elapsed / 260) * 0.12;
-    this.context.save();
-    this.context.font = '600 8px ui-monospace, SFMono-Regular, Consolas, monospace';
-    this.context.textAlign = 'center';
-    this.context.textBaseline = 'middle';
-    this.context.fillStyle = withAlpha('#031015', 0.82);
-    this.context.fillRect(x - 8, y - 5, 16, 10);
-    this.context.strokeStyle = withAlpha(color, breath);
-    this.context.lineWidth = 0.9;
-    this.context.strokeRect(x - 8, y - 5, 16, 10);
-    this.context.fillStyle = withAlpha(color, Math.min(1, breath + 0.16));
-    this.context.fillText('DX', x, y + 0.5);
-    this.context.restore();
+    this.#context.save();
+    this.#context.font = '600 8px ui-monospace, SFMono-Regular, Consolas, monospace';
+    this.#context.textAlign = 'center';
+    this.#context.textBaseline = 'middle';
+    this.#context.fillStyle = withAlpha('#031015', 0.82);
+    this.#context.fillRect(x - 8, y - 5, 16, 10);
+    this.#context.strokeStyle = withAlpha(color, breath);
+    this.#context.lineWidth = 0.9;
+    this.#context.strokeRect(x - 8, y - 5, 16, 10);
+    this.#context.fillStyle = withAlpha(color, Math.min(1, breath + 0.16));
+    this.#context.fillText('DX', x, y + 0.5);
+    this.#context.restore();
   }
 
-  private drawPacketSignature(
-    point: ScreenPoint,
-    tangent: ScreenPoint,
-    color: string,
-    signature: PacketSignature,
-    elapsed: number,
-  ): void {
-    const distance = Math.hypot(tangent.x, tangent.y) || 1;
-    const directionX = tangent.x / distance;
-    const directionY = tangent.y / distance;
-    const phase = (elapsed % 520) / 520;
-    this.context.save();
-    this.context.strokeStyle = withAlpha(color, 0.72);
-    this.context.fillStyle = withAlpha(color, 0.72);
-    this.context.lineWidth = 1.05;
-    if (signature === 'ripple') {
-      this.context.beginPath();
-      this.context.arc(point.x, point.y, 3 + phase * 6, 0, Math.PI * 2);
-      this.context.stroke();
-    } else if (signature === 'echo') {
-      for (const offset of [6, 12]) {
-        this.context.beginPath();
-        this.context.moveTo(point.x - directionX * offset - directionY * 2.5, point.y - directionY * offset + directionX * 2.5);
-        this.context.lineTo(point.x - directionX * offset + directionY * 2.5, point.y - directionY * offset - directionX * 2.5);
-        this.context.stroke();
-      }
-    } else if (signature === 'orbit') {
-      const angle = phase * Math.PI * 2;
-      this.context.beginPath();
-      this.context.arc(point.x + Math.cos(angle) * 5, point.y + Math.sin(angle) * 5, 1.35, 0, Math.PI * 2);
-      this.context.fill();
-    } else if (signature === 'double') {
-      for (const radius of [3.5, 6.5]) {
-        this.context.beginPath();
-        this.context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        this.context.stroke();
-      }
-    } else {
-      const perpendicularX = -directionY;
-      const perpendicularY = directionX;
-      this.context.beginPath();
-      this.context.moveTo(point.x - perpendicularX * 4, point.y - perpendicularY * 4);
-      this.context.lineTo(point.x + perpendicularX * 4, point.y + perpendicularY * 4);
-      this.context.stroke();
-    }
-    this.context.restore();
-  }
 
-  private drawBloom(
+  #drawBloom(
     point: { x: number; y: number },
     color: string,
     timing: { progress: number; opacity: number },
@@ -952,47 +906,47 @@ export class PacketAnimator {
   ): void {
     if (timing.opacity <= 0) return;
     const radius = startRadius + (endRadius - startRadius) * easeOutCubic(timing.progress);
-    if (this.gpu.batch.disc(point, radius * .75, color, timing.opacity * .8, 2, true)) return;
+    if (this.#gpu.batch.disc(point, radius * .75, color, timing.opacity * .8, 2, true)) return;
     if (simple) {
-      this.context.strokeStyle = withAlpha(color, timing.opacity * 0.58);
-      this.context.lineWidth = 1.4;
-      this.context.beginPath();
-      surfaceArc(this.context, point, radius * 0.62);
-      this.context.stroke();
+      this.#context.strokeStyle = withAlpha(color, timing.opacity * 0.58);
+      this.#context.lineWidth = 1.4;
+      this.#context.beginPath();
+      surfaceArc(this.#context, point, radius * 0.62);
+      this.#context.stroke();
       return;
     }
-    const gradient = this.context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
+    const gradient = this.#context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     gradient.addColorStop(0, withAlpha(blendWithWhite(color, 0.3), timing.opacity * 0.62 * displayPreferences().glow));
     gradient.addColorStop(0.2, withAlpha(color, timing.opacity * 0.5 * displayPreferences().glow));
     gradient.addColorStop(1, withAlpha(color, 0));
-    this.context.fillStyle = gradient;
-    this.context.beginPath();
-    surfaceArc(this.context, point, radius);
-    this.context.fill();
+    this.#context.fillStyle = gradient;
+    this.#context.beginPath();
+    surfaceArc(this.#context, point, radius);
+    this.#context.fill();
   }
 
-  private drawRelaySpark(
+  #drawRelaySpark(
     point: { x: number; y: number },
     toward: { x: number; y: number },
     color: string,
     timing: { progress: number; opacity: number },
   ): void {
     if (timing.opacity <= 0) return;
-    if (this.gpu.batch.disc(point, 5 + timing.progress * 8, color, timing.opacity * .8, 2, true)) return;
+    if (this.#gpu.batch.disc(point, 5 + timing.progress * 8, color, timing.opacity * .8, 2, true)) return;
     const angle = Math.atan2(toward.y - point.y, toward.x - point.x);
     const radius = 3 + easeOutCubic(timing.progress) * 5;
-    this.context.strokeStyle = withAlpha(color, timing.opacity * 0.78);
-    this.context.lineWidth = 1.1;
-    this.context.beginPath();
-    surfaceArc(this.context, point, radius);
-    this.context.stroke();
-    this.context.beginPath();
-    this.context.moveTo(point.x + Math.cos(angle) * 3, point.y + Math.sin(angle) * 3);
-    this.context.lineTo(point.x + Math.cos(angle) * 9, point.y + Math.sin(angle) * 9);
-    this.context.stroke();
+    this.#context.strokeStyle = withAlpha(color, timing.opacity * 0.78);
+    this.#context.lineWidth = 1.1;
+    this.#context.beginPath();
+    surfaceArc(this.#context, point, radius);
+    this.#context.stroke();
+    this.#context.beginPath();
+    this.#context.moveTo(point.x + Math.cos(angle) * 3, point.y + Math.sin(angle) * 3);
+    this.#context.lineTo(point.x + Math.cos(angle) * 9, point.y + Math.sin(angle) * 9);
+    this.#context.stroke();
   }
 
-  private drawDestinationShimmer(
+  #drawDestinationShimmer(
     point: ScreenPoint,
     color: string,
     timing: { progress: number; opacity: number },
@@ -1001,84 +955,84 @@ export class PacketAnimator {
   ): void {
     if (timing.opacity <= 0) return;
     const radius = 5 + easeOutCubic(timing.progress) * (simple ? (longHaul ? 12 : 8) : longHaul ? 22 : 14);
-    if (this.gpu.batch.disc(point, radius, color, timing.opacity * .85, 2, true)) return;
-    this.context.strokeStyle = withAlpha(color, timing.opacity * 0.72);
-    this.context.lineWidth = simple ? (longHaul ? 1.55 : 1.2) : longHaul ? 1.9 : 1.5;
-    this.context.beginPath();
-    surfaceArc(this.context, point, radius);
-    this.context.stroke();
+    if (this.#gpu.batch.disc(point, radius, color, timing.opacity * .85, 2, true)) return;
+    this.#context.strokeStyle = withAlpha(color, timing.opacity * 0.72);
+    this.#context.lineWidth = simple ? (longHaul ? 1.55 : 1.2) : longHaul ? 1.9 : 1.5;
+    this.#context.beginPath();
+    surfaceArc(this.#context, point, radius);
+    this.#context.stroke();
     if (simple) return;
-    this.context.strokeStyle = withAlpha(color, timing.opacity * 0.28);
-    this.context.beginPath();
-    surfaceArc(this.context, point, radius * 0.58);
-    this.context.stroke();
+    this.#context.strokeStyle = withAlpha(color, timing.opacity * 0.28);
+    this.#context.beginPath();
+    surfaceArc(this.#context, point, radius * 0.58);
+    this.#context.stroke();
   }
 
-  private endpointGlow(point: { x: number; y: number }, color: string, opacity: number): void {
-    const gradient = this.context.createRadialGradient(point.x, point.y, 0, point.x, point.y, 14);
+  #endpointGlow(point: { x: number; y: number }, color: string, opacity: number): void {
+    const gradient = this.#context.createRadialGradient(point.x, point.y, 0, point.x, point.y, 14);
     gradient.addColorStop(0, withAlpha(blendWithWhite(color, 0.28), opacity * 0.72));
     gradient.addColorStop(0.22, withAlpha(color, opacity * 0.58));
     gradient.addColorStop(1, withAlpha(color, 0));
-    this.context.fillStyle = gradient;
-    this.context.beginPath();
-    surfaceArc(this.context, point, 14);
-    this.context.fill();
+    this.#context.fillStyle = gradient;
+    this.#context.beginPath();
+    surfaceArc(this.#context, point, 14);
+    this.#context.fill();
   }
 
-  private trimDecorations(): void {
-    const observerLimit = this.qualityMode() === 'low' ? LOW_POWER_MAX_ACTIVE_EFFECTS : MAX_ACTIVE_EFFECTS;
+  #trimDecorations(): void {
+    const observerLimit = this.#qualityMode() === 'low' ? LOW_POWER_MAX_ACTIVE_EFFECTS : MAX_ACTIVE_EFFECTS;
     // Route travel is never capped: every visible live hop keeps its directional
     // cue. Only observer rings and lingering decoration are bounded during bursts.
-    this.activeObservers = capNewest(this.activeObservers, observerLimit);
-    this.residue = capNewest(this.residue, this.residueLimit());
-    this.nodeWakes = capNewest(this.nodeWakes, this.nodeWakeLimit());
+    this.#activeObservers = capNewest(this.#activeObservers, observerLimit);
+    this.residue = capNewest(this.residue, this.#residueLimit());
+    this.#nodeWakes = capNewest(this.#nodeWakes, this.#nodeWakeLimit());
   }
 
-  private addNodeWake(endpoint: EndpointV2, color: string, signature: PacketSignature, addedAt: number): void {
-    this.nodeWakes.push({ endpoint, color, signature, addedAt });
-    this.scheduledWakeCount += 1;
-    this.canvas.dataset.wakesScheduled = String(this.scheduledWakeCount);
+  #addNodeWake(endpoint: EndpointV2, color: string, signature: PacketSignature, addedAt: number): void {
+    this.#nodeWakes.push({ endpoint, color, signature, addedAt });
+    this.#scheduledWakeCount += 1;
+    this.canvas.dataset.wakesScheduled = String(this.#scheduledWakeCount);
   }
 
-  private hasVisibleEffects(): boolean {
+  #hasVisibleEffects(): boolean {
     return this.activeRoutes.length > 0
-      || this.activeObservers.length > 0
+      || this.#activeObservers.length > 0
       || this.residue.length > 0
-      || this.nodeWakes.length > 0;
+      || this.#nodeWakes.length > 0;
   }
 
-  private updateMotionMode(): void {
-    const quality = this.qualityMode();
-    const qualityChanged = this.appliedQuality !== undefined && this.appliedQuality !== quality;
-    this.appliedQuality = quality;
-    this.canvas.dataset.motionMode = this.reducedMotion ? 'static' : 'animated';
-    this.canvas.dataset.powerMode = this.lowPower ? 'low' : 'full';
+  #updateMotionMode(): void {
+    const quality = this.#qualityMode();
+    const qualityChanged = this.#appliedQuality !== undefined && this.#appliedQuality !== quality;
+    this.#appliedQuality = quality;
+    this.canvas.dataset.motionMode = this.#reducedMotion ? 'static' : 'animated';
+    this.canvas.dataset.powerMode = this.#lowPower ? 'low' : 'full';
     this.canvas.dataset.qualityMode = quality;
     this.canvas.dataset.projectionMode = this.projection.enabled() ? 'terrain' : 'flat';
     this.canvas.dataset.activeRoutes = String(this.activeRoutes.length);
-    this.canvas.dataset.nodeWakes = String(this.nodeWakes.length);
+    this.canvas.dataset.nodeWakes = String(this.#nodeWakes.length);
     if (qualityChanged) this.resize();
   }
 
-  private residueLimit(): number {
-    return this.qualityMode() === 'low' ? LOW_POWER_MAX_RESIDUE : MAX_RESIDUE;
+  #residueLimit(): number {
+    return this.#qualityMode() === 'low' ? LOW_POWER_MAX_RESIDUE : MAX_RESIDUE;
   }
 
-  private nodeWakeLimit(): number {
-    return this.qualityMode() === 'low' ? LOW_POWER_MAX_NODE_WAKES : MAX_NODE_WAKES;
+  #nodeWakeLimit(): number {
+    return this.#qualityMode() === 'low' ? LOW_POWER_MAX_NODE_WAKES : MAX_NODE_WAKES;
   }
 
-  private qualityMode(): VisualQuality {
+  #qualityMode(): VisualQuality {
     if (displayPreferences().quality === 'economy' || displayPreferences().effects === 'minimal') return 'low';
-    return visualQuality(displayPreferences().quality === 'high' ? false : this.lowPower, this.activeRoutes.length, this.activeObservers.length);
+    return visualQuality(displayPreferences().quality === 'high' ? false : this.#lowPower, this.activeRoutes.length, this.#activeObservers.length);
   }
 
-  private packetNearViewport(packet: PacketView): boolean {
+  #packetNearViewport(packet: PacketView): boolean {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     if (width <= 0 || height <= 0) return true;
     if (packet.mode === 'observer') {
-      const point = this.point(packet.observer);
+      const point = this.#point(packet.observer);
       return segmentNearViewport(point, point, width, height);
     }
     return packet.segments.some((segment) => {
@@ -1087,19 +1041,19 @@ export class PacketAnimator {
     });
   }
 
-  private clearCanvas(): void {
-    const width = this.canvas.width / this.dpr;
-    const height = this.canvas.height / this.dpr;
-    this.context.clearRect(0, 0, width, height);
+  #clearCanvas(): void {
+    const width = this.canvas.width / this.#dpr;
+    const height = this.canvas.height / this.#dpr;
+    this.#context.clearRect(0, 0, width, height);
   }
 
-  private clearResidueCanvas(): void {
-    const width = this.residueCanvas.width / this.dpr;
-    const height = this.residueCanvas.height / this.dpr;
-    this.residueContext.clearRect(0, 0, width, height);
+  #clearResidueCanvas(): void {
+    const width = this.#residueCanvas.width / this.#dpr;
+    const height = this.#residueCanvas.height / this.#dpr;
+    this.#residueContext.clearRect(0, 0, width, height);
   }
 
-  private point(endpoint: EndpointV2): ScreenPoint {
+  #point(endpoint: EndpointV2): ScreenPoint {
     return this.projection.projectEndpoint(endpoint);
   }
 }
@@ -1134,4 +1088,54 @@ function blendWithWhite(color: string, amount: number): string {
       .padStart(2, '0');
   });
   return `#${channels.join('')}`;
+}
+
+/** Shared category marks for the Map and Netgraph Canvas fallback. */
+export function drawPacketSignature(
+context: CanvasRenderingContext2D,
+  point: ScreenPoint,
+  tangent: ScreenPoint,
+  color: string,
+  signature: PacketSignature,
+  elapsed: number,
+): void {
+  const distance = Math.hypot(tangent.x, tangent.y) || 1;
+  const directionX = tangent.x / distance;
+  const directionY = tangent.y / distance;
+  const phase = (elapsed % 520) / 520;
+  context.save();
+  context.strokeStyle = withAlpha(color, 0.72);
+  context.fillStyle = withAlpha(color, 0.72);
+  context.lineWidth = 1.05;
+  if (signature === 'ripple') {
+    context.beginPath();
+    context.arc(point.x, point.y, 3 + phase * 6, 0, Math.PI * 2);
+    context.stroke();
+  } else if (signature === 'echo') {
+    for (const offset of [6, 12]) {
+      context.beginPath();
+      context.moveTo(point.x - directionX * offset - directionY * 2.5, point.y - directionY * offset + directionX * 2.5);
+      context.lineTo(point.x - directionX * offset + directionY * 2.5, point.y - directionY * offset - directionX * 2.5);
+      context.stroke();
+    }
+  } else if (signature === 'orbit') {
+    const angle = phase * Math.PI * 2;
+    context.beginPath();
+    context.arc(point.x + Math.cos(angle) * 5, point.y + Math.sin(angle) * 5, 1.35, 0, Math.PI * 2);
+    context.fill();
+  } else if (signature === 'double') {
+    for (const radius of [3.5, 6.5]) {
+      context.beginPath();
+      context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      context.stroke();
+    }
+  } else {
+    const perpendicularX = -directionY;
+    const perpendicularY = directionX;
+    context.beginPath();
+    context.moveTo(point.x - perpendicularX * 4, point.y - perpendicularY * 4);
+    context.lineTo(point.x + perpendicularX * 4, point.y + perpendicularY * 4);
+    context.stroke();
+  }
+  context.restore();
 }

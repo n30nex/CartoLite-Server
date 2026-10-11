@@ -157,65 +157,66 @@ export interface TooltipSize {
   height: number;
 }
 
+// Native private members keep renderer internals minifiable without renaming public/browser APIs.
 export class LiveMap {
   readonly map: maplibregl.Map;
-  private lastState?: Readonly<StateV2>;
-  private nodesByID = new Map<string, NodeV2>();
-  private routesByID = new Map<string, RouteV2>();
-  private routeIDsByNode = new Map<string, Set<string>>();
-  private nodeFeatureIDs = new Set<string>();
-  private clusterFeatureIDs = new Set<string>();
-  private heatFeatureIDs = new Set<string>();
-  private heatScores = new Map<string, number>();
-  private heatKindScores = new Map<string, Map<PacketKind, number>>();
-  private routeHeat = new Map<string, { endpointIDs: string[]; score: number; kind: PacketKind }>();
-  private heatEpoch = 0;
-  private routeDataDirty = true;
-  private routeHydrating = false;
-  private routeHydrationEpoch = 0;
-  private routeHydrationTimer?: number;
-  private lastRouteHydrationAt = 0;
-  private routeSourceRevision = 0;
-  private routeClock = 0;
-  private routeDetailFeatures = new Map<string, Feature<LineString>>();
-  private dirtyRouteIDs = new Set<string>();
-  private rebuildAllRoutes = true;
-  private heatDataDirty = true;
-  private routeWindow: RouteWindow = 'auto';
+  #lastState?: Readonly<StateV2>;
+  #nodesByID = new Map<string, NodeV2>();
+  #routesByID = new Map<string, RouteV2>();
+  #routeIDsByNode = new Map<string, Set<string>>();
+  #nodeFeatureIDs = new Set<string>();
+  #clusterFeatureIDs = new Set<string>();
+  #heatFeatureIDs = new Set<string>();
+  #heatScores = new Map<string, number>();
+  #heatKindScores = new Map<string, Map<PacketKind, number>>();
+  #routeHeat = new Map<string, { endpointIDs: string[]; score: number; kind: PacketKind }>();
+  #heatEpoch = 0;
+  #routeDataDirty = true;
+  #routeHydrating = false;
+  #routeHydrationEpoch = 0;
+  #routeHydrationTimer?: number;
+  #lastRouteHydrationAt = 0;
+  #routeSourceRevision = 0;
+  #routeClock = 0;
+  #routeDetailFeatures = new Map<string, Feature<LineString>>();
+  #dirtyRouteIDs = new Set<string>();
+  #rebuildAllRoutes = true;
+  #heatDataDirty = true;
+  #routeWindow: RouteWindow = 'auto';
   private routesVisible = true;
-  private heatmapVisible = true;
-  private clustersVisible = true;
-  private hillshadeVisible = false;
-  private terrain3D = false;
-  private terrainLayersReady = false;
-  private selectedNodeID: string | null = null;
-  private selectedNodeLabel = '';
-  private neighborNodeIDs: string[] = [];
-  private hoveredRouteID: string | null = null;
-  private routeInspectionPinned = false;
-  private historicalRouteLayer = new HistoricalRouteLayer();
-  private highlightedClusterID: number | null = null;
-  private clusterFlashTimer?: number;
-  private tooltipSignature = '';
-  private tooltipSize: TooltipSize = { width: 0, height: 0 };
-  private lastFocusSignature: string | undefined;
-  private inspectorSignature = '';
-  private nodeInspectorPopup?: maplibregl.Popup;
-  private nodeInspectorPopupAnchor?: 'left' | 'right';
-  private suppressPopupClose = false;
-  private lastFollowMoveAt = 0;
-  private followZoom = DEFAULT_ZOOM;
-  private followedPacket?: PacketView;
-  private appearance: UiPreferences = { ...DEFAULT_UI_PREFERENCES };
-  private readonly originalOverlayColors = new Map<string, unknown>();
-  private buildingSourceID?: string;
-  private directorTimer?: number;
-  private reducedMotion = prefersReducedMotion();
-  private freshnessTimer: number;
+  #heatmapVisible = true;
+  #clustersVisible = true;
+  #hillshadeVisible = false;
+  #terrain3D = false;
+  #terrainLayersReady = false;
+  #selectedNodeID: string | null = null;
+  #selectedNodeLabel = '';
+  #neighborNodeIDs: string[] = [];
+  #hoveredRouteID: string | null = null;
+  #routeInspectionPinned = false;
+  #historicalRouteLayer = new HistoricalRouteLayer();
+  #highlightedClusterID: number | null = null;
+  #clusterFlashTimer?: number;
+  #tooltipSignature = '';
+  #tooltipSize: TooltipSize = { width: 0, height: 0 };
+  #lastFocusSignature: string | undefined;
+  #inspectorSignature = '';
+  #nodeInspectorPopup?: maplibregl.Popup;
+  #nodeInspectorPopupAnchor?: 'left' | 'right';
+  #suppressPopupClose = false;
+  #lastFollowMoveAt = 0;
+  #followZoom = DEFAULT_ZOOM;
+  #followedPacket?: PacketView;
+  #appearance: UiPreferences = { ...DEFAULT_UI_PREFERENCES };
+  readonly #originalOverlayColors = new Map<string, unknown>();
+  #buildingSourceID?: string;
+  #directorTimer?: number;
+  #reducedMotion = prefersReducedMotion();
+  #freshnessTimer: number;
   private renderEpoch = 0;
   private renderingScheduled = false;
   private renderingSources = new Set<string>();
-  private layersReady = false;
+  #layersReady = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -223,7 +224,7 @@ export class LiveMap {
     private readonly inspectorSheet: HTMLElement,
     private readonly options: LiveMapOptions
   ) {
-    this.appearance = { ...DEFAULT_UI_PREFERENCES, ...options.appearance };
+    this.#appearance = { ...DEFAULT_UI_PREFERENCES, ...options.appearance };
     const lowPower = window.matchMedia('(max-width: 620px), (pointer: coarse)').matches;
     this.container.dataset.renderState = 'loading';
     this.container.dataset.routesVisible = 'true';
@@ -244,7 +245,7 @@ export class LiveMap {
     this.container.dataset.exactRoutesReady = 'false';
     this.map = new maplibregl.Map({
       container: this.container,
-      style: cartoVectorStyle(undefined, this.appearance.basemap),
+      style: cartoVectorStyle(undefined, this.#appearance.basemap),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       minZoom: 1,
@@ -255,54 +256,54 @@ export class LiveMap {
       touchPitch: true,
       maxPitch: 65,
       cooperativeGestures: false,
-      reduceMotion: this.reducedMotion,
+      reduceMotion: this.#reducedMotion,
       pixelRatio: mapPixelRatio(window.devicePixelRatio, lowPower),
-      fadeDuration: this.reducedMotion ? 0 : 120,
+      fadeDuration: this.#reducedMotion ? 0 : 120,
       renderWorldCopies: false,
       transformRequest: (url) => ({ url: cartoVectorRequestURL(url) })
     });
-    this.setTerrainGestures(false);
+    this.#setTerrainGestures(false);
     this.container.dataset.routeRenderer = 'maplibre-webgl';
-    this.updateRouteRepresentation();
+    this.#updateRouteRepresentation();
     this.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     const credits = this.container.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')!;
     const creditSize = new ResizeObserver(() => document.documentElement.style.setProperty('--map-credits-height', `${credits.offsetHeight}px`));
     creditSize.observe(credits);
     this.map.once('remove', () => creditSize.disconnect());
-    this.map.on('load', () => this.installLayers());
+    this.map.on('load', () => this.#installLayers());
     this.map.on('movestart', () => { this.container.dataset.cameraMoving = 'true'; });
     this.map.on('sourcedata', (event) => {
-      if (this.buildingSourceID && event.sourceId === this.buildingSourceID) {
-        this.container.dataset.buildingsLoaded = String(this.map.isSourceLoaded(this.buildingSourceID));
+      if (this.#buildingSourceID && event.sourceId === this.#buildingSourceID) {
+        this.container.dataset.buildingsLoaded = String(this.map.isSourceLoaded(this.#buildingSourceID));
       }
     });
     this.map.on('moveend', () => {
       this.container.dataset.cameraMoving = 'false';
       this.container.dataset.cameraZoom = String(Math.round(this.map.getZoom() * 100) / 100);
-      if (this.terrain3D && viewClass() === 'desktop') {
-        this.appearance.terrainPitch = this.map.getPitch();
-        this.appearance.terrainBearing = this.map.getBearing();
+      if (this.#terrain3D && viewClass() === 'desktop') {
+        this.#appearance.terrainPitch = this.map.getPitch();
+        this.#appearance.terrainBearing = this.map.getBearing();
         this.container.dataset.cameraPitch = String(Math.round(this.map.getPitch() * 10) / 10);
       }
     });
-    this.map.on('zoom', this.updateRouteRepresentation);
-    this.map.on('zoomend', this.handleZoomEnd);
-    this.map.on('resize', this.handleInspectorResize);
-    this.map.on('webglcontextrestored', this.handleWebGLContextRestored);
-    document.addEventListener('keydown', this.handleKeyDown);
-    this.freshnessTimer = window.setInterval(() => this.refreshRouteClock(), 60_000);
+    this.map.on('zoom', this.#updateRouteRepresentation);
+    this.map.on('zoomend', this.#handleZoomEnd);
+    this.map.on('resize', this.#handleInspectorResize);
+    this.map.on('webglcontextrestored', this.#handleWebGLContextRestored);
+    document.addEventListener('keydown', this.#handleKeyDown);
+    this.#freshnessTimer = window.setInterval(() => this.#refreshRouteClock(), 60_000);
   }
 
   render(state: Readonly<StateV2> | undefined, changes: MapChanges | null = { reset: true }, forceFreshness = false): void {
     if (!state) return;
-    this.lastState = state;
-    if (this.selectedNodeID && !state.nodes.some((node) => node.id === this.selectedNodeID)) {
-      this.setSelectedNode(null);
-      this.hideTooltip();
+    this.#lastState = state;
+    if (this.#selectedNodeID && !state.nodes.some((node) => node.id === this.#selectedNodeID)) {
+      this.#setSelectedNode(null);
+      this.#hideTooltip();
     }
-    if (!this.layersReady) return;
-    if (forceFreshness || changes?.reset || this.nodesByID.size === 0) {
-      this.resetSources(state);
+    if (!this.#layersReady) return;
+    if (forceFreshness || changes?.reset || this.#nodesByID.size === 0) {
+      this.#resetSources(state);
       return;
     }
 
@@ -310,132 +311,132 @@ export class LiveMap {
     const routeFeatureIDs = new Set(changes?.routeGeometry ?? []);
     if (changes?.nodes?.length) {
       for (const node of changes.nodes) {
-        this.nodesByID.set(node.id, node);
+        this.#nodesByID.set(node.id, node);
         heatNodeIDs.add(node.id);
       }
-      this.updateNodeFeatures(changes.nodes.map((node) => node.id));
+      this.#updateNodeFeatures(changes.nodes.map((node) => node.id));
     }
     if (changes?.routes?.length) {
       const routeIDs: string[] = [];
       for (const route of changes.routes) {
-        const previous = this.routesByID.get(route.id);
-        if (previous && (previous.fromId !== route.fromId || previous.toId !== route.toId)) this.unindexRoute(previous);
-        this.routesByID.set(route.id, route);
-        this.indexRoute(route);
+        const previous = this.#routesByID.get(route.id);
+        if (previous && (previous.fromId !== route.fromId || previous.toId !== route.toId)) this.#unindexRoute(previous);
+        this.#routesByID.set(route.id, route);
+        this.#indexRoute(route);
         routeIDs.push(route.id);
         routeFeatureIDs.add(route.id);
       }
-      for (const endpointID of this.updateHeatIndex(routeIDs)) heatNodeIDs.add(endpointID);
+      for (const endpointID of this.#updateHeatIndex(routeIDs)) heatNodeIDs.add(endpointID);
     }
     if (routeFeatureIDs.size > 0) {
-      for (const routeID of routeFeatureIDs) this.dirtyRouteIDs.add(routeID);
-      this.routeDataDirty = true;
-      if (!this.routeHydrating && this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) this.scheduleRouteHydration();
+      for (const routeID of routeFeatureIDs) this.#dirtyRouteIDs.add(routeID);
+      this.#routeDataDirty = true;
+      if (!this.#routeHydrating && this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) this.#scheduleRouteHydration();
     }
     if (heatNodeIDs.size > 0) {
-      if (this.heatmapVisible) this.updateHeatFeatures([...heatNodeIDs]);
-      else this.heatDataDirty = true;
+      if (this.#heatmapVisible) this.#updateHeatFeatures([...heatNodeIDs]);
+      else this.#heatDataDirty = true;
     }
     if (changes?.nodes?.length || changes?.routes?.length || routeFeatureIDs.size > 0) {
-      this.updateFocusData();
-      if (this.hoveredRouteID && !this.isSelectedRouteInspectable(this.hoveredRouteID)) this.clearRouteInspection();
-      if (this.selectedNodeID) this.applyFocusState(false);
+      this.#updateFocusData();
+      if (this.#hoveredRouteID && !this.#isSelectedRouteInspectable(this.#hoveredRouteID)) this.#clearRouteInspection();
+      if (this.#selectedNodeID) this.#applyFocusState(false);
     }
     // Live node and heat deltas are already painted by MapLibre. Do not restart
     // the route-settle indicator for every packet during a busy burst.
   }
 
-  private resetSources(state: Readonly<StateV2>): void {
+  #resetSources(state: Readonly<StateV2>): void {
     const now = Date.now();
-    this.nodesByID = new Map(state.nodes.map((node) => [node.id, node]));
-    this.routesByID = new Map(state.routes.map((route) => [route.id, route]));
-    this.rebuildRouteIndex();
+    this.#nodesByID = new Map(state.nodes.map((node) => [node.id, node]));
+    this.#routesByID = new Map(state.routes.map((route) => [route.id, route]));
+    this.#rebuildRouteIndex();
     const nodes = nodeCollection(state.nodes, now);
     (this.map.getSource(NODE_SOURCE_ID) as GeoJSONSource).setData(nodes);
     (this.map.getSource(NODE_CLUSTER_SOURCE_ID) as GeoJSONSource).setData(nodes);
-    this.nodeFeatureIDs = new Set(nodes.features.map((feature) => String(feature.id)));
-    this.clusterFeatureIDs = new Set(nodes.features.map((feature) => String(feature.id)));
+    this.#nodeFeatureIDs = new Set(nodes.features.map((feature) => String(feature.id)));
+    this.#clusterFeatureIDs = new Set(nodes.features.map((feature) => String(feature.id)));
 
-    this.routeDataDirty = true;
-    this.rebuildAllRoutes = true;
-    this.dirtyRouteIDs.clear();
-    this.hydrateRouteSource(now);
+    this.#routeDataDirty = true;
+    this.#rebuildAllRoutes = true;
+    this.#dirtyRouteIDs.clear();
+    this.#hydrateRouteSource(now);
 
-    this.rebuildHeatIndex(now);
-    this.heatDataDirty = true;
-    if (this.heatmapVisible) this.refreshHeatSource();
+    this.#rebuildHeatIndex(now);
+    this.#heatDataDirty = true;
+    if (this.#heatmapVisible) this.#refreshHeatSource();
 
-    this.updateFocusData();
-    if (this.selectedNodeID) this.applyFocusState(false);
+    this.#updateFocusData();
+    if (this.#selectedNodeID) this.#applyFocusState(false);
     this.markRendering();
   }
 
-  private updateNodeFeatures(ids: readonly string[]): boolean {
+  #updateNodeFeatures(ids: readonly string[]): boolean {
     const now = Date.now();
     const features = new Map<string, Feature<Point> | undefined>();
     for (const id of new Set(ids)) {
-      const node = this.nodesByID.get(id);
+      const node = this.#nodesByID.get(id);
       features.set(id, node && validEndpoint(node) ? nodeFeature(node, now) : undefined);
     }
-    const nodesChanged = this.applyFeatureDiff(NODE_SOURCE_ID, this.nodeFeatureIDs, features);
-    const clustersChanged = this.applyFeatureDiff(NODE_CLUSTER_SOURCE_ID, this.clusterFeatureIDs, features);
+    const nodesChanged = this.#applyFeatureDiff(NODE_SOURCE_ID, this.#nodeFeatureIDs, features);
+    const clustersChanged = this.#applyFeatureDiff(NODE_CLUSTER_SOURCE_ID, this.#clusterFeatureIDs, features);
     return nodesChanged || clustersChanged;
   }
 
-  private hydrateRouteSource(now = Date.now()): void {
+  #hydrateRouteSource(now = Date.now()): void {
     const detailSource = this.map.getSource(ROUTE_DETAIL_SOURCE_ID) as GeoJSONSource | undefined;
     if (!detailSource) return;
-    if (this.routeHydrationTimer !== undefined) {
-      window.clearTimeout(this.routeHydrationTimer);
-      this.routeHydrationTimer = undefined;
+    if (this.#routeHydrationTimer !== undefined) {
+      window.clearTimeout(this.#routeHydrationTimer);
+      this.#routeHydrationTimer = undefined;
     }
-    this.lastRouteHydrationAt = performance.now();
-    const hydrationEpoch = ++this.routeHydrationEpoch;
-    const allRoutes = [...this.routesByID.values()];
+    this.#lastRouteHydrationAt = performance.now();
+    const hydrationEpoch = ++this.#routeHydrationEpoch;
+    const allRoutes = [...this.#routesByID.values()];
     const routeBaseline = routeTrafficBaseline(allRoutes, now);
-    const rebuildAll = this.rebuildAllRoutes || this.routeDetailFeatures.size === 0;
-    const dirtyRouteIDs = new Set(this.dirtyRouteIDs);
-    this.rebuildAllRoutes = false;
-    this.dirtyRouteIDs.clear();
-    this.routeHydrating = true;
+    const rebuildAll = this.#rebuildAllRoutes || this.#routeDetailFeatures.size === 0;
+    const dirtyRouteIDs = new Set(this.#dirtyRouteIDs);
+    this.#rebuildAllRoutes = false;
+    this.#dirtyRouteIDs.clear();
+    this.#routeHydrating = true;
     this.container.dataset.routeHydrating = 'true';
-    this.routeDataDirty = false;
+    this.#routeDataDirty = false;
     this.container.dataset.exactRoutesLoaded = 'false';
     this.container.dataset.exactRoutesReady = 'false';
     this.markRendering();
 
-    const active = (): boolean => hydrationEpoch === this.routeHydrationEpoch
+    const active = (): boolean => hydrationEpoch === this.#routeHydrationEpoch
       && Boolean(this.map.getSource(ROUTE_DETAIL_SOURCE_ID));
     const fail = (error: unknown): void => {
       if (!active()) return;
-      this.routeHydrating = false;
+      this.#routeHydrating = false;
       this.container.dataset.routeHydrating = 'false';
-      this.routeDataDirty = true;
-      this.rebuildAllRoutes = true;
+      this.#routeDataDirty = true;
+      this.#rebuildAllRoutes = true;
       this.container.dataset.renderState = 'idle';
       console.warn('Route source update failed:', error instanceof Error ? error.message : error);
     };
     const finish = (): void => {
       if (!active()) return;
-      this.routeHydrating = false;
+      this.#routeHydrating = false;
       this.container.dataset.routeHydrating = 'false';
-      this.trackExactRouteReadiness(hydrationEpoch);
-      if (this.routeDataDirty) {
-        this.emitRouteWindowChange();
+      this.#trackExactRouteReadiness(hydrationEpoch);
+      if (this.#routeDataDirty) {
+        this.#emitRouteWindowChange();
         this.markRendering(this.routesVisible ? [ROUTE_DETAIL_SOURCE_ID] : undefined);
-        this.scheduleRouteHydration();
+        this.#scheduleRouteHydration();
         return;
       }
-      this.emitRouteWindowChange();
+      this.#emitRouteWindowChange();
       this.markRendering(this.routesVisible ? [ROUTE_DETAIL_SOURCE_ID] : undefined);
     };
     void buildRouteSourceCollections(
       allRoutes,
-      this.nodesByID,
+      this.#nodesByID,
       now,
       ROUTE_MAX_AGE_MS,
       routeBaseline,
-      this.routeDetailFeatures,
+      this.#routeDetailFeatures,
       dirtyRouteIDs,
       rebuildAll,
       active
@@ -445,32 +446,32 @@ export class LiveMap {
       this.container.dataset.trunkRepresentationsLoaded = '';
       this.container.dataset.routeBuildMaxSliceMs = collections.maxSliceMS.toFixed(1);
       const sourceStarted = performance.now();
-      this.historicalRouteLayer.setRoutes(collections.individual.features);
-      this.updateTerrainRoutes();
-      this.routeDetailFeatures.clear();
+      this.#historicalRouteLayer.setRoutes(collections.individual.features);
+      this.#updateTerrainRoutes();
+      this.#routeDetailFeatures.clear();
       for (const feature of collections.individual.features) {
-        if (feature.id !== undefined) this.routeDetailFeatures.set(String(feature.id), feature);
+        if (feature.id !== undefined) this.#routeDetailFeatures.set(String(feature.id), feature);
       }
       this.container.dataset.renderedRouteSegments = String(collections.individual.features.length);
       this.container.dataset.routeSourceDispatchMs = (performance.now() - sourceStarted).toFixed(1);
-      this.routeSourceRevision += 1;
-      this.container.dataset.routeSourceRevision = String(this.routeSourceRevision);
-      this.applyRouteTimeState(now, this.routeClock === 0);
+      this.#routeSourceRevision += 1;
+      this.container.dataset.routeSourceRevision = String(this.#routeSourceRevision);
+      this.#applyRouteTimeState(now, this.#routeClock === 0);
     })
       .then(finish)
       .catch(fail);
   }
 
-  private trackExactRouteReadiness(hydrationEpoch: number): void {
+  #trackExactRouteReadiness(hydrationEpoch: number): void {
     let settledFrames = 0;
     const settle = (): void => {
-      if (hydrationEpoch !== this.routeHydrationEpoch) return;
+      if (hydrationEpoch !== this.#routeHydrationEpoch) return;
       // Historical geometry lives in the batched renderer. The GeoJSON source
       // serves selected-neighbour hit targets only and may stay unloaded while hidden.
-      const detailNeeded = this.routesVisible && this.selectedNodeID !== null;
+      const detailNeeded = this.routesVisible && this.#selectedNodeID !== null;
       const sourceReady = this.container.dataset.exactRoutesLoaded === 'true'
         && (!detailNeeded || (Boolean(this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) && this.map.isSourceLoaded(ROUTE_DETAIL_SOURCE_ID)));
-      if (!sourceReady || this.routeHydrating) {
+      if (!sourceReady || this.#routeHydrating) {
         settledFrames = 0;
         window.requestAnimationFrame(settle);
         return;
@@ -485,76 +486,76 @@ export class LiveMap {
     window.requestAnimationFrame(settle);
   }
 
-  private scheduleRouteHydration(): void {
-    if (this.routeHydrationTimer !== undefined || this.routeHydrating || !this.routeDataDirty) return;
+  #scheduleRouteHydration(): void {
+    if (this.#routeHydrationTimer !== undefined || this.#routeHydrating || !this.#routeDataDirty) return;
     if (!this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) return;
-    const delay = routeHydrationDelay(this.lastRouteHydrationAt, performance.now());
-    this.routeHydrationTimer = window.setTimeout(() => {
-      this.routeHydrationTimer = undefined;
-      if (this.routeHydrating) {
-        this.scheduleRouteHydration();
+    const delay = routeHydrationDelay(this.#lastRouteHydrationAt, performance.now());
+    this.#routeHydrationTimer = window.setTimeout(() => {
+      this.#routeHydrationTimer = undefined;
+      if (this.#routeHydrating) {
+        this.#scheduleRouteHydration();
         return;
       }
-      if (this.routeDataDirty) this.hydrateRouteSource();
+      if (this.#routeDataDirty) this.#hydrateRouteSource();
     }, delay);
   }
 
-  private rebuildHeatIndex(now = Date.now()): void {
-    this.heatEpoch = now;
-    this.heatScores.clear();
-    this.heatKindScores.clear();
-    this.routeHeat.clear();
-    for (const route of this.routesByID.values()) this.addRouteHeat(route);
+  #rebuildHeatIndex(now = Date.now()): void {
+    this.#heatEpoch = now;
+    this.#heatScores.clear();
+    this.#heatKindScores.clear();
+    this.#routeHeat.clear();
+    for (const route of this.#routesByID.values()) this.#addRouteHeat(route);
   }
 
-  private updateHeatIndex(routeIDs: readonly string[]): string[] {
+  #updateHeatIndex(routeIDs: readonly string[]): string[] {
     const touched = new Set<string>();
     for (const id of new Set(routeIDs)) {
-      const previous = this.routeHeat.get(id);
+      const previous = this.#routeHeat.get(id);
       if (previous) {
         for (const endpointID of previous.endpointIDs) {
-          this.heatScores.set(endpointID, Math.max(0, (this.heatScores.get(endpointID) ?? 0) - previous.score));
-          addKindHeat(this.heatKindScores, endpointID, previous.kind, -previous.score);
+          this.#heatScores.set(endpointID, Math.max(0, (this.#heatScores.get(endpointID) ?? 0) - previous.score));
+          addKindHeat(this.#heatKindScores, endpointID, previous.kind, -previous.score);
           touched.add(endpointID);
         }
-        this.routeHeat.delete(id);
+        this.#routeHeat.delete(id);
       }
-      const route = this.routesByID.get(id);
+      const route = this.#routesByID.get(id);
       if (route) {
-        this.addRouteHeat(route);
+        this.#addRouteHeat(route);
         for (const endpointID of new Set([route.fromId, route.toId])) touched.add(endpointID);
       }
     }
     return [...touched];
   }
 
-  private addRouteHeat(route: RouteV2): void {
-    if (Math.max(0, this.heatEpoch - route.lastHeard) > ROUTE_MAX_AGE_MS) return;
-    const score = decayedRouteTraffic(route.traffic, route.lastHeard, this.heatEpoch);
+  #addRouteHeat(route: RouteV2): void {
+    if (Math.max(0, this.#heatEpoch - route.lastHeard) > ROUTE_MAX_AGE_MS) return;
+    const score = decayedRouteTraffic(route.traffic, route.lastHeard, this.#heatEpoch);
     const endpointIDs = [...new Set([route.fromId, route.toId])];
-    this.routeHeat.set(route.id, { endpointIDs, score, kind: route.lastKind });
+    this.#routeHeat.set(route.id, { endpointIDs, score, kind: route.lastKind });
     for (const endpointID of endpointIDs) {
-      this.heatScores.set(endpointID, (this.heatScores.get(endpointID) ?? 0) + score);
-      addKindHeat(this.heatKindScores, endpointID, route.lastKind, score);
+      this.#heatScores.set(endpointID, (this.#heatScores.get(endpointID) ?? 0) + score);
+      addKindHeat(this.#heatKindScores, endpointID, route.lastKind, score);
     }
   }
 
-  private updateHeatFeatures(ids: readonly string[]): boolean {
+  #updateHeatFeatures(ids: readonly string[]): boolean {
     const features = new Map<string, Feature<Point> | undefined>();
-    for (const id of new Set(ids)) features.set(id, heatFeature(id, this.nodesByID, this.heatScores, this.heatKindScores));
-    const changed = this.applyFeatureDiff(ACTIVITY_HEAT_SOURCE_ID, this.heatFeatureIDs, features);
-    if (changed) this.heatDataDirty = false;
+    for (const id of new Set(ids)) features.set(id, heatFeature(id, this.#nodesByID, this.#heatScores, this.#heatKindScores));
+    const changed = this.#applyFeatureDiff(ACTIVITY_HEAT_SOURCE_ID, this.#heatFeatureIDs, features);
+    if (changed) this.#heatDataDirty = false;
     return changed;
   }
 
-  private refreshHeatSource(): void {
-    const collection = heatCollection(this.nodesByID, this.heatScores, this.heatKindScores);
+  #refreshHeatSource(): void {
+    const collection = heatCollection(this.#nodesByID, this.#heatScores, this.#heatKindScores);
     (this.map.getSource(ACTIVITY_HEAT_SOURCE_ID) as GeoJSONSource).setData(collection);
-    this.heatFeatureIDs = new Set(collection.features.map((feature) => String(feature.id)));
-    this.heatDataDirty = false;
+    this.#heatFeatureIDs = new Set(collection.features.map((feature) => String(feature.id)));
+    this.#heatDataDirty = false;
   }
 
-  private applyFeatureDiff<G extends Point | LineString>(
+  #applyFeatureDiff<G extends Point | LineString>(
     sourceID: string,
     knownIDs: Set<string>,
     features: ReadonlyMap<string, Feature<G> | undefined>
@@ -584,15 +585,15 @@ export class LiveMap {
       (this.map.getSource(sourceID) as GeoJSONSource).updateData(diff);
     } catch (error: unknown) {
       console.warn(`Incremental ${sourceID} update failed:`, error instanceof Error ? error.message : error);
-      if (sourceID === ACTIVITY_HEAT_SOURCE_ID) this.heatDataDirty = true;
+      if (sourceID === ACTIVITY_HEAT_SOURCE_ID) this.#heatDataDirty = true;
     }
     return true;
   }
 
   reset(center: [number, number] = DEFAULT_CENTER, zoom = DEFAULT_ZOOM): void {
-    this.lastFollowMoveAt = 0;
-    const orientation = this.cameraOrientation();
-    if (this.reducedMotion) {
+    this.#lastFollowMoveAt = 0;
+    const orientation = this.#cameraOrientation();
+    if (this.#reducedMotion) {
       this.map.jumpTo({ center, zoom, ...orientation });
       return;
     }
@@ -600,7 +601,7 @@ export class LiveMap {
   }
 
   home(nodes: readonly NodeV2[], animate = true): void {
-    this.lastFollowMoveAt = 0;
+    this.#lastFollowMoveAt = 0;
     const now = Date.now();
     const active = nodes.filter((node) => validEndpoint(node) && Math.max(0, now - node.lastSeen) <= ACTIVE_NODE_WINDOW_MS);
     const visible = active.length > 0 ? active : nodes.filter(validEndpoint);
@@ -614,13 +615,13 @@ export class LiveMap {
     }
     const bounds = new maplibregl.LngLatBounds();
     for (const node of visible) bounds.extend([node.lng, node.lat]);
-    const options = { padding: this.container.clientWidth <= 620 ? 48 : 72, maxZoom: 6, duration: this.reducedMotion || !animate ? 0 : 620 };
+    const options = { padding: this.container.clientWidth <= 620 ? 48 : 72, maxZoom: 6, duration: this.#reducedMotion || !animate ? 0 : 620 };
     this.map.fitBounds(bounds, options);
   }
 
   restore(center: [number, number], zoom: number, nodes: readonly NodeV2[]): boolean {
-    this.lastFollowMoveAt = 0;
-    this.map.jumpTo({ center, zoom, ...this.cameraOrientation() });
+    this.#lastFollowMoveAt = 0;
+    this.map.jumpTo({ center, zoom, ...this.#cameraOrientation() });
     if (this.hasCurrentActivity(nodes)) return true;
     this.home(nodes);
     return false;
@@ -650,12 +651,12 @@ export class LiveMap {
     });
     if (inside) return false;
     const now = Date.now();
-    if (!canMoveLiveFollow(this.lastFollowMoveAt, now)) return false;
-    this.lastFollowMoveAt = now;
+    if (!canMoveLiveFollow(this.#lastFollowMoveAt, now)) return false;
+    this.#lastFollowMoveAt = now;
     this.container.dataset.cameraMode = 'director';
-    if (this.directorTimer !== undefined) window.clearTimeout(this.directorTimer);
-    this.directorTimer = window.setTimeout(() => {
-      this.directorTimer = undefined;
+    if (this.#directorTimer !== undefined) window.clearTimeout(this.#directorTimer);
+    this.#directorTimer = window.setTimeout(() => {
+      this.#directorTimer = undefined;
       this.container.dataset.cameraMode = 'idle';
     }, 1500);
     const bounds = new maplibregl.LngLatBounds();
@@ -664,16 +665,16 @@ export class LiveMap {
     const camera = this.map.cameraForBounds(bounds, {
       padding: { top: visible.top, right: viewport.width-visible.right, bottom: viewport.height-visible.bottom, left: visible.left },
       bearing: this.map.getBearing(),
-      maxZoom: endpoints.length===1 ? this.map.getZoom() : Math.min(this.followZoom,this.map.getZoom()),
+      maxZoom: endpoints.length===1 ? this.map.getZoom() : Math.min(this.#followZoom,this.map.getZoom()),
     });
     if (!camera) return false;
-    this.map.easeTo({ ...camera, duration: this.reducedMotion ? 0 : 1400, essential: false, easeId: 'cartolite-live-follow' });
+    this.map.easeTo({ ...camera, duration: this.#reducedMotion ? 0 : 1400, essential: false, easeId: 'cartolite-live-follow' });
     return true;
   }
 
   beginFollow(): void {
-    this.lastFollowMoveAt = 0;
-    this.followZoom = Math.min(10, this.map.getZoom());
+    this.#lastFollowMoveAt = 0;
+    this.#followZoom = Math.min(10, this.map.getZoom());
   }
 
   followPriority(packet: PacketView): number {
@@ -682,7 +683,7 @@ export class LiveMap {
   }
 
   showFollowPacket(packet?: PacketView): void {
-    this.followedPacket = packet;
+    this.#followedPacket = packet;
     const source = this.map.getSource(FOLLOW_SOURCE_ID) as GeoJSONSource | undefined;
     if (!source) return;
     const features: Feature<LineString | Point>[] = [];
@@ -702,15 +703,15 @@ export class LiveMap {
   }
 
   setAppearance(preferences: UiPreferences, force = false): void {
-    this.reducedMotion = displayReducedMotion();
-    const previous = this.appearance;
-    this.appearance = { ...preferences };
+    this.#reducedMotion = displayReducedMotion();
+    const previous = this.#appearance;
+    this.#appearance = { ...preferences };
     this.container.dataset.basemapStyle = preferences.basemap;
     this.container.dataset.nodeLabels = String(preferences.nodeLabels);
     this.container.dataset.mapLabels = String(preferences.mapLabels);
     this.container.dataset.roadsVisible = String(preferences.roads);
     this.container.dataset.routeOpacity = String(preferences.routeOpacity);
-    if (!this.layersReady) return;
+    if (!this.#layersReady) return;
     if (force || previous.basemap !== preferences.basemap) {
       for (const layer of cartoVectorStyle(undefined, preferences.basemap).layers) {
         if (!this.map.getLayer(layer.id) || !('paint' in layer)) continue;
@@ -719,9 +720,9 @@ export class LiveMap {
         }
       }
       const light = preferences.basemap !== 'dark';
-      this.historicalRouteLayer.setLightBackground(light);
-      applyOverlayPalette(this.map, this.originalOverlayColors, light);
-      if (this.terrain3D) this.updateSky();
+      this.#historicalRouteLayer.setLightBackground(light);
+      applyOverlayPalette(this.map, this.#originalOverlayColors, light);
+      if (this.#terrain3D) this.#updateSky();
     }
     if (force || previous.basemap !== preferences.basemap || previous.mapLabels !== preferences.mapLabels || previous.roads !== preferences.roads) {
       for (const layer of cartoVectorStyle().layers) {
@@ -734,15 +735,15 @@ export class LiveMap {
     this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'text-padding', display.detail === 'complete' ? 2 : 7);
     this.map.setLayoutProperty(NODE_LABEL_LAYER_ID, 'text-size', ['interpolate', ['linear'], ['zoom'], DETAIL_ZOOM, display.textSize === 'large' ? 12 : 10, 12, display.textSize === 'large' ? 15 : 12, 16, display.textSize === 'large' ? 17 : 13]);
     this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-opacity', .96);
-    this.historicalRouteLayer.setOpacity(preferences.routeOpacity);
-    this.historicalRouteLayer.refreshAppearance();
+    this.#historicalRouteLayer.setOpacity(preferences.routeOpacity);
+    this.#historicalRouteLayer.refreshAppearance();
     this.container.dataset.routePreset = displayPreferences().preset;
-    if (this.terrain3D && previous.terrainExaggeration !== preferences.terrainExaggeration) {
+    if (this.#terrain3D && previous.terrainExaggeration !== preferences.terrainExaggeration) {
       this.map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: preferences.terrainExaggeration });
     }
-    this.updateBuildingLayer();
+    this.#updateBuildingLayer();
     if (this.map.getLayer(HILLSHADE_LAYER_ID)) {
-      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', this.hillshadeStrength());
+      this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', this.#hillshadeStrength());
       const light = preferences.basemap !== 'dark';
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', light ? 'rgba(47, 64, 61, 0.55)' : 'rgba(2, 9, 18, 0.86)');
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', light ? 'rgba(255, 255, 244, 0.6)' : 'rgba(177, 211, 175, 0.64)');
@@ -750,184 +751,184 @@ export class LiveMap {
     this.markRendering();
   }
 
-  getSelectedNodeID(): string | null { return this.selectedNodeID; }
+  getSelectedNodeID(): string | null { return this.#selectedNodeID; }
 
   shouldFollow(packet: PacketView): boolean {
-    return packetMatchesFollow(packet, this.selectedNodeID);
+    return packetMatchesFollow(packet, this.#selectedNodeID);
   }
 
   findNodes(query: string, limit = 8): NodeSearchResult[] {
-    return searchNodes(this.nodesByID.values(), query, limit);
+    return searchNodes(this.#nodesByID.values(), query, limit);
   }
 
   selectNodeByID(nodeID: string, recenter = true): boolean {
     const started = performance.now();
-    const node = this.nodesByID.get(nodeID);
+    const node = this.#nodesByID.get(nodeID);
     if (!node) return false;
-    this.clearRouteInspection();
-    this.setSelectedNode(node.id, node.label);
-    if (recenter) this.centerNodeIfNeeded(node);
+    this.#clearRouteInspection();
+    this.#setSelectedNode(node.id, node.label);
+    if (recenter) this.#centerNodeIfNeeded(node);
     this.container.dataset.nodeSelectionApplyMs = (performance.now() - started).toFixed(1);
     return true;
   }
 
   clearSelection(): void {
-    this.clearNodeSelection();
+    this.#clearNodeSelection();
   }
 
   setRoutesVisible(visible: boolean): void {
     const started = performance.now();
     this.routesVisible = visible;
     this.container.dataset.routesVisible = String(visible);
-    this.historicalRouteLayer.setVisible(visible);
-    if (!this.layersReady) {
+    this.#historicalRouteLayer.setVisible(visible);
+    if (!this.#layersReady) {
       this.container.dataset.routeToggleApplyMs = (performance.now() - started).toFixed(1);
       return;
     }
     const detailSource = this.map.getSource(ROUTE_DETAIL_SOURCE_ID) as GeoJSONSource | undefined;
-    const needsHydration = visible && this.routeDataDirty && Boolean(detailSource);
-    this.updateTerrainRoutes();
-    const maxAge = this.effectiveRouteAgeMS();
+    const needsHydration = visible && this.#routeDataDirty && Boolean(detailSource);
+    this.#updateTerrainRoutes();
+    const maxAge = this.#effectiveRouteAgeMS();
     const visualApplied = detailSource
-      ? applyRouteVisibilityForZoom(this.map, visible && this.selectedNodeID !== null, maxAge, this.map.getZoom())
+      ? applyRouteVisibilityForZoom(this.map, visible && this.#selectedNodeID !== null, maxAge, this.map.getZoom())
       : false;
-    const hitApplied = this.selectedNodeID !== null && applyRouteHitLayerVisibility(this.map, visible);
-    const neighborsApplied = this.selectedNodeID !== null && applyNeighborRingVisibility(this.map, visible);
-    if (needsHydration) this.hydrateRouteSource();
-    if (!visible) this.clearRouteInspection();
+    const hitApplied = this.#selectedNodeID !== null && applyRouteHitLayerVisibility(this.map, visible);
+    const neighborsApplied = this.#selectedNodeID !== null && applyNeighborRingVisibility(this.map, visible);
+    if (needsHydration) this.#hydrateRouteSource();
+    if (!visible) this.#clearRouteInspection();
     if (!visible) this.map.getCanvas().style.cursor = '';
     if (!needsHydration && (visualApplied || Boolean(detailSource) || hitApplied || neighborsApplied)) this.markRendering();
     this.container.dataset.routeToggleApplyMs = (performance.now() - started).toFixed(1);
   }
 
   setHeatmapVisible(visible: boolean): void {
-    this.heatmapVisible = visible;
+    this.#heatmapVisible = visible;
     this.container.dataset.heatmapVisible = String(visible);
-    if (!this.layersReady) return;
+    if (!this.#layersReady) return;
     const source = this.map.getSource(ACTIVITY_HEAT_SOURCE_ID) as GeoJSONSource | undefined;
     if (!source) return;
-    if (visible && this.heatDataDirty) {
-      this.refreshHeatSource();
+    if (visible && this.#heatDataDirty) {
+      this.#refreshHeatSource();
     } else if (!visible) {
       source.setData(EMPTY_POINTS);
-      this.heatFeatureIDs.clear();
-      this.heatDataDirty = true;
+      this.#heatFeatureIDs.clear();
+      this.#heatDataDirty = true;
     }
     this.markRendering();
   }
 
   setClustersVisible(visible: boolean): void {
-    this.clustersVisible = visible;
+    this.#clustersVisible = visible;
     this.container.dataset.clustersVisible = String(visible);
-    if (!visible) this.setHighlightedCluster(null);
-    if (!this.layersReady) return;
+    if (!visible) this.#setHighlightedCluster(null);
+    if (!this.#layersReady) return;
     if (applyClusterVisibility(this.map, visible)) this.markRendering();
   }
 
   setHillshadeVisible(visible: boolean): void {
-    this.hillshadeVisible = visible;
+    this.#hillshadeVisible = visible;
     this.container.dataset.hillshadeVisible = String(visible);
-    if (!this.layersReady) return;
-    if (visible) this.ensureTerrainLayers();
+    if (!this.#layersReady) return;
+    if (visible) this.#ensureTerrainLayers();
     if (!this.map.getLayer(HILLSHADE_LAYER_ID)) return;
     this.map.setLayoutProperty(HILLSHADE_LAYER_ID, 'visibility', visible ? 'visible' : 'none');
     this.markRendering();
   }
 
   setTerrain3D(enabled: boolean): void {
-    this.terrain3D = enabled;
+    this.#terrain3D = enabled;
     this.container.dataset.terrain3d = String(enabled);
-    if (!this.layersReady) return;
-    if (enabled) this.ensureTerrainLayers();
-    this.map.setTerrain(enabled ? { source: TERRAIN_SOURCE_ID, exaggeration: this.appearance.terrainExaggeration } : null);
-    this.updateSky();
+    if (!this.#layersReady) return;
+    if (enabled) this.#ensureTerrainLayers();
+    this.map.setTerrain(enabled ? { source: TERRAIN_SOURCE_ID, exaggeration: this.#appearance.terrainExaggeration } : null);
+    this.#updateSky();
     this.map.setLight({ anchor: 'map', color: '#ffffff', intensity: 0.3, position: [1.5, 195, 50] });
-    this.updateBuildingLayer();
-    this.updateTerrainRoutes();
-    this.setTerrainGestures(enabled);
-    const camera = this.cameraOrientation();
+    this.#updateBuildingLayer();
+    this.#updateTerrainRoutes();
+    this.#setTerrainGestures(enabled);
+    const camera = this.#cameraOrientation();
     this.container.dataset.cameraPitch = String(camera.pitch);
-    if (this.reducedMotion) this.map.jumpTo(camera);
+    if (this.#reducedMotion) this.map.jumpTo(camera);
     else this.map.easeTo({ ...camera, duration: 680, essential: false });
     this.markRendering();
   }
 
   setBuildingsVisible(visible: boolean): void {
-    this.appearance.buildings = visible;
-    this.updateBuildingLayer();
+    this.#appearance.buildings = visible;
+    this.#updateBuildingLayer();
   }
 
   setCameraPitch(pitch: number): void {
-    this.appearance.terrainPitch = clamp(pitch, 0, 65);
-    if (this.terrain3D) {
-      this.map.jumpTo({ pitch: this.appearance.terrainPitch });
-      this.container.dataset.cameraPitch = String(this.appearance.terrainPitch);
+    this.#appearance.terrainPitch = clamp(pitch, 0, 65);
+    if (this.#terrain3D) {
+      this.map.jumpTo({ pitch: this.#appearance.terrainPitch });
+      this.container.dataset.cameraPitch = String(this.#appearance.terrainPitch);
     }
   }
 
   resetNorth(): void {
-    this.appearance.terrainBearing = 0;
-    if (this.reducedMotion) this.map.jumpTo({ bearing: 0 });
+    this.#appearance.terrainBearing = 0;
+    if (this.#reducedMotion) this.map.jumpTo({ bearing: 0 });
     else this.map.easeTo({ bearing: 0, duration: 400 });
   }
 
-  private updateBuildingLayer(): void {
-    this.container.dataset.buildingsVisible = String(this.appearance.buildings);
-    this.container.dataset.buildingExtrusions = String(this.appearance.buildings && this.terrain3D && viewClass() === 'desktop');
-    if (!this.layersReady) return;
-    this.buildingSourceID = updateBuildings(this.map, this.appearance.buildings, this.terrain3D, viewClass() === 'desktop', this.appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
+  #updateBuildingLayer(): void {
+    this.container.dataset.buildingsVisible = String(this.#appearance.buildings);
+    this.container.dataset.buildingExtrusions = String(this.#appearance.buildings && this.#terrain3D && viewClass() === 'desktop');
+    if (!this.#layersReady) return;
+    this.#buildingSourceID = updateBuildings(this.map, this.#appearance.buildings, this.#terrain3D, viewClass() === 'desktop', this.#appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
   }
 
-  private updateSky(): void {
-    const light = this.appearance.basemap !== 'dark';
-    this.map.setSky(this.terrain3D ? { 'sky-color': light ? '#cfe1e8' : '#14242e', 'horizon-color': light ? '#eef1ee' : '#29424a', 'fog-color': light ? '#dce7e5' : '#14242e', 'horizon-fog-blend': 0.15 } : {});
+  #updateSky(): void {
+    const light = this.#appearance.basemap !== 'dark';
+    this.map.setSky(this.#terrain3D ? { 'sky-color': light ? '#cfe1e8' : '#14242e', 'horizon-color': light ? '#eef1ee' : '#29424a', 'fog-color': light ? '#dce7e5' : '#14242e', 'horizon-fog-blend': 0.15 } : {});
   }
 
 
-  private hillshadeStrength(): ExpressionSpecification {
-    const strength = this.appearance.relief;
+  #hillshadeStrength(): ExpressionSpecification {
+    const strength = this.#appearance.relief;
     return ['interpolate', ['linear'], ['zoom'], 3, strength * 0.8, 10, strength * 0.85, 14, strength * 0.42, 18, strength * 0.28];
   }
 
   setRouteWindow(window: RouteWindow): void {
-    if (this.routeWindow === window) return;
+    if (this.#routeWindow === window) return;
     const started = performance.now();
-    this.routeWindow = window;
-    if (!this.layersReady) {
-      this.emitRouteWindowChange();
+    this.#routeWindow = window;
+    if (!this.#layersReady) {
+      this.#emitRouteWindowChange();
       this.container.dataset.routeWindowApplyMs = (performance.now() - started).toFixed(1);
       return;
     }
-    this.applyRouteTimeState();
-    if (this.selectedNodeID) {
-      this.updateFocusData();
-      this.applyFocusState(false);
+    this.#applyRouteTimeState();
+    if (this.#selectedNodeID) {
+      this.#updateFocusData();
+      this.#applyFocusState(false);
     }
-    if (this.hoveredRouteID && !this.isSelectedRouteInspectable(this.hoveredRouteID)) this.clearRouteInspection();
-    this.emitRouteWindowChange();
+    if (this.#hoveredRouteID && !this.#isSelectedRouteInspectable(this.#hoveredRouteID)) this.#clearRouteInspection();
+    this.#emitRouteWindowChange();
     this.container.dataset.routeWindowApplyMs = (performance.now() - started).toFixed(1);
     this.markRendering();
   }
 
   destroy(): void {
-    this.routeHydrationEpoch += 1;
-    this.routeHydrating = false;
+    this.#routeHydrationEpoch += 1;
+    this.#routeHydrating = false;
     this.renderEpoch += 1;
-    window.clearInterval(this.freshnessTimer);
-    if (this.routeHydrationTimer !== undefined) window.clearTimeout(this.routeHydrationTimer);
-    if (this.directorTimer !== undefined) window.clearTimeout(this.directorTimer);
-    if (this.clusterFlashTimer !== undefined) window.clearTimeout(this.clusterFlashTimer);
-    this.closeInspector(false);
-    document.removeEventListener('keydown', this.handleKeyDown);
-    this.map.off('zoom', this.updateRouteRepresentation);
-    this.map.off('zoomend', this.handleZoomEnd);
-    this.map.off('resize', this.handleInspectorResize);
-    this.map.off('webglcontextrestored', this.handleWebGLContextRestored);
+    window.clearInterval(this.#freshnessTimer);
+    if (this.#routeHydrationTimer !== undefined) window.clearTimeout(this.#routeHydrationTimer);
+    if (this.#directorTimer !== undefined) window.clearTimeout(this.#directorTimer);
+    if (this.#clusterFlashTimer !== undefined) window.clearTimeout(this.#clusterFlashTimer);
+    this.#closeInspector(false);
+    document.removeEventListener('keydown', this.#handleKeyDown);
+    this.map.off('zoom', this.#updateRouteRepresentation);
+    this.map.off('zoomend', this.#handleZoomEnd);
+    this.map.off('resize', this.#handleInspectorResize);
+    this.map.off('webglcontextrestored', this.#handleWebGLContextRestored);
     this.map.remove();
   }
 
-  private ensureTerrainLayers(): void {
-    if (this.terrainLayersReady) return;
+  #ensureTerrainLayers(): void {
+    if (this.#terrainLayersReady) return;
     for (const source of [TERRAIN_SOURCE_ID, HILLSHADE_SOURCE_ID]) {
       if (this.map.getSource(source)) continue;
       this.map.addSource(source, {
@@ -947,24 +948,24 @@ export class LiveMap {
         id: HILLSHADE_LAYER_ID,
         type: 'hillshade',
         source: HILLSHADE_SOURCE_ID,
-        layout: { visibility: this.hillshadeVisible ? 'visible' : 'none' },
+        layout: { visibility: this.#hillshadeVisible ? 'visible' : 'none' },
         paint: {
           'hillshade-illumination-anchor': 'map',
           'hillshade-method': 'multidirectional',
           'hillshade-illumination-direction': [270, 315, 0, 45],
           'hillshade-illumination-altitude': [35, 35, 35, 35],
-          'hillshade-exaggeration': this.hillshadeStrength(),
-          'hillshade-shadow-color': this.appearance.basemap === 'dark' ? 'rgba(2, 9, 18, 0.86)' : 'rgba(47, 64, 61, 0.55)',
-          'hillshade-highlight-color': this.appearance.basemap === 'dark' ? 'rgba(177, 211, 175, 0.64)' : 'rgba(255, 255, 244, 0.6)',
+          'hillshade-exaggeration': this.#hillshadeStrength(),
+          'hillshade-shadow-color': this.#appearance.basemap === 'dark' ? 'rgba(2, 9, 18, 0.86)' : 'rgba(47, 64, 61, 0.55)',
+          'hillshade-highlight-color': this.#appearance.basemap === 'dark' ? 'rgba(177, 211, 175, 0.64)' : 'rgba(255, 255, 244, 0.6)',
           'hillshade-accent-color': 'rgba(47, 86, 75, 0.54)'
         }
       }, before);
     }
-    this.terrainLayersReady = true;
+    this.#terrainLayersReady = true;
     this.container.dataset.terrainReady = 'true';
   }
 
-  private setTerrainGestures(enabled: boolean): void {
+  #setTerrainGestures(enabled: boolean): void {
     if (enabled) {
       this.map.dragRotate.enable();
       this.map.touchZoomRotate.enableRotation();
@@ -976,97 +977,97 @@ export class LiveMap {
     this.map.touchPitch.disable();
   }
 
-  private cameraOrientation(): { bearing: number; pitch: number } {
-    return this.terrain3D ? { bearing: this.appearance.terrainBearing, pitch: this.appearance.terrainPitch } : { bearing: 0, pitch: 0 };
+  #cameraOrientation(): { bearing: number; pitch: number } {
+    return this.#terrain3D ? { bearing: this.#appearance.terrainBearing, pitch: this.#appearance.terrainPitch } : { bearing: 0, pitch: 0 };
   }
 
-  private updateTerrainRoutes(): void {
-    this.container.dataset.routeSurface = this.terrain3D ? 'terrain' : 'flat';
-    this.historicalRouteLayer.setVisible(this.routesVisible);
+  #updateTerrainRoutes(): void {
+    this.container.dataset.routeSurface = this.#terrain3D ? 'terrain' : 'flat';
+    this.#historicalRouteLayer.setVisible(this.routesVisible);
   }
 
-  private updateRouteRepresentation = (): void => {
+  #updateRouteRepresentation = (): void => {
     const representation = routeRepresentationForZoom(this.map.getZoom());
     if (this.container.dataset.routeRepresentation === representation) return;
     this.container.dataset.routeRepresentation = representation;
     this.options.onRouteRepresentationChange?.(representation);
   };
 
-  private handleZoomEnd = (): void => {
-    if (!this.layersReady) {
-      this.emitRouteWindowChange();
+  #handleZoomEnd = (): void => {
+    if (!this.#layersReady) {
+      this.#emitRouteWindowChange();
       return;
     }
     const visibilityApplied = applyRouteVisibilityForZoom(
       this.map,
-      this.routesVisible && this.selectedNodeID !== null,
-      this.effectiveRouteAgeMS(),
+      this.routesVisible && this.#selectedNodeID !== null,
+      this.#effectiveRouteAgeMS(),
       this.map.getZoom()
     );
-    if (this.routeWindow !== 'auto') {
-      this.applyRouteTimeState();
-      this.emitRouteWindowChange();
+    if (this.#routeWindow !== 'auto') {
+      this.#applyRouteTimeState();
+      this.#emitRouteWindowChange();
       if (visibilityApplied) this.markRendering();
       return;
     }
-    this.applyRouteTimeState();
-    if (this.selectedNodeID) {
-      this.updateFocusData();
-      this.applyFocusState(false);
+    this.#applyRouteTimeState();
+    if (this.#selectedNodeID) {
+      this.#updateFocusData();
+      this.#applyFocusState(false);
     }
-    this.emitRouteWindowChange();
+    this.#emitRouteWindowChange();
     this.markRendering();
   };
 
-  private refreshRouteClock(): void {
+  #refreshRouteClock(): void {
     const now = Date.now();
-    this.refreshRouteAgeBands(now);
-    this.applyRouteTimeState(now, true);
-    if (this.selectedNodeID) {
-      this.updateFocusData();
-      this.applyFocusState(false);
+    this.#refreshRouteAgeBands(now);
+    this.#applyRouteTimeState(now, true);
+    if (this.#selectedNodeID) {
+      this.#updateFocusData();
+      this.#applyFocusState(false);
     }
-    if (this.hoveredRouteID && !this.isSelectedRouteInspectable(this.hoveredRouteID)) this.clearRouteInspection();
+    if (this.#hoveredRouteID && !this.#isSelectedRouteInspectable(this.#hoveredRouteID)) this.#clearRouteInspection();
     this.markRendering();
   }
 
-  private refreshRouteAgeBands(now: number): void {
+  #refreshRouteAgeBands(now: number): void {
     let changed = false;
-    for (const route of this.routesByID.values()) {
-      const feature = this.routeDetailFeatures.get(route.id);
+    for (const route of this.#routesByID.values()) {
+      const feature = this.#routeDetailFeatures.get(route.id);
       if (!feature) continue;
       const age = Math.max(0, now - route.lastHeard);
       const expired = age > ROUTE_MAX_AGE_MS;
       const previousBand = Number(feature.properties?.windowBand);
       if (!expired && previousBand === routeWindowBand(age)) continue;
-      this.dirtyRouteIDs.add(route.id);
+      this.#dirtyRouteIDs.add(route.id);
       changed = true;
     }
     if (!changed) return;
-    this.routeDataDirty = true;
-    if (!this.routeHydrating && this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) this.hydrateRouteSource(now);
+    this.#routeDataDirty = true;
+    if (!this.#routeHydrating && this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) this.#hydrateRouteSource(now);
   }
 
-  private applyRouteTimeState(now = Date.now(), refreshClock = false): void {
-    const maxAge = this.effectiveRouteAgeMS();
-    if (refreshClock || this.routeClock === 0) this.routeClock = now;
-    this.historicalRouteLayer.setMaximumBand(routeWindowBand(maxAge));
-    this.container.dataset.eligibleRoutes = String(countEligibleRoutes(this.routesByID.values(), this.nodesByID, this.routeClock, maxAge));
+  #applyRouteTimeState(now = Date.now(), refreshClock = false): void {
+    const maxAge = this.#effectiveRouteAgeMS();
+    if (refreshClock || this.#routeClock === 0) this.#routeClock = now;
+    this.#historicalRouteLayer.setMaximumBand(routeWindowBand(maxAge));
+    this.container.dataset.eligibleRoutes = String(countEligibleRoutes(this.#routesByID.values(), this.#nodesByID, this.#routeClock, maxAge));
     // Compatibility diagnostics: history consists only of exact segments.
     for (const key of ['nationalRouteTrunks', 'regionalRouteTrunks', 'nationalRoutesRepresented', 'regionalRoutesRepresented']) this.container.dataset[key] = '0';
-    this.updateTerrainRoutes();
+    this.#updateTerrainRoutes();
   }
 
-  private emitRouteWindowChange(): void {
+  #emitRouteWindowChange(): void {
     this.options.onRouteWindowChange?.(routeWindowLabel('auto', this.map.getZoom()));
   }
 
-  private effectiveRouteAgeMS(): number {
-    return effectiveRouteWindowMS(this.routeWindow, this.map.getZoom());
+  #effectiveRouteAgeMS(): number {
+    return effectiveRouteWindowMS(this.#routeWindow, this.map.getZoom());
   }
 
-  private installLayers(): void {
-    if (this.hillshadeVisible || this.terrain3D) this.ensureTerrainLayers();
+  #installLayers(): void {
+    if (this.#hillshadeVisible || this.#terrain3D) this.#ensureTerrainLayers();
     this.map.addSource(ACTIVITY_HEAT_SOURCE_ID, { type: 'geojson', data: EMPTY_POINTS, maxzoom: 14 });
     PACKET_KINDS.forEach((kind, index) => this.map.addLayer({
       id: HEATMAP_LAYER_IDS[index]!,
@@ -1089,11 +1090,11 @@ export class LiveMap {
     }));
     this.map.addSource(ROUTE_DETAIL_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
     this.map.addSource(ROUTE_FOCUS_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
-    this.applyRouteTimeState(Date.now(), true);
-    const exactVisibility = this.routesVisible && this.selectedNodeID !== null ? 'visible' : 'none';
-    this.historicalRouteLayer.setVisible(this.routesVisible);
-    this.historicalRouteLayer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));
-    this.map.addLayer(this.historicalRouteLayer);
+    this.#applyRouteTimeState(Date.now(), true);
+    const exactVisibility = this.routesVisible && this.#selectedNodeID !== null ? 'visible' : 'none';
+    this.#historicalRouteLayer.setVisible(this.routesVisible);
+    this.#historicalRouteLayer.setMaximumBand(routeWindowBand(this.#effectiveRouteAgeMS()));
+    this.map.addLayer(this.#historicalRouteLayer);
     this.map.addLayer({
       id: ROUTE_FOCUS_LAYER_IDS[0],
       type: 'line',
@@ -1153,8 +1154,8 @@ export class LiveMap {
         'line-opacity': 0.001
       }
     });
-    applyRouteSelectionFilter(this.map, this.selectedNodeID);
-    applyRouteHitLayerVisibility(this.map, this.routesVisible && this.selectedNodeID !== null);
+    applyRouteSelectionFilter(this.map, this.#selectedNodeID);
+    applyRouteHitLayerVisibility(this.map, this.routesVisible && this.#selectedNodeID !== null);
     applyRouteHoverFilter(this.map, null);
     this.map.addSource(NODE_CLUSTER_SOURCE_ID, {
       type: 'geojson',
@@ -1256,7 +1257,7 @@ export class LiveMap {
       type: 'circle',
       source: NODE_SOURCE_ID,
       minzoom: DETAIL_ZOOM - 0.15,
-      filter: selectedNodeFilter(this.selectedNodeID),
+      filter: selectedNodeFilter(this.#selectedNodeID),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], DETAIL_ZOOM, 10, 10, 14, 14, 18],
         'circle-color': 'rgba(0,0,0,0)',
@@ -1271,7 +1272,7 @@ export class LiveMap {
       type: 'circle',
       source: NODE_SOURCE_ID,
       minzoom: DETAIL_ZOOM - 0.15,
-      filter: selectedNodeFilter(this.selectedNodeID),
+      filter: selectedNodeFilter(this.#selectedNodeID),
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], DETAIL_ZOOM, 7.2, 10, 10.2, 14, 13.5],
         'circle-color': 'rgba(242,189,85,0.12)',
@@ -1357,35 +1358,35 @@ export class LiveMap {
       }
     });
 
-    this.applyFocusState();
-    applyClusterVisibility(this.map, this.clustersVisible);
+    this.#applyFocusState();
+    applyClusterVisibility(this.map, this.#clustersVisible);
 
-    this.map.on('mousemove', NODE_HIT_LAYER_ID, (event) => this.showNodeTooltip(event));
+    this.map.on('mousemove', NODE_HIT_LAYER_ID, (event) => this.#showNodeTooltip(event));
     this.map.on('mouseleave', NODE_HIT_LAYER_ID, () => {
       // Touch browsers can synthesize this after a route tap. Do not let a
       // late node leave hide the route tooltip that has just replaced it.
-      if (this.tooltip.dataset.kind === 'node') this.hideTooltip();
+      if (this.tooltip.dataset.kind === 'node') this.#hideTooltip();
     });
     this.map.on('mousemove', ROUTE_HIT_LAYER_ID, (event) => {
-      if (!this.routeInspectionPinned) this.showRouteTooltip(event);
+      if (!this.#routeInspectionPinned) this.#showRouteTooltip(event);
     });
     this.map.on('mouseleave', ROUTE_HIT_LAYER_ID, () => {
       this.map.getCanvas().style.cursor = '';
-      if (!this.routeInspectionPinned) this.clearRouteInspection();
+      if (!this.#routeInspectionPinned) this.#clearRouteInspection();
     });
-    this.map.on('mousemove', 'clusters', (event) => this.highlightCluster(event));
+    this.map.on('mousemove', 'clusters', (event) => this.#highlightCluster(event));
     this.map.on('mouseleave', 'clusters', () => {
-      if (this.clusterFlashTimer === undefined) this.setHighlightedCluster(null);
+      if (this.#clusterFlashTimer === undefined) this.#setHighlightedCluster(null);
     });
-    this.map.on('click', (event) => this.handleMapClick(event));
+    this.map.on('click', (event) => this.#handleMapClick(event));
     this.map.on('mousemove', (event) => {
-      if (!this.terrain3D || !this.selectedNodeID) return;
-      if (!this.showRouteTooltip(event) && this.tooltip.dataset.kind === 'route' && !this.routeInspectionPinned) this.clearRouteInspection();
+      if (!this.#terrain3D || !this.#selectedNodeID) return;
+      if (!this.#showRouteTooltip(event) && this.tooltip.dataset.kind === 'route' && !this.#routeInspectionPinned) this.#clearRouteInspection();
     });
     this.map.on('movestart', () => {
-      this.hideTooltip();
-      this.clearRouteInspection();
-      if (this.clusterFlashTimer === undefined) this.setHighlightedCluster(null);
+      this.#hideTooltip();
+      this.#clearRouteInspection();
+      if (this.#clusterFlashTimer === undefined) this.#setHighlightedCluster(null);
     });
     for (const layer of [NODE_HIT_LAYER_ID, 'clusters']) {
       this.map.on('mouseenter', layer, () => { this.map.getCanvas().style.cursor = 'pointer'; });
@@ -1404,11 +1405,11 @@ export class LiveMap {
       filter: ['==', ['geometry-type'], 'Point'],
       paint: { 'circle-color': ['get', 'color'], 'circle-radius': 4, 'circle-stroke-color': '#19363b', 'circle-stroke-width': 1.5 },
     });
-    this.layersReady = true;
-    this.setAppearance(this.appearance, true);
-    this.showFollowPacket(this.followedPacket);
-    if (this.terrain3D) this.setTerrain3D(true);
-    this.render(this.lastState, { reset: true }, true);
+    this.#layersReady = true;
+    this.setAppearance(this.#appearance, true);
+    this.showFollowPacket(this.#followedPacket);
+    if (this.#terrain3D) this.setTerrain3D(true);
+    this.render(this.#lastState, { reset: true }, true);
   }
 
   private markRendering(sourceIDs?: readonly string[]): void {
@@ -1428,8 +1429,8 @@ export class LiveMap {
         Boolean(this.map.getSource(sourceID)) && this.map.isSourceLoaded(sourceID)
       ));
       const awaitingVisibleRoutes = this.routesVisible
-        && (!this.lastState || this.container.dataset.exactRoutesReady !== 'true');
-      if (awaitingVisibleRoutes || (this.routesVisible && this.routeHydrating) || !sourcesSettled) {
+        && (!this.#lastState || this.container.dataset.exactRoutesReady !== 'true');
+      if (awaitingVisibleRoutes || (this.routesVisible && this.#routeHydrating) || !sourcesSettled) {
         settledFrames = 0;
         window.requestAnimationFrame(settle);
         return;
@@ -1446,17 +1447,17 @@ export class LiveMap {
     window.requestAnimationFrame(settle);
   }
 
-  private async expandCluster(event: MapMouseEvent): Promise<void> {
+  async #expandCluster(event: MapMouseEvent): Promise<void> {
     const feature = this.map.queryRenderedFeatures(event.point, { layers: ['clusters'] })[0];
     const clusterId = Number(feature?.properties?.cluster_id);
     if (!Number.isFinite(clusterId)) return;
-    this.flashCluster(clusterId);
+    this.#flashCluster(clusterId);
     const source = this.map.getSource(NODE_CLUSTER_SOURCE_ID) as GeoJSONSource;
     const zoom = await source.getClusterExpansionZoom(clusterId);
     const coordinates = feature?.geometry.type === 'Point' ? feature.geometry.coordinates : undefined;
     if (coordinates && typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
       const center: [number, number] = [coordinates[0], coordinates[1]];
-      if (this.reducedMotion) {
+      if (this.#reducedMotion) {
         this.map.jumpTo({ center, zoom });
       } else {
         this.map.easeTo({ center, zoom, duration: 460, essential: false });
@@ -1464,92 +1465,92 @@ export class LiveMap {
     }
   }
 
-  private handleMapClick(event: MapMouseEvent): void {
+  #handleMapClick(event: MapMouseEvent): void {
     if (this.map.queryRenderedFeatures(event.point, { layers: [NODE_HIT_LAYER_ID] }).length > 0) {
-      this.selectNode(event);
+      this.#selectNode(event);
       return;
     }
     if (this.map.queryRenderedFeatures(event.point, { layers: ['clusters'] }).length > 0) {
-      this.clearNodeSelection();
-      void this.expandCluster(event);
+      this.#clearNodeSelection();
+      void this.#expandCluster(event);
       return;
     }
-    if (this.showRouteTooltip(event, true)) return;
-    this.clearNodeSelection();
+    if (this.#showRouteTooltip(event, true)) return;
+    this.#clearNodeSelection();
   }
 
-  private selectNode(event: MapMouseEvent): void {
+  #selectNode(event: MapMouseEvent): void {
     const feature = this.map.queryRenderedFeatures(event.point, { layers: [NODE_HIT_LAYER_ID] })[0];
     if (!feature) return;
     const nodeID = String(feature.properties?.id ?? feature.id ?? '');
     if (!nodeID) return;
-    this.clearRouteInspection();
-    this.setSelectedNode(nodeID, String(feature.properties?.label ?? 'MeshCore node'));
-    this.hideTooltip();
+    this.#clearRouteInspection();
+    this.#setSelectedNode(nodeID, String(feature.properties?.label ?? 'MeshCore node'));
+    this.#hideTooltip();
   }
 
-  private clearNodeSelection(): void {
-    this.setSelectedNode(null);
-    this.hideTooltip();
+  #clearNodeSelection(): void {
+    this.#setSelectedNode(null);
+    this.#hideTooltip();
     this.map.getCanvas().style.cursor = '';
   }
 
-  private setSelectedNode(nodeID: string | null, label = ''): void {
-    if (this.selectedNodeID === nodeID && (!nodeID || !label || label === this.selectedNodeLabel)) return;
-    this.clearRouteInspection();
-    this.selectedNodeID = nodeID;
-    this.selectedNodeLabel = nodeID ? label : '';
+  #setSelectedNode(nodeID: string | null, label = ''): void {
+    if (this.#selectedNodeID === nodeID && (!nodeID || !label || label === this.#selectedNodeLabel)) return;
+    this.#clearRouteInspection();
+    this.#selectedNodeID = nodeID;
+    this.#selectedNodeLabel = nodeID ? label : '';
     this.container.dataset.selectedNodeId = nodeID ?? '';
     rememberNode(nodeID);
-    this.updateFocusData();
-    this.applyFocusState();
-    if (nodeID === null && this.tooltip.dataset.kind === 'route') this.hideTooltip();
+    this.#updateFocusData();
+    this.#applyFocusState();
+    if (nodeID === null && this.tooltip.dataset.kind === 'route') this.#hideTooltip();
     this.markRendering();
   }
 
-  private updateFocusData(): void {
+  #updateFocusData(): void {
     const now = Date.now();
-    const maxAge = this.effectiveRouteAgeMS();
-    const routes = this.adjacentRoutes(this.selectedNodeID).filter((route) => isRecentNeighborRoute(route, now, maxAge));
-    this.neighborNodeIDs = neighborNodeIDs(routes, this.selectedNodeID);
+    const maxAge = this.#effectiveRouteAgeMS();
+    const routes = this.#adjacentRoutes(this.#selectedNodeID).filter((route) => isRecentNeighborRoute(route, now, maxAge));
+    this.#neighborNodeIDs = neighborNodeIDs(routes, this.#selectedNodeID);
     this.container.dataset.neighborRouteCount = String(routes.length);
     const focusSource = this.map.getSource(ROUTE_FOCUS_SOURCE_ID) as GeoJSONSource | undefined;
-    if (focusSource) focusSource.setData(routeCollection(routes, this.nodesByID, now, maxAge));
+    if (focusSource) focusSource.setData(routeCollection(routes, this.#nodesByID, now, maxAge));
     this.container.dataset.focusedRouteCount = String(routes.length);
-    const stateLabel = this.selectedNodeID ? this.nodesByID.get(this.selectedNodeID)?.label : undefined;
-    if (stateLabel) this.selectedNodeLabel = stateLabel;
-    this.emitFocusChange();
-    this.renderNodeInspector();
+    const stateLabel = this.#selectedNodeID ? this.#nodesByID.get(this.#selectedNodeID)?.label : undefined;
+    if (stateLabel) this.#selectedNodeLabel = stateLabel;
+    this.#emitFocusChange();
+    this.#renderNodeInspector();
   }
 
-  private emitFocusChange(): void {
-    const focus = this.selectedNodeID
-      ? { label: this.selectedNodeLabel || 'MeshCore node', neighborCount: this.neighborNodeIDs.length }
+  #emitFocusChange(): void {
+    const focus = this.#selectedNodeID
+      ? { label: this.#selectedNodeLabel || 'MeshCore node', neighborCount: this.#neighborNodeIDs.length }
       : null;
-    const signature = focus ? `${this.selectedNodeID}:${focus.label}:${focus.neighborCount}` : '';
-    if (signature === this.lastFocusSignature) return;
-    this.lastFocusSignature = signature;
+    const signature = focus ? `${this.#selectedNodeID}:${focus.label}:${focus.neighborCount}` : '';
+    if (signature === this.#lastFocusSignature) return;
+    this.#lastFocusSignature = signature;
     this.options.onFocusChange?.(focus);
   }
 
-  private applyFocusState(updateRouteFilter = true): void {
-    const focusIDs = this.selectedNodeID ? [this.selectedNodeID, ...this.neighborNodeIDs] : [];
-    applyRouteVisibilityForZoom(this.map, this.routesVisible && this.selectedNodeID !== null, this.effectiveRouteAgeMS(), this.map.getZoom());
-    if (updateRouteFilter) applyRouteSelectionFilter(this.map, this.selectedNodeID);
-    applySelectedNodeFilter(this.map, this.selectedNodeID);
-    applyNodeFocus(this.map, this.selectedNodeID, focusIDs, this.neighborNodeIDs);
+  #applyFocusState(updateRouteFilter = true): void {
+    const focusIDs = this.#selectedNodeID ? [this.#selectedNodeID, ...this.#neighborNodeIDs] : [];
+    applyRouteVisibilityForZoom(this.map, this.routesVisible && this.#selectedNodeID !== null, this.#effectiveRouteAgeMS(), this.map.getZoom());
+    if (updateRouteFilter) applyRouteSelectionFilter(this.map, this.#selectedNodeID);
+    applySelectedNodeFilter(this.map, this.#selectedNodeID);
+    applyNodeFocus(this.map, this.#selectedNodeID, focusIDs, this.#neighborNodeIDs);
     applyHeatmapFocus(this.map, focusIDs);
-    applyRouteHitLayerVisibility(this.map, this.routesVisible && this.selectedNodeID !== null);
-    applyNeighborRingVisibility(this.map, this.routesVisible && this.selectedNodeID !== null);
+    applyRouteHitLayerVisibility(this.map, this.routesVisible && this.#selectedNodeID !== null);
+    applyNeighborRingVisibility(this.map, this.routesVisible && this.#selectedNodeID !== null);
   }
 
-  private showNodeTooltip(event: MapMouseEvent): void {
+  #showNodeTooltip(event: MapMouseEvent): void {
     const feature = this.map.queryRenderedFeatures(event.point, { layers: [NODE_HIT_LAYER_ID] })[0];
     if (!feature) return;
     const properties = feature.properties ?? {};
     const role = String(properties.role ?? 'unknown').replace('_', ' ');
     const seen = Number(properties.lastSeen);
-    this.presentTooltip(
+    this.#presentTooltip(
       event,
       String(properties.label ?? 'MeshCore node'),
       `${role}${properties.observer ? ' · observer' : ''}${Number.isFinite(seen) ? ` · ${relativeTime(seen)}` : ''}`,
@@ -1557,22 +1558,22 @@ export class LiveMap {
     );
   }
 
-  private showRouteTooltip(event: MapMouseEvent, pin = false): boolean {
-    if (!this.routesVisible || !this.selectedNodeID) return false;
+  #showRouteTooltip(event: MapMouseEvent, pin = false): boolean {
+    if (!this.routesVisible || !this.#selectedNodeID) return false;
     if (this.map.queryRenderedFeatures(event.point, { layers: [NODE_HIT_LAYER_ID] }).length > 0) return false;
     const feature = this.map.queryRenderedFeatures(event.point, { layers: [ROUTE_HIT_LAYER_ID] })
-      .find((candidate) => this.isSelectedRouteInspectable(String(candidate.properties?.id ?? candidate.id ?? '')));
-    const terrainRouteID = this.historicalRouteLayer.pick(event.point, (id) => this.isSelectedRouteInspectable(id));
+      .find((candidate) => this.#isSelectedRouteInspectable(String(candidate.properties?.id ?? candidate.id ?? '')));
+    const terrainRouteID = this.#historicalRouteLayer.pick(event.point, (id) => this.#isSelectedRouteInspectable(id));
     if (!feature && !terrainRouteID) return false;
     const properties = feature?.properties ?? {};
-    const route = this.routesByID.get(terrainRouteID ?? String(properties.id ?? feature?.id ?? ''));
+    const route = this.#routesByID.get(terrainRouteID ?? String(properties.id ?? feature?.id ?? ''));
     if (!route) return false;
-    const from = this.nodesByID.get(route.fromId);
-    const to = this.nodesByID.get(route.toId);
+    const from = this.#nodesByID.get(route.fromId);
+    const to = this.#nodesByID.get(route.toId);
     if (!from || !to) return false;
-    this.routeInspectionPinned = pin;
-    this.setHoveredRoute(route.id);
-    this.presentTooltip(
+    this.#routeInspectionPinned = pin;
+    this.#setHoveredRoute(route.id);
+    this.#presentTooltip(
       event,
       `${from.label} ↔ ${to.label}`,
       `${route.lastKind} · ${observationTotal(route.packetCount)} · heard ${relativeTime(route.lastHeard)}`,
@@ -1581,129 +1582,129 @@ export class LiveMap {
     return true;
   }
 
-  private setHoveredRoute(routeID: string | null): void {
-    if (this.hoveredRouteID === routeID) return;
-    this.hoveredRouteID = routeID;
+  #setHoveredRoute(routeID: string | null): void {
+    if (this.#hoveredRouteID === routeID) return;
+    this.#hoveredRouteID = routeID;
     this.container.dataset.hoveredRouteId = routeID ?? '';
-    applyRouteHoverFilter(this.map, this.routesVisible && this.selectedNodeID ? routeID : null);
+    applyRouteHoverFilter(this.map, this.routesVisible && this.#selectedNodeID ? routeID : null);
   }
 
-  private clearRouteInspection(): void {
-    this.routeInspectionPinned = false;
-    this.setHoveredRoute(null);
-    if (this.tooltip.dataset.kind === 'route') this.hideTooltip();
+  #clearRouteInspection(): void {
+    this.#routeInspectionPinned = false;
+    this.#setHoveredRoute(null);
+    if (this.tooltip.dataset.kind === 'route') this.#hideTooltip();
   }
 
-  private highlightCluster(event: MapMouseEvent): void {
+  #highlightCluster(event: MapMouseEvent): void {
     const feature = this.map.queryRenderedFeatures(event.point, { layers: ['clusters'] })[0];
     const clusterID = Number(feature?.properties?.cluster_id);
-    this.setHighlightedCluster(Number.isFinite(clusterID) ? clusterID : null);
+    this.#setHighlightedCluster(Number.isFinite(clusterID) ? clusterID : null);
   }
 
-  private setHighlightedCluster(clusterID: number | null): void {
-    if (this.highlightedClusterID === clusterID) return;
-    this.highlightedClusterID = clusterID;
+  #setHighlightedCluster(clusterID: number | null): void {
+    if (this.#highlightedClusterID === clusterID) return;
+    this.#highlightedClusterID = clusterID;
     applyClusterHighlightFilter(this.map, clusterID);
   }
 
-  private flashCluster(clusterID: number): void {
-    if (this.clusterFlashTimer !== undefined) window.clearTimeout(this.clusterFlashTimer);
-    this.setHighlightedCluster(clusterID);
-    this.clusterFlashTimer = window.setTimeout(() => {
-      this.clusterFlashTimer = undefined;
-      this.setHighlightedCluster(null);
+  #flashCluster(clusterID: number): void {
+    if (this.#clusterFlashTimer !== undefined) window.clearTimeout(this.#clusterFlashTimer);
+    this.#setHighlightedCluster(clusterID);
+    this.#clusterFlashTimer = window.setTimeout(() => {
+      this.#clusterFlashTimer = undefined;
+      this.#setHighlightedCluster(null);
     }, 540);
   }
 
-  private presentTooltip(event: MapMouseEvent, heading: string, details: string, kind: 'node' | 'route'): void {
+  #presentTooltip(event: MapMouseEvent, heading: string, details: string, kind: 'node' | 'route'): void {
     const signature = `${kind}:${heading}:${details}`;
-    const contentChanged = signature !== this.tooltipSignature;
+    const contentChanged = signature !== this.#tooltipSignature;
     if (contentChanged) {
       const title = document.createElement('strong');
       title.textContent = heading;
       const detail = document.createElement('span');
       detail.textContent = details;
       this.tooltip.replaceChildren(title, detail);
-      this.tooltipSignature = signature;
+      this.#tooltipSignature = signature;
     }
     this.tooltip.dataset.kind = kind;
     this.tooltip.hidden = false;
-    if (contentChanged || this.tooltipSize.width <= 0 || this.tooltipSize.height <= 0) {
-      this.tooltipSize = { width: this.tooltip.offsetWidth, height: this.tooltip.offsetHeight };
+    if (contentChanged || this.#tooltipSize.width <= 0 || this.#tooltipSize.height <= 0) {
+      this.#tooltipSize = { width: this.tooltip.offsetWidth, height: this.tooltip.offsetHeight };
     }
     const position = tooltipPosition(
       event.point,
       { width: this.container.clientWidth, height: this.container.clientHeight },
-      this.tooltipSize
+      this.#tooltipSize
     );
     this.tooltip.style.left = `${position.x}px`;
     this.tooltip.style.top = `${position.y}px`;
   }
 
-  private hideTooltip(): void {
+  #hideTooltip(): void {
     this.tooltip.hidden = true;
     delete this.tooltip.dataset.kind;
   }
 
-  private adjacentRoutes(nodeID: string | null): RouteV2[] {
+  #adjacentRoutes(nodeID: string | null): RouteV2[] {
     if (!nodeID) return [];
-    const routeIDs = this.routeIDsByNode.get(nodeID);
+    const routeIDs = this.#routeIDsByNode.get(nodeID);
     if (!routeIDs) return [];
     const routes: RouteV2[] = [];
     for (const routeID of routeIDs) {
-      const route = this.routesByID.get(routeID);
+      const route = this.#routesByID.get(routeID);
       if (route) routes.push(route);
     }
     return routes;
   }
 
-  private rebuildRouteIndex(): void {
-    this.routeIDsByNode.clear();
-    for (const route of this.routesByID.values()) this.indexRoute(route);
+  #rebuildRouteIndex(): void {
+    this.#routeIDsByNode.clear();
+    for (const route of this.#routesByID.values()) this.#indexRoute(route);
   }
 
-  private indexRoute(route: RouteV2): void {
+  #indexRoute(route: RouteV2): void {
     for (const nodeID of new Set([route.fromId, route.toId])) {
-      let routeIDs = this.routeIDsByNode.get(nodeID);
+      let routeIDs = this.#routeIDsByNode.get(nodeID);
       if (!routeIDs) {
         routeIDs = new Set<string>();
-        this.routeIDsByNode.set(nodeID, routeIDs);
+        this.#routeIDsByNode.set(nodeID, routeIDs);
       }
       routeIDs.add(route.id);
     }
   }
 
-  private unindexRoute(route: RouteV2): void {
+  #unindexRoute(route: RouteV2): void {
     for (const nodeID of new Set([route.fromId, route.toId])) {
-      const routeIDs = this.routeIDsByNode.get(nodeID);
+      const routeIDs = this.#routeIDsByNode.get(nodeID);
       routeIDs?.delete(route.id);
-      if (routeIDs?.size === 0) this.routeIDsByNode.delete(nodeID);
+      if (routeIDs?.size === 0) this.#routeIDsByNode.delete(nodeID);
     }
   }
 
-  private isSelectedRouteInspectable(routeID: string): boolean {
-    if (!this.selectedNodeID) return false;
-    const route = this.routesByID.get(routeID);
+  #isSelectedRouteInspectable(routeID: string): boolean {
+    if (!this.#selectedNodeID) return false;
+    const route = this.#routesByID.get(routeID);
     return Boolean(route
-      && (route.fromId === this.selectedNodeID || route.toId === this.selectedNodeID)
-      && isRecentNeighborRoute(route, Date.now(), this.effectiveRouteAgeMS()));
+      && (route.fromId === this.#selectedNodeID || route.toId === this.#selectedNodeID)
+      && isRecentNeighborRoute(route, Date.now(), this.#effectiveRouteAgeMS()));
   }
 
-  private renderNodeInspector(force = false): void {
-    if (!this.selectedNodeID) {
-      this.inspectorSignature = '';
-      this.closeInspector(false);
+  #renderNodeInspector(force = false): void {
+    if (!this.#selectedNodeID) {
+      this.#inspectorSignature = '';
+      this.#closeInspector(false);
       return;
     }
     const model = buildNodeInspectorModel(
-      this.selectedNodeID,
-      this.nodesByID,
-      this.adjacentRoutes(this.selectedNodeID),
+      this.#selectedNodeID,
+      this.#nodesByID,
+      this.#adjacentRoutes(this.#selectedNodeID),
       Date.now(),
-      this.effectiveRouteAgeMS(),
+      this.#effectiveRouteAgeMS(),
     );
     if (!model) {
-      this.clearNodeSelection();
+      this.#clearNodeSelection();
       return;
     }
     const signature = [
@@ -1713,27 +1714,27 @@ export class LiveMap {
         neighbor.id, neighbor.label, neighbor.role, neighbor.lastHeard, neighbor.lastKind, neighbor.packetCount,
       ]),
     ].join('|');
-    if (!force && signature === this.inspectorSignature) return;
-    this.inspectorSignature = signature;
-    const mobile = this.isMobileInspector();
+    if (!force && signature === this.#inspectorSignature) return;
+    this.#inspectorSignature = signature;
+    const mobile = this.#isMobileInspector();
     const content = createNodeInspectorContent(document, model, {
       mobile,
-      onClose: () => this.clearNodeSelection(),
+      onClose: () => this.#clearNodeSelection(),
       onSelectNeighbor: (nodeID) => this.selectNodeByID(nodeID, true),
     });
     if (mobile) {
-      this.closePopup(false);
+      this.#closePopup(false);
       replaceInspector(this.inspectorSheet, content);
       this.inspectorSheet.hidden = false;
       return;
     }
     this.inspectorSheet.hidden = true;
     this.inspectorSheet.replaceChildren();
-    const popupAnchor = this.inspectorPopupAnchor(model.node);
-    if (!this.nodeInspectorPopup || this.nodeInspectorPopupAnchor !== popupAnchor) {
-      this.closePopup(false);
-      this.nodeInspectorPopupAnchor = popupAnchor;
-      this.nodeInspectorPopup = new maplibregl.Popup({
+    const popupAnchor = this.#inspectorPopupAnchor(model.node);
+    if (!this.#nodeInspectorPopup || this.#nodeInspectorPopupAnchor !== popupAnchor) {
+      this.#closePopup(false);
+      this.#nodeInspectorPopupAnchor = popupAnchor;
+      this.#nodeInspectorPopup = new maplibregl.Popup({
         anchor: popupAnchor,
         closeButton: true,
         closeOnClick: false,
@@ -1744,40 +1745,40 @@ export class LiveMap {
         subpixelPositioning: true,
         className: 'node-inspector-popup',
       });
-      this.nodeInspectorPopup.on('close', () => {
-        if (!this.suppressPopupClose && this.selectedNodeID) this.clearNodeSelection();
+      this.#nodeInspectorPopup.on('close', () => {
+        if (!this.#suppressPopupClose && this.#selectedNodeID) this.#clearNodeSelection();
       });
     }
-    const popup = this.nodeInspectorPopup
+    const popup = this.#nodeInspectorPopup
       .setLngLat([model.node.lng, model.node.lat])
       .setDOMContent(content);
     if (!popup.isOpen()) popup.addTo(this.map);
     popup.getElement().querySelector('.maplibregl-popup-close-button')?.setAttribute('aria-label', 'Close node details');
   }
 
-  private closeInspector(clearSelection: boolean): void {
+  #closeInspector(clearSelection: boolean): void {
     const restoreFocus = this.inspectorSheet.contains(document.activeElement);
-    this.closePopup(clearSelection);
+    this.#closePopup(clearSelection);
     this.inspectorSheet.hidden = true;
     this.inspectorSheet.replaceChildren();
     if (restoreFocus) document.getElementById('find-button')?.focus();
   }
 
-  private closePopup(clearSelection: boolean): void {
-    if (!this.nodeInspectorPopup?.isOpen()) return;
-    this.suppressPopupClose = !clearSelection;
-    this.nodeInspectorPopup.remove();
-    this.suppressPopupClose = false;
+  #closePopup(clearSelection: boolean): void {
+    if (!this.#nodeInspectorPopup?.isOpen()) return;
+    this.#suppressPopupClose = !clearSelection;
+    this.#nodeInspectorPopup.remove();
+    this.#suppressPopupClose = false;
   }
 
-  private isMobileInspector(): boolean {
+  #isMobileInspector(): boolean {
     return document.documentElement.dataset.cinematic === 'true' || this.container.clientWidth <= 620 || window.matchMedia('(pointer: coarse)').matches;
   }
 
-  private inspectorPopupAnchor(node: NodeV2): 'left' | 'right' {
+  #inspectorPopupAnchor(node: NodeV2): 'left' | 'right' {
     let neighborLongitudeDelta = 0;
-    for (const neighborID of this.neighborNodeIDs) {
-      const neighbor = this.nodesByID.get(neighborID);
+    for (const neighborID of this.#neighborNodeIDs) {
+      const neighbor = this.#nodesByID.get(neighborID);
       if (neighbor) neighborLongitudeDelta += neighbor.lng - node.lng;
     }
     if (Math.abs(neighborLongitudeDelta) > 0.0001) {
@@ -1786,7 +1787,7 @@ export class LiveMap {
     return this.map.project([node.lng, node.lat]).x > this.container.clientWidth / 2 ? 'right' : 'left';
   }
 
-  private centerNodeIfNeeded(node: NodeV2): void {
+  #centerNodeIfNeeded(node: NodeV2): void {
     const point = this.map.project([node.lng, node.lat]);
     const mobile = this.container.clientWidth <= 900 || window.matchMedia('(pointer: coarse)').matches;
     const margin = 72;
@@ -1797,30 +1798,30 @@ export class LiveMap {
       && point.y <= safeBottom;
     if (inSafeView && this.map.getZoom() >= DETAIL_ZOOM) return;
     const camera = { center: [node.lng, node.lat] as [number, number], zoom: Math.max(DETAIL_ZOOM + 0.4, this.map.getZoom()) };
-    if (this.reducedMotion) this.map.jumpTo(camera);
+    if (this.#reducedMotion) this.map.jumpTo(camera);
     else this.map.easeTo({ ...camera, duration: 520, essential: false, easeId: 'cartolite-node-selection' });
   }
 
-  private handleInspectorResize = (): void => {
-    this.updateBuildingLayer();
-    if (this.selectedNodeID) this.renderNodeInspector(true);
+  #handleInspectorResize = (): void => {
+    this.#updateBuildingLayer();
+    if (this.#selectedNodeID) this.#renderNodeInspector(true);
   };
 
-  private handleWebGLContextRestored = (): void => {
+  #handleWebGLContextRestored = (): void => {
     const restore = (): void => {
-      if (!this.layersReady) return;
+      if (!this.#layersReady) return;
       if (!this.map.isStyleLoaded()) {
         this.map.once('style.load', restore);
         return;
       }
       if (this.map.getLayer(ROUTE_WEBGL_LAYER_ID)) this.map.removeLayer(ROUTE_WEBGL_LAYER_ID);
       const layer = new HistoricalRouteLayer();
-      layer.setOpacity(this.appearance.routeOpacity);
-      layer.setLightBackground(this.appearance.basemap !== 'dark');
-      layer.setRoutes([...this.routeDetailFeatures.values()]);
+      layer.setOpacity(this.#appearance.routeOpacity);
+      layer.setLightBackground(this.#appearance.basemap !== 'dark');
+      layer.setRoutes([...this.#routeDetailFeatures.values()]);
       layer.setVisible(this.routesVisible);
-      layer.setMaximumBand(routeWindowBand(this.effectiveRouteAgeMS()));
-      this.historicalRouteLayer = layer;
+      layer.setMaximumBand(routeWindowBand(this.#effectiveRouteAgeMS()));
+      this.#historicalRouteLayer = layer;
       const before = this.map.getLayer(ROUTE_FOCUS_LAYER_IDS[0]) ? ROUTE_FOCUS_LAYER_IDS[0] : undefined;
       this.map.addLayer(layer, before);
       this.container.dataset.routeContextRestores = String(Number(this.container.dataset.routeContextRestores ?? 0) + 1);
@@ -1828,8 +1829,8 @@ export class LiveMap {
     window.requestAnimationFrame(restore);
   };
 
-  private handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && this.selectedNodeID) this.clearNodeSelection();
+  #handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape' && this.#selectedNodeID) this.#clearNodeSelection();
   };
 }
 

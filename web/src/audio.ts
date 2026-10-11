@@ -203,17 +203,17 @@ export function routeSoundPlan(
 }
 
 export class RouteSonifier {
-  private context?: AudioContext;
-  private master?: GainNode;
-  private ambience?: DelayNode;
-  private enabled = false;
-  private preferredEnabled: boolean;
-  private volume: number;
-  private scene: SoundScene;
-  private paused = false;
-  private readonly active = new Set<OscillatorNode>();
-  private readonly waves = new Map<string, PeriodicWave>();
-  private statusListener?: (status: SoundStatus) => void;
+  #context?: AudioContext;
+  #master?: GainNode;
+  #ambience?: DelayNode;
+  #enabled = false;
+  #preferredEnabled: boolean;
+  #volume: number;
+  #scene: SoundScene;
+  #paused = false;
+  readonly #active = new Set<OscillatorNode>();
+  readonly #waves = new Map<string, PeriodicWave>();
+  #statusListener?: (status: SoundStatus) => void;
 
   constructor(
     private readonly map: ViewportProjector,
@@ -221,9 +221,9 @@ export class RouteSonifier {
     private readonly storage: Storage = browserStorage(),
   ) {
     const preference = loadSoundPreference(storage);
-    this.preferredEnabled = preference.enabled;
-    this.volume = preference.volume;
-    this.scene = preference.scene;
+    this.#preferredEnabled = preference.enabled;
+    this.#volume = preference.volume;
+    this.#scene = preference.scene;
   }
 
   supported(): boolean {
@@ -231,120 +231,120 @@ export class RouteSonifier {
   }
 
   isEnabled(): boolean {
-    return this.enabled;
+    return this.#enabled;
   }
 
   status(): SoundStatus {
-    if (this.enabled && !this.paused && this.context?.state === 'running') return 'on';
-    return this.preferredEnabled ? 'resume' : 'off';
+    if (this.#enabled && !this.#paused && this.#context?.state === 'running') return 'on';
+    return this.#preferredEnabled ? 'resume' : 'off';
   }
 
   getVolume(): number {
-    return this.volume;
+    return this.#volume;
   }
 
   getScene(): SoundScene {
-    return this.scene;
+    return this.#scene;
   }
 
   setScene(scene: SoundScene): void {
-    this.scene = isSoundScene(scene) ? scene : DEFAULT_SOUND_SCENE;
-    this.persist();
-    this.notify();
+    this.#scene = isSoundScene(scene) ? scene : DEFAULT_SOUND_SCENE;
+    this.#persist();
+    this.#notify();
   }
 
   setStatusListener(listener: (status: SoundStatus) => void): void {
-    this.statusListener = listener;
+    this.#statusListener = listener;
     listener(this.status());
   }
 
   setVolume(volume: number): void {
-    this.volume = clamp(volume, 0, 1);
-    this.persist();
-    this.setMasterLevel(this.enabled && !this.paused ? MASTER_LEVEL * this.volume : MIN_GAIN);
-    this.notify();
+    this.#volume = clamp(volume, 0, 1);
+    this.#persist();
+    this.#setMasterLevel(this.#enabled && !this.#paused ? MASTER_LEVEL * this.#volume : MIN_GAIN);
+    this.#notify();
   }
 
   async setEnabled(enabled: boolean): Promise<boolean> {
     if (!enabled) {
-      this.enabled = false;
-      this.preferredEnabled = false;
-      this.stopActive();
-      this.setMasterLevel(MIN_GAIN);
-      this.persist();
-      this.notify();
+      this.#enabled = false;
+      this.#preferredEnabled = false;
+      this.#stopActive();
+      this.#setMasterLevel(MIN_GAIN);
+      this.#persist();
+      this.#notify();
       return false;
     }
     if (!this.supported()) return false;
-    this.preferredEnabled = true;
-    this.persist();
+    this.#preferredEnabled = true;
+    this.#persist();
     let context: AudioContext;
     try {
-      context = this.context?.state === 'closed' || !this.context ? this.createContext() : this.context;
+      context = this.#context?.state === 'closed' || !this.#context ? this.#createContext() : this.#context;
       // Chrome on Android may expose a usable AudioContext but keep its output
       // locked until a source starts during the tap itself. Queue one silent
       // frame before the first await; it unlocks the output without a demo tone
       // and does not affect the one-oscillator-per-visible-hop contract.
-      this.unlockMobileOutput(context);
+      this.#unlockMobileOutput(context);
       if (context.state !== 'running') await context.resume();
     } catch {
-      this.enabled = false;
-      this.notify();
+      this.#enabled = false;
+      this.#notify();
       return false;
     }
-    this.enabled = context.state === 'running';
-    this.setMasterLevel(this.enabled && !this.paused ? MASTER_LEVEL * this.volume : MIN_GAIN);
-    this.notify();
-    return this.enabled;
+    this.#enabled = context.state === 'running';
+    this.#setMasterLevel(this.#enabled && !this.#paused ? MASTER_LEVEL * this.#volume : MIN_GAIN);
+    this.#notify();
+    return this.#enabled;
   }
 
   setPaused(paused: boolean): void {
-    this.paused = paused;
-    if (paused) this.stopActive();
-    this.setMasterLevel(this.enabled && !paused ? MASTER_LEVEL * this.volume : MIN_GAIN);
-    this.notify();
+    this.#paused = paused;
+    if (paused) this.#stopActive();
+    this.#setMasterLevel(this.#enabled && !paused ? MASTER_LEVEL * this.#volume : MIN_GAIN);
+    this.#notify();
   }
 
   play(packet: PacketView, character: SoundCharacter = 'map'): number {
-    const context = this.context;
-    if (!this.enabled || this.paused || !context || context.state !== 'running' || !this.master) return 0;
+    const context = this.#context;
+    if (!this.#enabled || this.#paused || !context || context.state !== 'running' || !this.#master) return 0;
     const notes = routeSoundPlan(
       packet,
       this.map,
       this.viewport.clientWidth,
       this.viewport.clientHeight,
-      this.scene,
+      this.#scene,
       character,
     );
     if (notes.length === 0) return 0;
-    const density = 1 / Math.sqrt(1 + this.active.size / 10);
-    for (const note of notes) this.schedule(note, density);
+    const density = 1 / Math.sqrt(1 + this.#active.size / 10);
+    for (const note of notes) this.#schedule(note, density);
     return notes.length;
   }
 
   /** Explicit preview gesture; does not enable or save live sound. */
   async preview(): Promise<void> {
-    if (!this.supported() || this.paused) return;
-    const context = !this.context || this.context.state === 'closed' ? this.createContext() : this.context;
-    this.unlockMobileOutput(context);
+    if (!this.supported() || this.#paused) return;
+    const context = !this.#context || this.#context.state === 'closed' ? this.#createContext() : this.#context;
+    this.#unlockMobileOutput(context);
     if (context.state !== 'running') await context.resume();
-    if (context.state !== 'running' || this.paused || document.hidden) return;
-    this.setMasterLevel(MASTER_LEVEL * this.volume);
-    const scene = SCENES[this.scene];
-    this.schedule({ frequency: 440, startMS: 0, durationMS: Math.min(420,scene.maxDurationMS), brightness: Math.max(scene.minBrightness,1800*scene.brightnessScale), pan: 0, variation: 0, scene: this.scene, character: 'map' }, .8);
+    if (context.state !== 'running' || this.#paused || document.hidden) return;
+    this.#setMasterLevel(MASTER_LEVEL * this.#volume);
+    const scene = SCENES[this.#scene];
+    this.#schedule({ frequency: 440, startMS: 0, durationMS: Math.min(420,scene.maxDurationMS), brightness: Math.max(scene.minBrightness,1800*scene.brightnessScale), pan: 0, variation: 0, scene: this.#scene, character: 'map' }, .8);
   }
 
   destroy(): void {
-    this.enabled = false;
-    this.stopActive();
-    void this.context?.close();
-    this.context = undefined;
-    this.master = undefined;
-    this.ambience = undefined;
-    this.waves.clear();
+    this.#enabled = false;
+    this.#stopActive();
+    void this.#context?.close();
+    this.#context = undefined;
+    this.#master = undefined;
+    this.#ambience = undefined;
+    this.#waves.clear();
   }
 
-  private createContext(): AudioContext {
+  #createContext(): AudioContext {
     const Context = audioContextConstructor();
     if (!Context) throw new Error('Web Audio is unavailable');
     const context = new Context({ latencyHint: 'interactive' });
@@ -363,16 +363,16 @@ export class RouteSonifier {
     ambienceLevel.gain.value = 0.12;
     ambience.connect(ambienceLevel).connect(master);
     context.onstatechange = () => {
-      if (context.state !== 'running') this.enabled = false;
-      this.notify();
+      if (context.state !== 'running') this.#enabled = false;
+      this.#notify();
     };
-    this.context = context;
-    this.master = master;
-    this.ambience = ambience;
+    this.#context = context;
+    this.#master = master;
+    this.#ambience = ambience;
     return context;
   }
 
-  private unlockMobileOutput(context: AudioContext): void {
+  #unlockMobileOutput(context: AudioContext): void {
     const source = context.createBufferSource();
     const silence = context.createGain();
     silence.gain.value = 0;
@@ -385,9 +385,9 @@ export class RouteSonifier {
     source.start(0);
   }
 
-  private schedule(note: HopNote, density: number): void {
-    const context = this.context!;
-    const master = this.master!;
+  #schedule(note: HopNote, density: number): void {
+    const context = this.#context!;
+    const master = this.#master!;
     const starts = context.currentTime + LOOKAHEAD_SECONDS + note.startMS / 1_000;
     const audibleDuration = Math.max(0.14, note.durationMS / 1_000 * (0.55 + density * 0.45));
     const ends = starts + audibleDuration;
@@ -410,11 +410,11 @@ export class RouteSonifier {
     envelope.gain.exponentialRampToValueAtTime(Math.max(MIN_GAIN, peak * scene.sustainLevel * character.sustainScale), starts + audibleDuration * 0.42);
     envelope.gain.exponentialRampToValueAtTime(MIN_GAIN, ends);
     filter.connect(panner).connect(envelope).connect(master);
-    if (this.ambience && scene.ambience) envelope.connect(this.ambience);
+    if (this.#ambience && scene.ambience) envelope.connect(this.#ambience);
 
-    const oscillator = this.oscillator(note, starts, ends, filter);
+    const oscillator = this.#oscillator(note, starts, ends, filter);
     oscillator.onended = () => {
-      this.active.delete(oscillator);
+      this.#active.delete(oscillator);
       oscillator.disconnect();
       filter.disconnect();
       panner.disconnect();
@@ -422,14 +422,14 @@ export class RouteSonifier {
     };
   }
 
-  private oscillator(
+  #oscillator(
     note: HopNote,
     starts: number,
     ends: number,
     destination: AudioNode,
   ): OscillatorNode {
-    const oscillator = this.context!.createOscillator();
-    oscillator.setPeriodicWave(this.periodicWave(note.scene, note.variation, note.character));
+    const oscillator = this.#context!.createOscillator();
+    oscillator.setPeriodicWave(this.#periodicWave(note.scene, note.variation, note.character));
     if (note.scene === 'dial-up') {
       // Abbreviated carrier, answer sweep and data chatter inside this hop's
       // existing envelope. Audio-clock automation keeps one oscillator per hop.
@@ -451,13 +451,13 @@ export class RouteSonifier {
     oscillator.connect(destination);
     oscillator.start(starts);
     oscillator.stop(ends + 0.04);
-    this.active.add(oscillator);
+    this.#active.add(oscillator);
     return oscillator;
   }
 
-  private periodicWave(scene: SoundScene, variation: number, character: SoundCharacter): PeriodicWave {
+  #periodicWave(scene: SoundScene, variation: number, character: SoundCharacter): PeriodicWave {
     const key = `${scene}:${variation}:${character}`;
-    const cached = this.waves.get(key);
+    const cached = this.#waves.get(key);
     if (cached) return cached;
     const sceneHarmonics = SCENES[scene].harmonics[variation] ?? SCENES[scene].harmonics[0]!;
     const characterHarmonics = CHARACTERS[character].harmonics?.[variation];
@@ -467,36 +467,36 @@ export class RouteSonifier {
     const real = new Float32Array(harmonics.length + 1);
     const imaginary = new Float32Array(harmonics.length + 1);
     harmonics.forEach((amplitude, index) => { imaginary[index + 1] = amplitude; });
-    const wave = this.context!.createPeriodicWave(real, imaginary, { disableNormalization: false });
-    this.waves.set(key, wave);
+    const wave = this.#context!.createPeriodicWave(real, imaginary, { disableNormalization: false });
+    this.#waves.set(key, wave);
     return wave;
   }
 
-  private stopActive(): void {
-    const now = this.context?.currentTime;
-    for (const oscillator of this.active) {
+  #stopActive(): void {
+    const now = this.#context?.currentTime;
+    for (const oscillator of this.#active) {
       try {
         oscillator.stop(now === undefined ? undefined : now + 0.015);
       } catch {
         // It may already have ended between iteration and stop().
       }
     }
-    this.active.clear();
+    this.#active.clear();
   }
 
-  private setMasterLevel(value: number): void {
-    if (!this.context || !this.master) return;
-    const now = this.context.currentTime;
-    this.master.gain.cancelScheduledValues(now);
-    this.master.gain.setTargetAtTime(value, now, 0.018);
+  #setMasterLevel(value: number): void {
+    if (!this.#context || !this.#master) return;
+    const now = this.#context.currentTime;
+    this.#master.gain.cancelScheduledValues(now);
+    this.#master.gain.setTargetAtTime(value, now, 0.018);
   }
 
-  private persist(): void {
-    saveSoundPreference(this.storage, { enabled: this.preferredEnabled, volume: this.volume, scene: this.scene });
+  #persist(): void {
+    saveSoundPreference(this.storage, { enabled: this.#preferredEnabled, volume: this.#volume, scene: this.#scene });
   }
 
-  private notify(): void {
-    this.statusListener?.(this.status());
+  #notify(): void {
+    this.#statusListener?.(this.status());
   }
 }
 
