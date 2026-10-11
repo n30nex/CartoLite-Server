@@ -1531,8 +1531,8 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#residueDirty = true;
     this.#residueProjectionDirty = true;
     this.#nodesDirty = true;
-    this.stage.dataset.viewScale = this.#scale.toFixed(4);
-    this.stage.dataset.viewCenter = `${this.#centerX.toFixed(2)},${this.#centerY.toFixed(2)}`;
+    this.stage.dataset.viewScale = String(this.#scale);
+    this.stage.dataset.viewCenter = `${this.#centerX},${this.#centerY}`;
     this.stage.dataset.viewMode = this.#mode3D ? '3d' : 'top-down';
     this.stage.dataset.viewYaw = this.#yaw.toFixed(4); this.stage.dataset.viewTilt = this.#tilt.toFixed(4);
     if (this.#selectedNodeID) {
