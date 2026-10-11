@@ -362,7 +362,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 
 @media(max-width:480px) {
-  html:root[data-cinematic] #netgraph-app .dock-views a { padding-inline:4px; }
+  html:root[data-cinematic] #netgraph-app .dock-views a { padding-inline:2px; }
+  html:root[data-cinematic] #netgraph-app .controls { gap:1px; }
   html:root[data-cinematic] #netgraph-app .route-window select { width:56px; }
 }
 @media(max-width:480px) and (orientation:portrait) {
