@@ -3,19 +3,19 @@ import { loadSoundPreference, saveSoundPreference, SOUND_STORAGE_KEY } from './a
 import { isSoundScene, populateSoundScenes, SOUND_SCENES, SOUND_SCENE_IDS, syncSoundScene } from './soundScenes';
 
 describe('sound voice catalog', () => {
-  it('offers 30 distinct voices in five groups using the same catalog as playback', () => {
+  it('offers 31 distinct voices in five groups using the same catalog as playback', () => {
     const select = document.createElement('select');
     populateSoundScenes(select);
-    expect(select.options).toHaveLength(30);
+    expect(select.options).toHaveLength(31);
     expect(select.querySelectorAll('optgroup')).toHaveLength(5);
     expect([...select.options].map((option) => option.value)).toEqual(SOUND_SCENE_IDS);
-    expect(new Set([...select.options].map((option) => option.label)).size).toBe(30);
+    expect(new Set([...select.options].map((option) => option.label)).size).toBe(31);
     const signatures = SOUND_SCENE_IDS.map((id) => {
       const voice = Object.fromEntries(Object.entries(SOUND_SCENES[id])
         .filter(([key]) => !['label', 'group', 'description'].includes(key)));
       return JSON.stringify(voice);
     });
-    expect(new Set(signatures).size).toBe(30);
+    expect(new Set(signatures).size).toBe(31);
   });
 
   it('preserves every voice in existing preferences without enabling sound', () => {
@@ -48,7 +48,7 @@ describe('sound voice catalog', () => {
       expect(description.textContent).toBe(select.title);
       expect(select.getAttribute('aria-description')).toBe(select.title);
       populateSoundScenes(select);
-      expect(select.options).toHaveLength(30);
+      expect(select.options).toHaveLength(31);
     } finally {
       select.remove();
       description.remove();

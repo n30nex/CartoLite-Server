@@ -295,6 +295,17 @@ const profiles = {
     filterType: 'lowpass', filterQ: 0.6, filterEndRatio: 0.6,
     minBrightness: 180, ambience: false,
   },
+  'dial-up': {
+    maxDurationMS: 640,
+    label: "Dial-up", group: "Signals & percussion",
+    description: "Retro modem carrier beeps and a scratchy handshake warble.",
+    durationScale: 1.4, brightnessScale: 0.42, attackSeconds: 0.006,
+    sustainLevel: 0.72, levelScale: 0.62, pitchEndRatio: 1,
+    registerShifts: [0,0,0],
+    harmonics: [[1,0.18,0.4,0.08,0.2,0.04,0.1],[1,0.12,0.34,0.06,0.24,0.03,0.12],[1,0.22,0.28,0.1,0.16,0.05,0.08]],
+    filterType: 'bandpass', filterQ: 0.6, filterEndRatio: 1,
+    minBrightness: 1500, ambience: false,
+  },
   'bubble': {
     maxDurationMS: 260,
     label: "Bubble", group: "Signals & percussion",

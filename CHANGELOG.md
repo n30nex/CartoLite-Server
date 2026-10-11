@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.4 - Dial-up packet sound
+
+- Add **Dial-up** under Sound → Voice → Signals & percussion: a short modem carrier, answer sweep and scratchy handshake chatter.
+- Expand the shared Map and Netgraph catalog to 31 voices, with explicit preview and saved selection.
+- Preserve opt-in sound, volume, visible-hop timing, stereo positioning and one oscillator per hop. No samples, downloads or audio dependencies.
+- Extend Actions audio checks and retain a synthetic Dial-up WAV for listening review.
+
 ## 0.6.3 - Reliability and ingest performance
 
 - Replace full-table node identity scans on every update with an incremental index; retain known positions across coordinate-free region aliases and prevent stale alias events from moving nodes backwards.

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createServer } from 'vite';
 import { resolve } from 'node:path';
+import { visualFixture } from './visualFixtures';
 
 test('renders audible, distinct, finite output for every packet voice', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'The native offline renderer is independent of viewport size.');
@@ -19,7 +20,7 @@ test('renders audible, distinct, finite output for every packet voice', async ({
     const address = server.httpServer!.address();
     if (!address || typeof address === 'string') throw new Error('Audio harness did not bind a local port');
     await page.goto('http://127.0.0.1:' + address.port + '/audio-check');
-    const report = await page.evaluate(async () => {
+    const { report, dialupPCM } = await page.evaluate(async () => {
       const audioPath = '/src/audio.ts';
       const catalogPath = '/src/soundScenes.ts';
       const { RouteSonifier } = await import(audioPath) as typeof import('../src/audio');
@@ -44,6 +45,7 @@ test('renders audible, distinct, finite output for every packet voice', async ({
       }
       Object.defineProperty(window, 'AudioContext', { configurable: true, value: RenderContext });
       const reports = [];
+      let dialupPCM: number[] = [];
       try {
         for (const scene of SOUND_SCENE_IDS) {
           const storage = { getItem: () => null, setItem: () => {} } as unknown as Storage;
@@ -59,6 +61,9 @@ test('renders audible, distinct, finite output for every packet voice', async ({
           const buffer = await context.startRendering();
           await new Promise((done) => setTimeout(done, 0));
           const samples = buffer.getChannelData(0);
+          if (scene === 'dial-up') {
+            dialupPCM = Array.from(samples.subarray(0, 48_000), (value) => Math.round(Math.max(-1, Math.min(1, value)) * 32_767));
+          }
           let peak = 0, energy = 0, tailPeak = 0, signature = 2166136261;
           let finite = true;
           for (let i = 0; i < samples.length; i += 1) {
@@ -75,11 +80,21 @@ test('renders audible, distinct, finite output for every packet voice', async ({
       } finally {
         Object.defineProperty(window, 'AudioContext', { configurable: true, value: original });
       }
-      return reports;
+      return { report: reports, dialupPCM };
     });
+    // Retain the exact native-rendered synthetic hop for listening review.
+    const wav = Buffer.alloc(44 + dialupPCM.length * 2);
+    wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4);
+    wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16);
+    wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(48_000, 24); wav.writeUInt32LE(96_000, 28);
+    wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+    wav.write('data', 36); wav.writeUInt32LE(dialupPCM.length * 2, 40);
+    dialupPCM.forEach((value, index) => wav.writeInt16LE(value, 44 + index * 2));
+    await testInfo.attach('dial-up-hop', { body: wav, contentType: 'audio/wav' });
     await testInfo.attach('voice-measurements', { body: JSON.stringify(report, null, 2), contentType: 'application/json' });
-    expect(report).toHaveLength(30);
-    expect(new Set(report.map((voice) => voice.signature)).size).toBe(30);
+    expect(report).toHaveLength(31);
+    expect(new Set(report.map((voice) => voice.signature)).size).toBe(31);
     for (const voice of report) {
       expect(voice.finite, voice.scene).toBe(true);
       expect(voice.count, voice.scene).toBe(1);
@@ -94,22 +109,24 @@ test('renders audible, distinct, finite output for every packet voice', async ({
   }
 });
 
-test('shares the larger voice library and saved selection between map and Netgraph', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'Responsive sound controls are covered by the full map and Netgraph journeys.');
+test('shares the larger voice library and saved selection between map and Netgraph', async ({ page }) => {
+  await visualFixture(page);
   await page.goto('/');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state', 'idle');
   await page.locator('#sound-button').click();
   const picker = page.getByRole('combobox', { name: 'Sound voice', exact: true });
-  await expect(picker.locator('option')).toHaveCount(30);
+  await expect(picker.locator('option')).toHaveCount(31);
   await expect(picker.locator('optgroup')).toHaveCount(5);
-  await picker.selectOption('electric-piano');
-  await expect(page.locator('#sound-button')).toHaveAttribute('title', 'Sound off — Electric Piano · 80%');
-  await expect(page.locator('#sound-description')).toContainText('metallic attack');
+  await picker.selectOption('dial-up');
+  await expect(page.locator('#sound-button')).toHaveAttribute('title', 'Sound off — Dial-up · 80%');
+  await expect(page.locator('#sound-description')).toContainText('handshake');
+  await page.getByRole('button', { name: 'Preview voice', exact: true }).click();
+  await expect(page.locator('#sound-toggle')).toHaveText('Turn sound on');
   await page.goto('/netgraph/');
   await expect(page.locator('#connected-count')).not.toHaveText('—');
   await page.locator('#sound-button').click();
-  await expect(picker).toHaveValue('electric-piano');
-  await expect(picker.locator('option')).toHaveCount(30);
+  await expect(picker).toHaveValue('dial-up');
+  await expect(picker.locator('option')).toHaveCount(31);
   await picker.selectOption('sonar');
   await expect(page.locator('#sound-description')).toContainText('underwater');
   await page.goto('/');
