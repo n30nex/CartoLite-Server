@@ -75,7 +75,10 @@ export function projectGraphPath(projection: GraphProjection, from: GraphPoint, 
     || hull.every(p => p.y < -128) || hull.every(p => p.y > projection.height + 128))) return [];
   // A quadratic arch needs at most 33 samples. All consumers share this path,
   // including Canvas/GPU effects, audio visibility and picking.
-  const sampled = adaptiveSurfacePath(t => projection.project(graphArcPoint(from, to, t, crossArea)), 3);
+  const dx = to.x - from.x, dy = to.y - from.y, z = from.z ?? 0, dz = (to.z ?? 0) - z;
+  const lift = middle.z! - z - dz / 2;
+  const sampled = adaptiveSurfacePath(t => projection.project({ x: from.x + dx * t, y: from.y + dy * t,
+    z: z + dz * t + 4 * t * (1 - t) * lift }), 4, 2);
   let clipped = false;
   return sampled.filter(point => {
     if (!(point as ProjectedPoint).visible) { clipped = true; return false; }

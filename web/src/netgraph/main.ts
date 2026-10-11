@@ -116,6 +116,8 @@ async function start(): Promise<void> {
     });
     renderer = graph;
     const updateCamera = mountGraphCamera(graph);
+    const graphControls = [findButton, resetButton, zoomInButton, zoomOutButton, routeWindow, required<HTMLButtonElement>('graph-3d-button')];
+    for (const control of graphControls) control.disabled = true;
     syncCamera = () => {
       updateCamera();
       const focus = document.querySelector<HTMLSelectElement>('.graph-focus select');
@@ -232,7 +234,6 @@ async function start(): Promise<void> {
       const adjacentRouteChanged = changes.routes?.some((route) => route.fromId === selectedNodeID || route.toId === selectedNodeID) ?? false;
       if (changes.reset || selectedNodeChanged || adjacentRouteChanged) renderInspector();
     });
-    app.dataset.loading = 'false';
     const requestedSelection = requestedNode();
     if (requestedSelection && graph.getNodes().has(requestedSelection)) selectNode(requestedSelection, true);
     const focusControl = document.createElement('label'); focusControl.className = 'graph-focus';
@@ -311,6 +312,8 @@ async function start(): Promise<void> {
       event.preventDefault();
     });
     wireSearch(graph, (nodeID) => selectNode(nodeID, true));
+    for (const control of graphControls) control.disabled = false;
+    app.dataset.loading = 'false';
 
     let wasHidden = document.hidden;
     document.addEventListener('visibilitychange', () => {

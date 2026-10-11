@@ -164,3 +164,18 @@ test('explicit selection reveals a quiet node outside an active area focus', asy
   await expect(focus).toHaveValue('all');
   await expect(page.locator('#node-inspector-sheet')).toContainText('No neighbours');
 });
+
+
+test('graph controls wait for the initial snapshot before accepting interaction', async ({ page }) => {
+  const state = await fixture(page);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/state', async route => { await pending; await route.fulfill({ json: state }); });
+  await page.goto('/netgraph/');
+  await expect(page.locator('#find-button')).toBeDisabled();
+  await expect(page.locator('#graph-3d-button')).toBeDisabled();
+  release();
+  await expect(page.locator('#graph-3d-button')).toBeEnabled({ timeout: 15_000 });
+  await page.locator('#graph-3d-button').click(); await selectAlpha(page);
+  await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-view-mode', '3d');
+});

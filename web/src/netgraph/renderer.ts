@@ -811,6 +811,7 @@ export class NetgraphRenderer implements ViewportProjector {
 
   #drawRoutes(context: CanvasRenderingContext2D): void {
     const now = Date.now();
+    const detail = displayPreferences().detail === 'complete' || this.#visibleRoutes.length < 2000;
     const selected = this.#selectedNodeID;
     const selectedRoutes = new Set(selected ? this.#adjacentRouteIDs.get(selected) : []);
     if (this.#selectedRouteID) selectedRoutes.add(this.#selectedRouteID);
@@ -827,7 +828,7 @@ export class NetgraphRenderer implements ViewportProjector {
       group.routes.push(route);
       groups.set(groupKey, group);
       const age = Math.max(0, now - route.lastHeard);
-      if (age <= 60 * 60_000) {
+      if (detail && age <= 60 * 60_000) {
         const ageBucket = Math.min(3, Math.floor(age / (15 * 60_000)));
         const intensity = clamp(Math.round(route.intensity), 0, 4);
         const key = `${kind}:${ageBucket}:${intensity}:${scope}`;
@@ -1687,12 +1688,11 @@ export class NetgraphRenderer implements ViewportProjector {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const node = this.#nearestNode(x, y);
-    if (node) this.callbacks.onNodeSelect(node.node.id);
-    else {
-      const routes = this.#nearestRoutes(x, y);
-      if (routes.length) this.callbacks.onRouteSelect?.(routes);
-      else this.callbacks.onNodeSelect(null);
-    }
+    // Keep the forgiving node target, but let a visible line outside the
+    // marker itself be picked even when small-screen node targets overlap it.
+    const routes = node && Math.hypot(x - node.point.x, y - node.point.y) <= node.radius + 3 ? [] : this.#nearestRoutes(x, y);
+    if (routes.length) this.callbacks.onRouteSelect?.(routes);
+    else this.callbacks.onNodeSelect(node?.node.id ?? null);
   };
 
   #handlePointerCancel = (event: PointerEvent): void => {

@@ -99,7 +99,7 @@ export class TerrainProjector {
 }
 
 /** Four seed intervals catch relief away from the midpoint; subdivision is capped at 65 vertices. */
-export function adaptiveSurfacePath(project: (progress: number) => SurfacePoint, maxDepth = 4): SurfacePoint[] {
+export function adaptiveSurfacePath(project: (progress: number) => SurfacePoint, maxDepth = 4, seeds: 2 | 4 = 4): SurfacePoint[] {
   const depthLimit = Number.isFinite(maxDepth) ? Math.max(0, Math.min(4, Math.floor(maxDepth))) : 4;
   const sample = (t: number): SurfacePoint => ({ ...project(t), progress: t });
   const points: SurfacePoint[] = [];
@@ -113,8 +113,8 @@ export function adaptiveSurfacePath(project: (progress: number) => SurfacePoint,
   };
   let a = sample(0);
   points.push(a);
-  for (let index = 1; index <= 4; index += 1) {
-    const b = sample(index / 4);
+  for (let index = 1; index <= seeds; index += 1) {
+    const b = sample(index / seeds);
     split(a, b, 0);
     a = b;
   }
