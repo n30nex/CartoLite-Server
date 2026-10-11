@@ -158,3 +158,16 @@ GPU packet effects use the same geographic projections and hop clock as the
 Canvas fallback. Automatic detail reduces background decoration, not retained
 connections. Terrain and buildings are visual context, not RF coverage or
 measured antenna heights. A missing basemap does not prevent using Netgraph.
+
+
+## Optional 3D Netgraph
+
+Netgraph opens top-down. Tap **3D** to tilt the same geographic groups into
+raised nodes, regional platforms and arched connections. Drag to pan;
+Shift-drag or right-drag rotates on desktop, while two-finger pinch/twist zooms
+and rotates on phones. Display also has rotation, tilt and Top-down controls.
+
+Selecting a node frames its recent confirmed neighbours once. Tap a connection
+for its endpoints, latest category, last-heard time and approximate geographic
+distance, or open either endpoint on Map. The height is schematic, not measured
+antenna elevation. All six route presets, themes and 31 voices still apply.

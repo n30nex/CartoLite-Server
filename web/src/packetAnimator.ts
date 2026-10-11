@@ -701,7 +701,7 @@ export class PacketAnimator {
       }
       this.#drawPacketCore(head, item.color, quality, item.longHaul);
       if (quality !== 'low') {
-        this.#drawPacketSignature(head, tangent, item.color, item.signature, elapsed);
+        drawPacketSignature(this.#context, head, tangent, item.color, item.signature, elapsed);
         if (item.longHaul) this.#drawLongHaulMarker(head, tangent, item.color, elapsed);
       }
     }
@@ -895,53 +895,6 @@ export class PacketAnimator {
     this.#context.restore();
   }
 
-  #drawPacketSignature(
-    point: ScreenPoint,
-    tangent: ScreenPoint,
-    color: string,
-    signature: PacketSignature,
-    elapsed: number,
-  ): void {
-    const distance = Math.hypot(tangent.x, tangent.y) || 1;
-    const directionX = tangent.x / distance;
-    const directionY = tangent.y / distance;
-    const phase = (elapsed % 520) / 520;
-    this.#context.save();
-    this.#context.strokeStyle = withAlpha(color, 0.72);
-    this.#context.fillStyle = withAlpha(color, 0.72);
-    this.#context.lineWidth = 1.05;
-    if (signature === 'ripple') {
-      this.#context.beginPath();
-      this.#context.arc(point.x, point.y, 3 + phase * 6, 0, Math.PI * 2);
-      this.#context.stroke();
-    } else if (signature === 'echo') {
-      for (const offset of [6, 12]) {
-        this.#context.beginPath();
-        this.#context.moveTo(point.x - directionX * offset - directionY * 2.5, point.y - directionY * offset + directionX * 2.5);
-        this.#context.lineTo(point.x - directionX * offset + directionY * 2.5, point.y - directionY * offset - directionX * 2.5);
-        this.#context.stroke();
-      }
-    } else if (signature === 'orbit') {
-      const angle = phase * Math.PI * 2;
-      this.#context.beginPath();
-      this.#context.arc(point.x + Math.cos(angle) * 5, point.y + Math.sin(angle) * 5, 1.35, 0, Math.PI * 2);
-      this.#context.fill();
-    } else if (signature === 'double') {
-      for (const radius of [3.5, 6.5]) {
-        this.#context.beginPath();
-        this.#context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        this.#context.stroke();
-      }
-    } else {
-      const perpendicularX = -directionY;
-      const perpendicularY = directionX;
-      this.#context.beginPath();
-      this.#context.moveTo(point.x - perpendicularX * 4, point.y - perpendicularY * 4);
-      this.#context.lineTo(point.x + perpendicularX * 4, point.y + perpendicularY * 4);
-      this.#context.stroke();
-    }
-    this.#context.restore();
-  }
 
   #drawBloom(
     point: { x: number; y: number },
@@ -1135,4 +1088,54 @@ function blendWithWhite(color: string, amount: number): string {
       .padStart(2, '0');
   });
   return `#${channels.join('')}`;
+}
+
+/** Shared category marks for the Map and Netgraph Canvas fallback. */
+export function drawPacketSignature(
+context: CanvasRenderingContext2D,
+  point: ScreenPoint,
+  tangent: ScreenPoint,
+  color: string,
+  signature: PacketSignature,
+  elapsed: number,
+): void {
+  const distance = Math.hypot(tangent.x, tangent.y) || 1;
+  const directionX = tangent.x / distance;
+  const directionY = tangent.y / distance;
+  const phase = (elapsed % 520) / 520;
+  context.save();
+  context.strokeStyle = withAlpha(color, 0.72);
+  context.fillStyle = withAlpha(color, 0.72);
+  context.lineWidth = 1.05;
+  if (signature === 'ripple') {
+    context.beginPath();
+    context.arc(point.x, point.y, 3 + phase * 6, 0, Math.PI * 2);
+    context.stroke();
+  } else if (signature === 'echo') {
+    for (const offset of [6, 12]) {
+      context.beginPath();
+      context.moveTo(point.x - directionX * offset - directionY * 2.5, point.y - directionY * offset + directionX * 2.5);
+      context.lineTo(point.x - directionX * offset + directionY * 2.5, point.y - directionY * offset - directionX * 2.5);
+      context.stroke();
+    }
+  } else if (signature === 'orbit') {
+    const angle = phase * Math.PI * 2;
+    context.beginPath();
+    context.arc(point.x + Math.cos(angle) * 5, point.y + Math.sin(angle) * 5, 1.35, 0, Math.PI * 2);
+    context.fill();
+  } else if (signature === 'double') {
+    for (const radius of [3.5, 6.5]) {
+      context.beginPath();
+      context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      context.stroke();
+    }
+  } else {
+    const perpendicularX = -directionY;
+    const perpendicularY = directionX;
+    context.beginPath();
+    context.moveTo(point.x - perpendicularX * 4, point.y - perpendicularY * 4);
+    context.lineTo(point.x + perpendicularX * 4, point.y + perpendicularY * 4);
+    context.stroke();
+  }
+  context.restore();
 }

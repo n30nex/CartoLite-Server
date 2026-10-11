@@ -11,6 +11,11 @@ export default defineConfig({
     assetsInlineLimit: 0,
     chunkSizeWarningLimit: 500,
     rolldownOptions: {
+      output: {
+        // Keep shared controls, projections and effects together. Entry points
+        // and MapLibre stay separate, so Netgraph never loads the basemap.
+        codeSplitting: { groups: [{ name: 'shared', test: /[\\/]src[\\/]/, minShareCount: 2 }] },
+      },
       input: {
         main: inputPath('index.html'),
         netgraph: inputPath('netgraph/index.html')

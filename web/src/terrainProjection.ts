@@ -24,8 +24,8 @@ export function geographicSegmentPoint(from: EndpointV2, to: EndpointV2, progres
 }
 
 export class TerrainProjector {
-  private points = new Map<string, SurfacePoint>();
-  private paths = new Map<string, readonly SurfacePoint[]>();
+  #points = new Map<string, SurfacePoint>();
+  #paths = new Map<string, readonly SurfacePoint[]>();
 
   constructor(private readonly map: TerrainMap) {}
 
@@ -33,14 +33,14 @@ export class TerrainProjector {
   project(coordinates: [number, number]): SurfacePoint { return this.map.project(coordinates); }
 
   reset(): void {
-    this.points.clear();
-    this.paths.clear();
+    this.#points.clear();
+    this.#paths.clear();
   }
 
   projectEndpoint(endpoint: EndpointV2): SurfacePoint {
     if (!this.enabled()) return this.project([endpoint.lng, endpoint.lat]);
     const key = `${endpoint.lng}:${endpoint.lat}`;
-    const cached = this.points.get(key);
+    const cached = this.#points.get(key);
     if (cached) return cached;
     const point: SurfacePoint = this.project([endpoint.lng, endpoint.lat]);
     const step = 360 * 8 / (512 * 2 ** (this.map.getZoom?.() ?? 0));
@@ -54,15 +54,15 @@ export class TerrainProjector {
       point.ground = ground;
       point.scale = Math.max(0.55, Math.min(1.45, Math.hypot(ground[0], ground[1])));
     }
-    if (this.points.size >= 1024) this.points.delete(this.points.keys().next().value!);
-    this.points.set(key, point);
+    if (this.#points.size >= 1024) this.#points.delete(this.#points.keys().next().value!);
+    this.#points.set(key, point);
     return point;
   }
 
   projectSegment(segment: RouteSegmentView): readonly SurfacePoint[] {
     const { from, to } = segment;
     const key = `${from.lng}:${from.lat}:${to.lng}:${to.lat}`;
-    const cached = this.paths.get(key);
+    const cached = this.#paths.get(key);
     if (cached) return cached;
     const delta = longitudeDelta(from.lng, to.lng);
     const endLongitude = from.lng + delta;
@@ -82,8 +82,8 @@ export class TerrainProjector {
       const right = section(crossing, 1, true);
       if (right[0]) right[0].breakBefore = true;
       const points = [...left, ...right];
-      if (this.paths.size >= 1024) this.paths.delete(this.paths.keys().next().value!);
-      this.paths.set(key, points);
+      if (this.#paths.size >= 1024) this.#paths.delete(this.#paths.keys().next().value!);
+      this.#paths.set(key, points);
       return points;
     }
     const first = this.projectEndpoint(from);
@@ -92,8 +92,8 @@ export class TerrainProjector {
       const point = t === 0 ? first : t === 1 ? last : this.project(geographicSegmentPoint(from, to, t));
       return { ...point, progress: t, scale: (first.scale ?? 1) + ((last.scale ?? 1) - (first.scale ?? 1)) * t };
     }) : [first, last];
-    if (this.paths.size >= 1024) this.paths.delete(this.paths.keys().next().value!);
-    this.paths.set(key, points);
+    if (this.#paths.size >= 1024) this.#paths.delete(this.#paths.keys().next().value!);
+    this.#paths.set(key, points);
     return points;
   }
 }

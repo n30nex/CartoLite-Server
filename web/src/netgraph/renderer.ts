@@ -9,7 +9,7 @@ import {
   RELAY_SPARK_MS,
   SOURCE_IGNITION_MS,
   capNewest,
-  interpolateScreenPoint,
+  drawPacketSignature,
   nodeWakeRadius,
   residueStyle,
   routeDuration,
@@ -1282,60 +1282,13 @@ export class NetgraphRenderer implements ViewportProjector {
     context.arc(head.x, head.y, 3.25 * emphasis * displayPreferences().packetSize, 0, Math.PI * 2);
     context.fillStyle = displayColor(active.color);
     context.fill();
-    if (this.#quality.mode === 'full') this.#drawSignature(context, head, trail.at(-2) ?? tail, head, active.color, active.signature, age);
+    if (this.#quality.mode === 'full') {
+      const previous = trail.at(-2) ?? tail;
+      drawPacketSignature(context, head, { x: head.x - previous.x, y: head.y - previous.y }, active.color, active.signature, age);
+    }
     context.restore();
   }
 
-  #drawSignature(
-    context: CanvasRenderingContext2D,
-    point: ScreenPoint,
-    from: ScreenPoint,
-    to: ScreenPoint,
-    color: string,
-    signature: PacketSignature,
-    age: number,
-  ): void {
-    if (signature === 'ripple') {
-      context.beginPath();
-      context.arc(point.x, point.y, 5 + (age % 420) / 105, 0, Math.PI * 2);
-      context.strokeStyle = colorWithAlpha(color, 0.44);
-      context.lineWidth = 1;
-      context.stroke();
-      return;
-    }
-    if (signature === 'echo') {
-      const echo = interpolateScreenPoint(from, point, 0.82);
-      context.beginPath();
-      context.arc(echo.x, echo.y, 2.1, 0, Math.PI * 2);
-      context.fillStyle = colorWithAlpha(color, 0.62);
-      context.fill();
-      return;
-    }
-    if (signature === 'orbit') {
-      for (const phase of [0, Math.PI]) {
-        const angle = age * 0.009 + phase;
-        context.beginPath();
-        context.arc(point.x + Math.cos(angle) * 6, point.y + Math.sin(angle) * 6, 1.25, 0, Math.PI * 2);
-        context.fillStyle = colorWithAlpha(color, 0.74);
-        context.fill();
-      }
-      return;
-    }
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const px = -dy / length;
-    const py = dx / length;
-    const offset = signature === 'double' ? 3 : 0;
-    for (const side of signature === 'double' ? [-1, 1] : [0]) {
-      context.beginPath();
-      context.moveTo(point.x + dx / length * offset * side - px * 3.5, point.y + dy / length * offset * side - py * 3.5);
-      context.lineTo(point.x + dx / length * offset * side + px * 3.5, point.y + dy / length * offset * side + py * 3.5);
-      context.strokeStyle = colorWithAlpha(color, 0.76);
-      context.lineWidth = 1.2;
-      context.stroke();
-    }
-  }
 
   #drawHandoff(context: CanvasRenderingContext2D, point: SurfacePoint, color: string, progress: number): void {
     if (!this.#pointVisible(point, 28)) return;
