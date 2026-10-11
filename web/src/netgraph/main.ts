@@ -1,4 +1,6 @@
 import { mountGraphFollow } from './follow';
+import { mountGraphCamera } from './cameraControls';
+import { createRouteInspector } from './routeInspector';
 import { mountSoundPreview } from '../soundPreview';
 import { requestedNode, rememberNode, replaceInspector } from '../selection';
 import { mountCinematicDock } from '../cinematicChrome';
@@ -12,7 +14,7 @@ import { buildNodeInspectorModel, createNodeInspectorContent, relativeTime, role
 import { activityLabel, LiveStore } from '../state';
 import { wireNodeSearch } from '../nodeSearch';
 import { normalizePacketKind } from '../trafficVisuals';
-import type { NodeV2, PacketView } from '../types';
+import type { NodeV2, PacketView, RouteV2 } from '../types';
 import { type NetgraphWindow } from './layout';
 import { NetgraphRenderer } from './renderer';
 
@@ -93,20 +95,32 @@ async function start(): Promise<void> {
   let store: LiveStore | undefined;
   let feed: LiveFeed | undefined;
   let selectedNodeID: string | null = null;
+  let selectedRouteIDs: string[] = [];
   let streamConnected = false;
   let minuteTimer: number | undefined;
   let selectNode: (nodeID: string | null, focus?: boolean) => void = () => undefined;
+  let selectRoutes: (ids: string[], focus?: boolean) => void = () => undefined;
+  let syncCamera = (): void => undefined;
+  const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
 
   try {
     const graph = new NetgraphRenderer(stage, graphCanvas, packetCanvas, {
       onNodeSelect(nodeID) {
-        selectNode(nodeID);
+        selectNode(nodeID, true);
       },
       onNodeHover(node, point) {
         renderTooltip(node, point);
       },
+      onRouteSelect(ids) { selectRoutes(ids, true); },
+      onViewChange() { syncCamera(); },
     });
     renderer = graph;
+    const updateCamera = mountGraphCamera(graph);
+    syncCamera = () => {
+      updateCamera();
+      const focus = document.querySelector<HTMLSelectElement>('.graph-focus select');
+      if (focus && stage.dataset.focusMode) focus.value = stage.dataset.focusMode;
+    };
     const routeSonifier = new RouteSonifier(graph, stage);
     sonifier = routeSonifier;
     mountSoundPreview(routeSonifier, soundPanel);
@@ -121,6 +135,19 @@ async function start(): Promise<void> {
       const started = performance.now();
       // Preserve keyboard focus when neighbour ordering changes.
 
+      if (selectedRouteIDs.length) {
+        const routes = selectedRouteIDs.map(id => graph.getRoute(id)).filter((route): route is RouteV2 => Boolean(route));
+        selectedRouteIDs = routes.map(route => route.id);
+        if (routes.length) {
+          inspectorSheet.setAttribute('aria-label', routes.length === 1 ? 'Selected connection details' : 'Choose a connection');
+          replaceInspector(inspectorSheet, createRouteInspector(document, routes, graph.getNodes(), {
+            window: routeWindow.selectedOptions[0]?.textContent ?? 'this window', onClose: () => selectNode(null),
+            onSelectRoute: id => selectRoutes([id], true), onSelectNode: id => selectNode(id, true),
+          }));
+          inspectorSheet.hidden = false; return;
+        }
+        graph.setSelectedRoute(null);
+      }
       if (!selectedNodeID) {
         if (inspectorSheet.contains(document.activeElement)) findButton.focus();
         inspectorSheet.replaceChildren(); inspectorSheet.hidden = true;
@@ -142,9 +169,14 @@ async function start(): Promise<void> {
       }
       replaceInspector(inspectorSheet, createNodeInspectorContent(document, model, {
         mobile: true,
+        regionLabel: graph.regionForNode(selectedNodeID),
+        windowLabel: routeWindow.selectedOptions[0]?.textContent ?? 'this window',
         onClose: () => selectNode(null),
         onSelectNeighbor: (nodeID) => selectNode(nodeID, true),
+        onInspectConnection: neighborID => selectRoutes(graph.adjacentRoutes(selectedNodeID!).filter(route =>
+          graph.getRoute(route.id) && (route.fromId === neighborID || route.toId === neighborID)).map(route => route.id), true),
       }));
+      inspectorSheet.setAttribute('aria-label', 'Selected node details');
       inspectorSheet.hidden = false;
       stage.dataset.inspectorApplyMs = (performance.now() - started).toFixed(1);
     };
@@ -152,11 +184,24 @@ async function start(): Promise<void> {
     selectNode = (nodeID: string | null, focus = false): void => {
       const started = performance.now();
       selectedNodeID = nodeID;
+      selectedRouteIDs = []; graph.setSelectedRoute(null);
       rememberNode(nodeID);
       graph.setSelectedNode(nodeID);
       renderInspector();
-      if (nodeID && focus) graph.focusNode(nodeID);
+      if (nodeID && focus) {
+        if (app.classList.contains('director-enabled')) app.dataset.followInspect = 'true';
+        navigate(); graph.focusNode(nodeID);
+      } else if (!nodeID) delete app.dataset.followInspect;
       stage.dataset.nodeSelectionApplyMs = (performance.now() - started).toFixed(1);
+    };
+
+    selectRoutes = (ids: string[], focus = false): void => {
+      selectedRouteIDs = ids.filter(id => graph.getRoute(id)); selectedNodeID = null;
+      rememberNode(null); graph.setSelectedNode(null);
+      graph.setSelectedRoute(selectedRouteIDs.length === 1 ? selectedRouteIDs[0]! : null);
+      renderInspector(); navigate();
+      if (selectedRouteIDs.length && app.classList.contains('director-enabled')) app.dataset.followInspect = 'true';
+      if (focus && selectedRouteIDs.length === 1) graph.focusRoute(selectedRouteIDs[0]!);
     };
 
     const updateStatus = (): void => {
@@ -179,14 +224,16 @@ async function start(): Promise<void> {
       graph.render(state, changes);
       if (changes?.reset || changes?.routes?.length) updateSummary();
       updateStatus();
-      if (!selectedNodeID || !changes) return;
+      if (!changes) return;
+      if (selectedRouteIDs.length && (changes.reset || changes.routes?.length || changes.nodes?.length)) { renderInspector(); return; }
+      if (!selectedNodeID) return;
       const selectedNodeChanged = changes.nodes?.some((node) => node.id === selectedNodeID) ?? false;
       const adjacentRouteChanged = changes.routes?.some((route) => route.fromId === selectedNodeID || route.toId === selectedNodeID) ?? false;
       if (changes.reset || selectedNodeChanged || adjacentRouteChanged) renderInspector();
     });
     app.dataset.loading = 'false';
     const requestedSelection = requestedNode();
-    if (requestedSelection && graph.getNodes().has(requestedSelection)) selectNode(requestedSelection);
+    if (requestedSelection && graph.getNodes().has(requestedSelection)) selectNode(requestedSelection, true);
     const focusControl = document.createElement('label'); focusControl.className = 'graph-focus';
     focusControl.innerHTML = '<span>Focus</span><select aria-label="Topology focus"><option value="all">Show all</option><option value="area">Selected area</option><option value="component">Selected component</option></select><small role="status"></small>';
     inspectorSheet.before(focusControl);
@@ -197,7 +244,7 @@ async function start(): Promise<void> {
       if (!applied) select.value = 'all';
     });
 
-    const director = mountGraphFollow(graph, id => selectNode(id));
+    const director = mountGraphFollow(graph, id => selectNode(id, true));
     window.addEventListener('pagehide',event=>{if(!event.persisted)director.destroy();});
     const liveFeed = new LiveFeed(initial, {
       onConnection(connected) {
@@ -239,11 +286,16 @@ async function start(): Promise<void> {
       updateSummary();
       renderInspector();
     });
-    resetButton.addEventListener('click', () => graph.home());
-    zoomInButton.addEventListener('click', () => graph.zoomBy(1.5));
-    zoomOutButton.addEventListener('click', () => graph.zoomBy(1 / 1.5));
+    resetButton.addEventListener('click', () => { navigate(); graph.home(); });
+    zoomInButton.addEventListener('click', () => { navigate(); graph.zoomBy(1.5); });
+    zoomOutButton.addEventListener('click', () => { navigate(); graph.zoomBy(1 / 1.5); });
     stage.addEventListener('keydown', (event) => {
       if (event.target !== stage || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.shiftKey && graph.is3D() && event.key.startsWith('Arrow')) {
+        graph.rotateBy(event.key === 'ArrowLeft' ? -0.12 : event.key === 'ArrowRight' ? 0.12 : 0,
+          event.key === 'ArrowUp' ? 0.1 : event.key === 'ArrowDown' ? -0.1 : 0);
+        event.preventDefault(); return;
+      }
       const step = event.shiftKey ? 160 : 80;
       switch (event.key) {
         case 'ArrowLeft': graph.panBy(-step, 0); break;
@@ -271,7 +323,7 @@ async function start(): Promise<void> {
       void requestScreenAwake();
       graph.refreshRouteWindow();
       updateSummary();
-      if (selectedNodeID) renderInspector();
+      if (selectedNodeID || selectedRouteIDs.length) renderInspector();
       if (wasHidden) {
         wasHidden = false;
         void liveFeed.resume();
@@ -292,12 +344,12 @@ async function start(): Promise<void> {
       closeSoundPanel();
       closeFindPanel();
       if (activeMenu) { event.preventDefault(); activeMenu.focus(); }
-      else if (selectedNodeID) { selectNode(null); stage.focus(); }
+      else if (selectedNodeID || selectedRouteIDs.length) { selectNode(null); stage.focus(); }
     });
     minuteTimer = window.setInterval(() => {
       graph.refreshRouteWindow();
       updateSummary();
-      if (selectedNodeID) renderInspector();
+      if (selectedNodeID || selectedRouteIDs.length) renderInspector();
     }, 60_000);
     window.addEventListener('pagehide', (event) => {
       if (event.persisted) return;

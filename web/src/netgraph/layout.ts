@@ -176,7 +176,7 @@ export function extendNetgraphLayout(
   const stableAreas = new Map(areas.map((area) => [area.code, area]));
   for (const position of canonical.positions.values()) {
     const established = previous.positions.get(position.id);
-    if (established) positions.set(position.id, { ...position, x: established.x, y: established.y });
+    if (established?.areaCode === position.areaCode) positions.set(position.id, { ...position, x: established.x, y: established.y });
   }
 
   for (const position of canonical.positions.values()) {

@@ -70,6 +70,17 @@ test('Netgraph keeps all 4,000 nodes and 7,000 links responsive', async ({ page 
   await expect(stage).toHaveAttribute('data-visible-routes', '7000');
   expect(Number(await stage.getAttribute('data-route-window-apply-ms')), 'age-window filtering should finish within one task').toBeLessThan(100);
 
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('#graph-3d-button').click();
+  await expect(stage).toHaveAttribute('data-view-mode', '3d');
+  await expect(stage).toHaveAttribute('data-render-state', 'idle');
+  await expect(stage).toHaveAttribute('data-connected-nodes', '4000');
+  await expect(stage).toHaveAttribute('data-visible-routes', '7000');
+  expect(Number(await stage.getAttribute('data-static-draw-ms')), '3D retains the same static rendering budget').toBeLessThan(100);
+  await stage.focus(); await page.keyboard.press('Shift+ArrowRight');
+  await expect(stage).toHaveAttribute('data-render-state', 'idle');
+  expect(Number(await stage.getAttribute('data-static-draw-ms'))).toBeLessThan(100);
+  await page.screenshot({ path: testInfo.outputPath('netgraph-3d-4000-nodes-7000-routes.png') });
   await page.locator('#find-button').click();
   await page.locator('#node-search').fill('Scale Node 3999');
   await page.locator('.node-search-result').first().click();

@@ -26,9 +26,10 @@ export function mountGraphFollow(graph: NetgraphRenderer, select: (id: string) =
   hold.addEventListener('click',()=>{held=!held;if(held)graph.holdView();queue.setHeld(held,Date.now());hold.textContent=held?'Continue':'Hold';});
   card.querySelector('[data-next]')!.addEventListener('click',()=>{held=false;delete app.dataset.followInspect;queue.next();hold.textContent='Hold';tick();});
   inspect.addEventListener('click',()=>{const id=current&&followEndpoints(current)[0]?.id;if(id){held=true;app.dataset.followInspect='true';graph.holdView();queue.setHeld(true,Date.now());hold.textContent='Continue';select(id);}});
-  const pause=()=>{if(enabled&&!held){held=true;queue.setHeld(true,Date.now());hold.textContent='Continue';}};
+  const pause=()=>{if(enabled&&!held){held=true;queue.setHeld(true,Date.now());graph.holdView();hold.textContent='Continue';}};
   const stage=document.getElementById('netgraph-stage')!;
   stage.addEventListener('pointerdown',pause);stage.addEventListener('wheel',pause,{passive:true});stage.addEventListener('keydown',pause);
+  stage.addEventListener('graphnavigate',pause);
   function tick():void {
     if(!enabled||document.hidden)return;
     if(held){card.querySelector('[data-state]')!.textContent='Held · explore freely';return;}
@@ -43,5 +44,5 @@ export function mountGraphFollow(graph: NetgraphRenderer, select: (id: string) =
   };
   document.addEventListener('keydown',dismiss);
   const timer=window.setInterval(tick,250);
-  return {offer(packet:PacketView){if(!enabled)return;const points=followEndpoints(packet);if(matches && (scope.value==='node'?!points.some(p=>matches!(p.id)):!points.every(p=>matches!(p.id))))return;const nearby=points.some(point=>{const p=graph.projectEndpoint(point);return p.x>=0&&p.x<=stage.clientWidth&&p.y>=0&&p.y<=stage.clientHeight;});queue.offer(packet,nearby?2:0,Date.now());tick();},destroy(){clearInterval(timer);document.removeEventListener('keydown',dismiss);stage.removeEventListener('pointerdown',pause);stage.removeEventListener('wheel',pause);stage.removeEventListener('keydown',pause);card.remove();button.remove();}};
+  return {offer(packet:PacketView){if(!enabled)return;const points=followEndpoints(packet);if(matches && (scope.value==='node'?!points.some(p=>matches!(p.id)):!points.every(p=>matches!(p.id))))return;const nearby=points.some(point=>{const p=graph.projectEndpoint(point);return p.x>=0&&p.x<=stage.clientWidth&&p.y>=0&&p.y<=stage.clientHeight;});queue.offer(packet,nearby?2:0,Date.now());tick();},destroy(){clearInterval(timer);document.removeEventListener('keydown',dismiss);stage.removeEventListener('pointerdown',pause);stage.removeEventListener('wheel',pause);stage.removeEventListener('keydown',pause);stage.removeEventListener('graphnavigate',pause);card.remove();button.remove();}};
 }

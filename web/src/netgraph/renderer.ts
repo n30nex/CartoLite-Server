@@ -1,4 +1,6 @@
 import { followViewport } from '../cinematicChrome';
+import { surfaceArc, surfaceTrail, traceSurfacePath, type SurfacePoint } from '../terrainProjection';
+import { GraphProjection, GRAPH_TILT, MAX_GRAPH_TILT, fitGraphCamera, graphArcPoint, graphPathPoint, distanceToGraphPath, projectGraphPath, type GraphCamera, type GraphPoint } from './camera';
 import { canvasEffects } from '../gpuEffects';
 import { canvasColorWithAlpha as colorWithAlpha, DISPLAY_EVENT, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime, prefersReducedMotion, effectStrength } from '../displayPreferences';
 import type { ViewportProjector } from '../audio';
@@ -9,7 +11,6 @@ import {
   capNewest,
   interpolateScreenPoint,
   nodeWakeRadius,
-  packetTrail,
   residueStyle,
   routeDuration,
   routeMotion,
@@ -106,6 +107,8 @@ interface LabelRect {
 export interface NetgraphRendererCallbacks {
   onNodeSelect(nodeID: string | null): void;
   onNodeHover(node: NodeV2 | null, point?: ScreenPoint): void;
+  onRouteSelect?(routeIDs: string[]): void;
+  onViewChange?(): void;
 }
 
 export class NetgraphRenderer implements ViewportProjector {
@@ -125,6 +128,8 @@ export class NetgraphRenderer implements ViewportProjector {
   private readonly glowSprites = new Map<string, HTMLCanvasElement>();
   private readonly regionLabelSprites = new Map<string, { canvas: HTMLCanvasElement; width: number }>();
   private readonly screenPoints = new Map<string, ScreenPoint>();
+  private readonly screenPaths = new Map<string, readonly SurfacePoint[]>();
+  private projection = new GraphProjection({ x: 0, y: 0, zoom: 1, yaw: 0, tilt: 0, distance: 1000 }, 1, 1);
   private readonly textWidths = new Map<string, number>();
   private readonly reducedMotionQuery: MediaQueryList;
   private readonly lowPowerQuery: MediaQueryList;
@@ -143,6 +148,7 @@ export class NetgraphRenderer implements ViewportProjector {
   private screenNodes: ScreenNode[] = [];
   private routeWindow: NetgraphWindow = '15m';
   private selectedNodeID: string | null = null;
+  private selectedRouteID: string | null = null;
   private focusIDs: Set<string> | undefined;
   private hoveredNodeID: string | null = null;
   private activeRoutes: ActiveRoute[] = [];
@@ -158,6 +164,12 @@ export class NetgraphRenderer implements ViewportProjector {
   private centerX = 0;
   private centerY = 0;
   private scale = 1;
+  private yaw = 0;
+  private tilt = 0;
+  private mode3D = false;
+  private rotationGesture = false;
+  private gestureYaw = 0;
+  private gestureTilt = 0;
   private paintedView?: { x: number; y: number; scale: number };
   private initializedView = false;
   private paused = false;
@@ -165,7 +177,7 @@ export class NetgraphRenderer implements ViewportProjector {
   private readonly pointers = new Map<number, ScreenPoint>();
   private pointerStart = { x: 0, y: 0 };
   private viewStart = { x: 0, y: 0 };
-  private pinchStart?: { distance: number; scale: number; anchor: ScreenPoint; offset: ScreenPoint };
+  private pinchStart?: { distance: number; scale: number; angle: number; yaw: number; anchor: ScreenPoint; offset: ScreenPoint };
 
   constructor(
     private readonly stage: HTMLElement,
@@ -199,6 +211,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.stage.addEventListener('lostpointercapture', this.handlePointerCancel);
     this.stage.addEventListener('wheel', this.handleWheel, { passive: false });
     this.stage.addEventListener('dblclick', this.handleDoubleClick);
+    this.stage.addEventListener('contextmenu', this.handleContextMenu);
     this.reducedMotionQuery.addEventListener('change', this.handleMotionPreference);
     if (typeof ResizeObserver === 'function') {
       this.resizeObserver = new ResizeObserver(this.handleResize);
@@ -218,7 +231,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.residueProjectionDirty = true;
     this.stage.dataset.routePreset = displayPreferences().preset;
     this.requestStaticDraw();
-    this.requestMotionFrame();
+    this.handleMotionPreference();
   };
 
   render(state: Readonly<StateV2>, changes: MapChanges | null): void {
@@ -246,6 +259,7 @@ export class NetgraphRenderer implements ViewportProjector {
         const nodeInkChanged = !previous || previous.label !== node.label || previous.role !== node.role || previous.observer !== node.observer;
         visualChange ||= nodeInkChanged;
         this.nodesDirty ||= nodeInkChanged;
+        if (!previous || previous.observer !== node.observer) { this.screenPoints.delete(node.id); this.screenPaths.clear(); }
         if (previous && (previous.lng !== node.lng || previous.lat !== node.lat)) {
           const key = coordinateKey(previous.lng, previous.lat);
           if (this.coordinateNodeIDs.get(key) === node.id) this.coordinateNodeIDs.delete(key);
@@ -269,14 +283,14 @@ export class NetgraphRenderer implements ViewportProjector {
     }
 
     if (changes.reset || movedArea || graphTopologyChanged(this.topology, changes.routes ?? [], state.routes.length)) {
-      if (changes.reset || movedArea || firstLayout) {
+      if (firstLayout) {
         this.layout = buildNetgraphLayout(state.nodes, state.routes, this.assignedAreas);
       } else {
         this.layout = extendNetgraphLayout(this.layout, state.nodes, state.routes, this.assignedAreas);
       }
       this.topology = routeTopology(state.routes);
       this.rebuildAdjacency(state.routes);
-      this.screenPoints.clear();
+      this.resetProjection();
       this.residueProjectionDirty = true;
       this.residueDirty = true;
       this.nodesDirty = true;
@@ -332,6 +346,20 @@ export class NetgraphRenderer implements ViewportProjector {
     return this.nodesByID;
   }
 
+  getRoute(id: string): RouteV2 | undefined { return this.visibleRouteIDs.has(id) ? this.routesByID.get(id) : undefined; }
+
+  regionForNode(id: string): string {
+    const code = this.layout.positions.get(id)?.areaCode;
+    const area = this.layout.areas.find(area => area.code === code);
+    return area ? `${area.code} · ${area.name}` : 'Unassigned';
+  }
+
+  setSelectedRoute(id: string | null): void {
+    this.selectedRouteID = id && this.getRoute(id) ? id : null;
+    this.stage.dataset.selectedRouteId = this.selectedRouteID ?? '';
+    this.nodesDirty = true; this.requestStaticDraw();
+  }
+
   connectedNodes(): NodeV2[] {
     return [...this.layout.connectedNodeIDs]
       .map((nodeID) => this.nodesByID.get(nodeID))
@@ -356,21 +384,20 @@ export class NetgraphRenderer implements ViewportProjector {
     const ids = packet.mode === 'observer' ? [packet.observer.id] : packet.segments.flatMap(hop => [hop.from.id,hop.to.id]);
     const points = ids.map(id => this.layout.positions.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
     if (!points.length) return;
-    const view=followViewport(this.stage);
+    const view=this.availableViewport();
     if (points.every(p => { const q=this.screenPoint(p.id); return q.x>=view.left&&q.x<=view.right&&q.y>=view.top&&q.y<=view.bottom; })) return;
-    const xs=points.map(p=>p.x),ys=points.map(p=>p.y);
-    const left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);
-    const scale=Math.max(.015,Math.min(this.scale,(view.right-view.left)/Math.max(1,right-left),(view.bottom-view.top)/Math.max(1,bottom-top)));
-    this.animateView((left+right)/2-((view.left+view.right)/2-this.width/2)/scale,(top+bottom)/2-((view.top+view.bottom)/2-this.height/2)/scale,scale);
+    const targets = points.map(p => this.nodePoint(p.id)!);
+    if (packet.mode === 'route') for (const hop of packet.segments) {
+      const a = this.nodePoint(hop.from.id), b = this.nodePoint(hop.to.id);
+      if (a && b) targets.push(graphArcPoint(a, b, 0.5, this.crossArea(hop.from.id, hop.to.id)));
+    }
+    this.framePoints(targets, this.scale);
   }
 
   captureFollowArea(): (id: string) => boolean {
-    const left=this.centerX-this.width/(2*this.scale), right=this.centerX+this.width/(2*this.scale);
-    const top=this.centerY-this.height/(2*this.scale), bottom=this.centerY+this.height/(2*this.scale);
-    return id => {
-      const point=this.layout.positions.get(id);
-      return !!point && point.x>=left && point.x<=right && point.y>=top && point.y<=bottom;
-    };
+    const projection = this.projection, width = this.width, height = this.height;
+    return id => { const point = this.nodePoint(id); if (!point) return false;
+      const p = projection.project(point); return p.visible && p.x >= 0 && p.x <= width && p.y >= 0 && p.y <= height; };
   }
 
   holdView(): void { this.cancelViewAnimation(); }
@@ -381,32 +408,69 @@ export class NetgraphRenderer implements ViewportProjector {
     const anchor = this.selectedNodeID ? this.layout.positions.get(this.selectedNodeID) : undefined;
     if (mode !== 'all' && !anchor) return false;
     this.focusIDs = mode === 'all' ? undefined : new Set([...this.layout.positions.values()].filter(point => mode === 'area' ? point.areaCode === anchor!.areaCode : point.component === anchor!.component).map(point => point.id));
-    this.screenPoints.clear(); this.nodesDirty = true; this.residueProjectionDirty = true;
+    this.screenPoints.clear(); this.screenPaths.clear(); this.nodesDirty = true; this.residueProjectionDirty = true;
     this.stage.dataset.focusMode = mode;
     this.requestStaticDraw(); this.requestMotionFrame();
     return true;
   }
 
   focusNode(nodeID: string): void {
-    const position = this.layout.positions.get(nodeID);
-    if (!position) return;
-    this.animateView(position.x, position.y, Math.max(this.scale, 1.5));
+    const anchor = this.nodePoint(nodeID);
+    if (!anchor) return;
+    const points = [anchor];
+    for (const route of this.adjacentRoutes(nodeID)) {
+      if (!this.visibleRouteIDs.has(route.id)) continue;
+      const a = this.nodePoint(route.fromId), b = this.nodePoint(route.toId);
+      if (!a || !b) continue;
+      if (this.focusIDs && (!this.focusIDs.has(route.fromId) || !this.focusIDs.has(route.toId))) this.setFocus('all');
+      points.push(a, b, graphArcPoint(a, b, 0.5, this.isInterAreaRoute(route)));
+    }
+    this.framePoints(points, 2.5);
+  }
+
+  focusRoute(id: string): void {
+    const route = this.getRoute(id);
+    const a = route && this.nodePoint(route.fromId), b = route && this.nodePoint(route.toId);
+    if (route && a && b) {
+      if (this.focusIDs && (!this.focusIDs.has(route.fromId) || !this.focusIDs.has(route.toId))) this.setFocus('all');
+      this.framePoints([a, b, graphArcPoint(a, b, 0.5, this.isInterAreaRoute(route))], 2.5);
+    }
+  }
+
+  is3D(): boolean { return this.mode3D; }
+  tiltDegrees(): number { return Math.round(this.tilt * 180 / Math.PI); }
+
+  set3D(enabled: boolean): void {
+    this.clearPointers(); this.cancelViewAnimation(); this.mode3D = enabled;
+    this.animateView(this.centerX, this.centerY, this.scale, enabled ? this.yaw : 0, enabled ? GRAPH_TILT : 0);
+    this.stage.dataset.viewMode = enabled ? '3d' : 'top-down';
+    this.callbacks.onViewChange?.();
+  }
+
+  rotateBy(radians: number, tiltDelta = 0): void {
+    if (!this.mode3D) return;
+    this.cancelViewAnimation(); this.yaw += radians;
+    this.tilt = clamp(this.tilt + tiltDelta, 0.12, MAX_GRAPH_TILT); this.viewChanged();
+  }
+
+  setTilt(degrees: number): void {
+    if (!this.mode3D || !Number.isFinite(degrees)) return;
+    this.cancelViewAnimation(); this.tilt = clamp(degrees * Math.PI / 180, 0.12, MAX_GRAPH_TILT); this.viewChanged();
   }
 
   home(animate = true): void {
     const bounds = this.layout.bounds;
-    const boundsWidth = Math.max(1, bounds.maxX - bounds.minX);
-    const boundsHeight = Math.max(1, bounds.maxY - bounds.minY);
-    const nextScale = clamp(Math.min((this.width - 52) / boundsWidth, (this.height - 80) / boundsHeight), 0.04, 3);
-    const nextX = (bounds.minX + bounds.maxX) / 2;
-    const nextY = (bounds.minY + bounds.maxY) / 2;
+    const points = [{ x: bounds.minX, y: bounds.minY }, { x: bounds.minX, y: bounds.maxY },
+      { x: bounds.maxX, y: bounds.minY }, { x: bounds.maxX, y: bounds.maxY },
+      { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2, z: 650 }];
+    const next = fitGraphCamera(this.camera(), points, this.width, this.height, this.availableViewport());
     this.initializedView = true;
-    if (animate && !prefersReducedMotion()) this.animateView(nextX, nextY, nextScale);
+    if (animate && !prefersReducedMotion()) this.animateView(next.x, next.y, next.zoom);
     else {
       this.cancelViewAnimation();
-      this.centerX = nextX;
-      this.centerY = nextY;
-      this.scale = nextScale;
+      this.centerX = next.x;
+      this.centerY = next.y;
+      this.scale = next.zoom;
       this.viewChanged();
     }
   }
@@ -473,7 +537,7 @@ export class NetgraphRenderer implements ViewportProjector {
       [...routes.values()],
       this.assignedAreas,
     );
-    this.screenPoints.clear();
+    this.resetProjection();
     this.residueProjectionDirty = true;
     this.residueDirty = true;
     this.nodesDirty = true;
@@ -514,6 +578,10 @@ export class NetgraphRenderer implements ViewportProjector {
     return this.screenPoint(endpoint.id);
   }
 
+  projectSegment(segment: { from: EndpointV2; to: EndpointV2; routeId: string }): readonly SurfacePoint[] {
+    return this.routePath(segment.from.id, segment.to.id);
+  }
+
   destroy(): void {
     this.gpu.destroy();
     window.removeEventListener(DISPLAY_EVENT, this.refreshAppearance);
@@ -525,6 +593,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.stage.removeEventListener('lostpointercapture', this.handlePointerCancel);
     this.stage.removeEventListener('wheel', this.handleWheel);
     this.stage.removeEventListener('dblclick', this.handleDoubleClick);
+    this.stage.removeEventListener('contextmenu', this.handleContextMenu);
     this.reducedMotionQuery.removeEventListener('change', this.handleMotionPreference);
     this.resizeObserver?.disconnect();
     if (!this.resizeObserver) window.removeEventListener('resize', this.handleResize);
@@ -566,7 +635,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   private requestStaticDraw(): void {
-    if (this.quality.mode === 'low' && this.pointers.size && this.paintedView) {
+    if (this.tilt === 0 && this.quality.mode === 'low' && this.pointers.size && this.paintedView) {
       this.stage.dataset.renderState = 'composited';
       return;
     }
@@ -574,7 +643,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.stage.dataset.renderState = 'scheduled';
     this.staticFrame = requestAnimationFrame(() => {
       this.staticFrame = 0;
-      if (this.quality.mode === 'low' && this.pointers.size && this.paintedView) return;
+      if (this.tilt === 0 && this.quality.mode === 'low' && this.pointers.size && this.paintedView) return;
       this.drawStatic();
     });
   }
@@ -600,6 +669,20 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   private drawGrid(context: CanvasRenderingContext2D): void {
+    if (this.tilt > 0) {
+      const step = 10 ** Math.ceil(Math.log10(60 / this.scale));
+      const cx = Math.round(this.centerX / step) * step, cy = Math.round(this.centerY / step) * step;
+      context.save(); context.beginPath();
+      for (let i = -12; i <= 12; i++) {
+        for (const [a, b] of [[{ x: cx + i * step, y: cy - 12 * step }, { x: cx + i * step, y: cy + 12 * step }],
+          [{ x: cx - 12 * step, y: cy + i * step }, { x: cx + 12 * step, y: cy + i * step }]]) {
+          const from = this.projection.project(a!), to = this.projection.project(b!);
+          if (from.visible && to.visible) { context.moveTo(from.x, from.y); context.lineTo(to.x, to.y); }
+        }
+      }
+      context.strokeStyle = lightScene() ? 'rgba(35,82,88,0.08)' : 'rgba(93,176,183,0.07)';
+      context.lineWidth = 0.7; context.stroke(); context.restore(); return;
+    }
     const spacing = Math.max(42, Math.min(96, 64 * this.scale));
     const offsetX = modulo(this.width / 2 - this.centerX * this.scale, spacing);
     const offsetY = modulo(this.height / 2 - this.centerY * this.scale, spacing);
@@ -621,7 +704,7 @@ export class NetgraphRenderer implements ViewportProjector {
 
   private visibleAreas(): Array<{ area: NetgraphLayout['areas'][number]; point: ScreenPoint; radius: number }> {
     return this.layout.areas
-      .map((area) => ({ area, point: this.worldToScreen(area.x, area.y), radius: area.radius * this.scale }))
+      .map((area) => { const point = this.worldToScreen(area.x, area.y); return { area, point, radius: area.radius * this.scale * (point.scale ?? 1) }; })
       .filter(({ point, radius }) => (
         point.x + radius >= -80 && point.x - radius <= this.width + 80
         && point.y + radius >= -80 && point.y - radius <= this.height + 80
@@ -631,8 +714,19 @@ export class NetgraphRenderer implements ViewportProjector {
   private drawAreaHalos(context: CanvasRenderingContext2D): void {
     context.save();
     context.setLineDash([4, 7]);
-    for (const { point, radius } of this.visibleAreas()) {
+    for (const { area, point, radius } of this.visibleAreas()) {
       if (radius < 5) continue;
+      if (this.tilt > 0) {
+        context.setLineDash([]); context.beginPath();
+        for (let index = 0; index <= 32; index++) {
+          const angle = index * Math.PI / 16;
+          const p = this.worldToScreen(area.x + Math.cos(angle) * area.radius, area.y + Math.sin(angle) * area.radius, -8);
+          if (index === 0) context.moveTo(p.x, p.y); else context.lineTo(p.x, p.y);
+        }
+        context.closePath(); context.fillStyle = lightScene() ? 'rgba(212,226,216,0.48)' : 'rgba(15,48,56,0.48)'; context.fill();
+        context.strokeStyle = lightScene() ? 'rgba(40,91,94,0.38)' : 'rgba(108,219,212,0.33)';
+        context.lineWidth = 1; context.stroke(); continue;
+      }
       const edge = Math.max(8, radius);
       const glow = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, edge);
       glow.addColorStop(0, lightScene() ? 'rgba(0, 105, 87, 0.055)' : 'rgba(69, 220, 202, 0.055)');
@@ -665,8 +759,9 @@ export class NetgraphRenderer implements ViewportProjector {
       const width = Math.max(titleWidth, detailWidth) + 16;
       const height = 31;
       const x = clamp(point.x - width / 2, 6, Math.max(6, this.width - width - 6));
-      let y = point.y - Math.max(22, radius) - height - 9;
-      if (y < 64) y = point.y + Math.max(22, radius) + 9;
+      const verticalRadius = radius * Math.cos(this.tilt);
+      let y = point.y - Math.max(22, verticalRadius) - height - 9;
+      if (y < 64) y = point.y + Math.max(22, verticalRadius) + 9;
       const labelCenterX = x + width / 2;
       const rect = { x, y, width, height };
       if (x + width < 5 || x > this.width - 5 || y + height < 5 || y > this.height - 5) continue;
@@ -676,8 +771,8 @@ export class NetgraphRenderer implements ViewportProjector {
       const connectorY = y < point.y ? y + height : y;
       context.beginPath();
       context.moveTo(labelCenterX, connectorY);
-      context.lineTo(point.x, y < point.y ? point.y - Math.max(8, radius) : point.y + Math.max(8, radius));
-      context.strokeStyle = 'rgba(111, 219, 215, 0.18)';
+      context.lineTo(point.x, y < point.y ? point.y - Math.max(8, verticalRadius) : point.y + Math.max(8, verticalRadius));
+      context.strokeStyle = lightScene() ? 'rgba(35,85,90,0.3)' : 'rgba(111,219,215,0.18)';
       context.lineWidth = 0.8;
       context.stroke();
       roundRect(context, x, y, width, height, 7);
@@ -700,7 +795,9 @@ export class NetgraphRenderer implements ViewportProjector {
   private drawRoutes(context: CanvasRenderingContext2D): void {
     const now = Date.now();
     const selected = this.selectedNodeID;
-    const selectedRoutes = selected ? this.adjacentRouteIDs.get(selected) ?? new Set<string>() : new Set<string>();
+    const selectedRoutes = new Set(selected ? this.adjacentRouteIDs.get(selected) : []);
+    if (this.selectedRouteID) selectedRoutes.add(this.selectedRouteID);
+    const inspecting = Boolean(selected || this.selectedRouteID);
     const groups = new Map<string, { kind: PacketKind; interArea: boolean; routes: RouteV2[] }>();
     const recentGroups = new Map<string, { kind: PacketKind; ageBucket: number; intensity: number; interArea: boolean; routes: RouteV2[] }>();
     for (const route of this.visibleRoutes) {
@@ -731,25 +828,25 @@ export class NetgraphRenderer implements ViewportProjector {
       for (const route of group.routes) this.appendRoute(context, route);
       context.strokeStyle = lightScene() ? 'rgba(249, 252, 245, 0.85)' : 'rgba(3, 14, 19, 0.8)';
       context.lineWidth = displayPreferences().width + 1.5;
-      context.globalAlpha = selected ? 0.1 : displayPreferences().opacity;
+      context.globalAlpha = inspecting ? 0.1 : displayPreferences().opacity;
       context.stroke();
       context.globalAlpha = 1;
-      context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], (selected ? 0.1 : lightScene() ? 0.95 : 0.5) * displayPreferences().opacity);
+      context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], (inspecting ? 0.1 : lightScene() ? 0.95 : 0.5) * displayPreferences().opacity);
       context.lineWidth = displayPreferences().width;
       context.stroke();
     }
 
-    for (const group of recentGroups.values()) {
+    for (const group of this.quality.mode === 'low' ? [] : recentGroups.values()) {
       context.setLineDash(lineDash());
       context.beginPath();
       for (const route of group.routes) this.appendRoute(context, route);
       const ageStrength = 1 - (group.ageBucket + 0.5) / 4;
-      context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], ageStrength * (selected ? 0.08 : group.interArea ? 0.19 : 0.3));
+      context.strokeStyle = colorWithAlpha(PACKET_KIND_COLORS[group.kind], ageStrength * (inspecting ? 0.08 : group.interArea ? 0.19 : 0.3));
       context.lineWidth = displayPreferences().width + group.intensity * 0.12;
       context.stroke();
     }
 
-    if (selected) {
+    if (inspecting) {
       context.setLineDash([]);
       for (const routeID of selectedRoutes) {
         const route = this.routesByID.get(routeID);
@@ -777,21 +874,18 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   private appendRoute(context: CanvasRenderingContext2D, route: RouteV2): void {
-    if (this.focusIDs && (!this.focusIDs.has(route.fromId) || !this.focusIDs.has(route.toId))) return;
-    const from = this.screenPoint(route.fromId);
-    const to = this.screenPoint(route.toId);
-    if (!segmentNearViewport(from, to, this.width, this.height, 8)) return;
-    context.moveTo(from.x, from.y);
-    context.lineTo(to.x, to.y);
+    const path = this.routePath(route.fromId, route.toId);
+    if (this.pathVisible(path, 8)) this.appendPath(context, path);
   }
 
   private drawNodes(context: CanvasRenderingContext2D): void {
-    const selectedRoutes = this.selectedNodeID ? this.adjacentRouteIDs.get(this.selectedNodeID) ?? new Set<string>() : new Set<string>();
+    const selectedRoutes = new Set(this.selectedNodeID ? this.adjacentRouteIDs.get(this.selectedNodeID) : []);
+    if (this.selectedRouteID) selectedRoutes.add(this.selectedRouteID);
     const selectedNeighbors = new Set<string>();
     for (const routeID of selectedRoutes) {
       const route = this.routesByID.get(routeID);
       if (!route || !this.visibleRouteIDs.has(route.id)) continue;
-      selectedNeighbors.add(route.fromId === this.selectedNodeID ? route.toId : route.fromId);
+      selectedNeighbors.add(route.fromId); selectedNeighbors.add(route.toId);
     }
     const nodeRecords: ScreenNode[] = [];
     for (const position of this.layout.positions.values()) {
@@ -803,24 +897,34 @@ export class NetgraphRenderer implements ViewportProjector {
       // overwhelm both the picture and the rasterizer. Keep every node, with
       // smaller marks until detail zoom (touch hit targets stay unchanged).
       const detail = Math.min(1, Math.sqrt(this.scale / 0.7));
-      const radius = clamp((2.5 + Math.log2(1 + position.degree) * 0.7) * detail + Math.sqrt(this.scale) * 0.55, 0.9, 8);
+      const perspective = this.tilt > 0 ? Math.sqrt(clamp((point as SurfacePoint).scale ?? 1, 0.5, 1.8)) : 1;
+      const radius = clamp(((2.5 + Math.log2(1 + position.degree) * 0.7) * detail + Math.sqrt(this.scale) * 0.55) * perspective, node.id === this.selectedNodeID ? 3.5 : 0.9, 8);
       nodeRecords.push({ node, point, radius, degree: position.degree });
     }
     this.screenNodes = nodeRecords;
 
     context.save();
+    if (this.tilt > 0 && this.scale > 0.15) {
+      context.beginPath();
+      for (const { node, point } of nodeRecords) {
+        const position = this.layout.positions.get(node.id)!;
+        const ground = this.worldToScreen(position.x, position.y);
+        context.moveTo(ground.x, ground.y); context.lineTo(point.x, point.y);
+      }
+      context.strokeStyle = lightScene() ? 'rgba(34,86,91,0.25)' : 'rgba(111,220,213,0.2)'; context.lineWidth = 0.7; context.stroke();
+    }
     const groups = new Map<string, { records: ScreenNode[]; selected: boolean; neighbor: boolean; muted: boolean }>();
     for (const record of nodeRecords) {
       const { node } = record;
       const selected = node.id === this.selectedNodeID;
       const neighbor = selectedNeighbors.has(node.id);
-      const muted = Boolean(this.selectedNodeID) && !selected && !neighbor;
+      const muted = Boolean(this.selectedNodeID || this.selectedRouteID) && !selected && !neighbor;
       const key = `${node.role}:${selected}:${neighbor}:${muted}`;
       const group = groups.get(key) ?? { records: [], selected, neighbor, muted };
       group.records.push(record);
       groups.set(key, group);
     }
-    for (const { records, selected, neighbor, muted } of groups.values()) {
+    for (const { records, selected, neighbor, muted } of [...groups.values()].sort((a, b) => Number(a.selected || a.neighbor) - Number(b.selected || b.neighbor))) {
       const color = ROLE_COLORS[records[0]!.node.role];
       // Small batches avoid both per-node draw overhead and giant overlapping
       // paths that are expensive to tessellate when fully zoomed out.
@@ -843,6 +947,14 @@ export class NetgraphRenderer implements ViewportProjector {
         context.strokeStyle = colorWithAlpha('#eaffff', muted ? 0.08 : selected ? 0.92 : 0.36);
         context.lineWidth = selected ? 1.8 : 0.8;
         context.stroke();
+        if (this.tilt > 0 && this.quality.mode !== 'low') {
+          context.beginPath();
+          for (const { point, radius } of batch) {
+            context.moveTo(point.x - radius * 0.1, point.y - radius * 0.35);
+            context.arc(point.x - radius * 0.35, point.y - radius * 0.35, radius * 0.25, 0, Math.PI * 2);
+          }
+          context.fillStyle = lightScene() ? 'rgba(255,255,255,0.6)' : 'rgba(229,255,250,0.55)'; context.fill();
+        }
         context.beginPath();
         for (const { node, point, radius } of batch) {
           if (!node.observer) continue;
@@ -858,6 +970,7 @@ export class NetgraphRenderer implements ViewportProjector {
     const labelCandidates = nodeRecords
       .filter(({ node, degree }) => (
         node.id === this.selectedNodeID
+        || this.selectedRouteID !== null && selectedNeighbors.has(node.id)
         || node.id === this.hoveredNodeID
         || displayPreferences().detail === 'complete'
         || this.scale >= 0.42 && degree >= (this.scale < 0.7 ? 18 : this.scale < 1.3 ? 8 : 3)
@@ -945,7 +1058,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.stage.dataset.activeRegionLabels = String(drawnRegionRoles.length);
     this.stage.dataset.activeRegionRoles = drawnRegionRoles.join(',');
     const visibleMotion = drawnRegionRoles.length > 0
-      || this.activeRoutes.some(({ packet }) => packet.segments.some((segment) => segmentNearViewport(this.screenPoint(segment.from.id), this.screenPoint(segment.to.id), this.width, this.height, 28)))
+      || this.activeRoutes.some(({ packet }) => packet.segments.some((segment) => this.pathVisible(this.routePath(segment.from.id, segment.to.id), 28)))
       || this.observerWakes.some((wake) => this.pointVisible(this.screenPoint(wake.endpoint.id), 48));
     if (!prefersReducedMotion() && visibleMotion) {
       if (this.lastMotionAt && this.quality.sample(now - this.lastMotionAt, performance.now() - started)) {
@@ -982,7 +1095,7 @@ export class NetgraphRenderer implements ViewportProjector {
       const area = this.layout.areas.find((candidate) => candidate.code.toLowerCase() === regionTag);
       const identity = this.regionAreasByTag.get(regionTag);
       if (!area || !identity) continue;
-      const point = this.worldToScreen(area.x, area.y);
+      const point = this.projection.endpoint({ x: area.x, y: area.y });
       const radius = Math.max(18, area.radius * this.scale);
       if (
         point.x + radius < -120 || point.x - radius > this.width + 120
@@ -992,7 +1105,7 @@ export class NetgraphRenderer implements ViewportProjector {
       const color = PACKET_KIND_COLORS[frame.kind];
       if (displayPreferences().detail === 'auto') {
         const direction = frame.role === 'send' ? 'OUT' : frame.role === 'receive' ? 'IN' : 'LOCAL';
-        context.beginPath(); context.arc(point.x,point.y-radius-7,3.5,0,Math.PI*2);
+        context.beginPath(); context.arc(point.x,point.y-radius*Math.cos(this.tilt)-7,3.5,0,Math.PI*2);
         context.fillStyle = colorWithAlpha(color, .55 + frame.intensity*.4); context.fill();
         drawnRoles.push(`${regionTag.toUpperCase()}:${direction}`);
         continue;
@@ -1000,7 +1113,7 @@ export class NetgraphRenderer implements ViewportProjector {
       const intensity = clamp(frame.intensity, 0, 1);
       const ringRadius = radius + 8 + frame.spread * (frame.longHaul ? 28 : 18);
       context.beginPath();
-      context.arc(point.x, point.y, ringRadius, 0, Math.PI * 2);
+      surfaceArc(context, point, ringRadius);
       if (this.quality.mode !== 'low') {
         context.strokeStyle = colorWithAlpha(color, intensity * 0.09);
         context.lineWidth = frame.longHaul ? 7 : 4;
@@ -1055,20 +1168,17 @@ export class NetgraphRenderer implements ViewportProjector {
     context.save();
     context.lineCap = 'round';
     for (const residue of this.residue) {
-      const from = this.screenPoint(residue.fromId);
-      const to = this.screenPoint(residue.toId);
-      if (!segmentNearViewport(from, to, this.width, this.height, 12)) continue;
+      const path = this.routePath(residue.fromId, residue.toId);
+      if (!this.pathVisible(path, 12)) continue;
       const age = now - residue.addedAt;
       const style = residueStyle(displayResidueAge(age));
       context.beginPath();
-      context.moveTo(from.x, from.y);
-      context.lineTo(to.x, to.y);
+      this.appendPath(context, path);
       context.strokeStyle = colorWithAlpha(residue.color, style.bloomOpacity * displayPreferences().glow);
       context.lineWidth = style.bloomWidth;
       context.stroke();
       context.beginPath();
-      context.moveTo(from.x, from.y);
-      context.lineTo(to.x, to.y);
+      this.appendPath(context, path);
       context.strokeStyle = colorWithAlpha(residue.color, style.coreOpacity);
       context.lineWidth = style.coreWidth;
       context.stroke();
@@ -1104,18 +1214,17 @@ export class NetgraphRenderer implements ViewportProjector {
 
     const segment = active.packet.segments[motion.segmentIndex];
     if (!segment) return;
-    const from = this.screenPoint(segment.from.id);
-    const to = this.screenPoint(segment.to.id);
-    if (!segmentNearViewport(from, to, this.width, this.height, 24)) return;
-    const head = interpolateScreenPoint(from, to, easeInOut(motion.localProgress));
-    const emphasis = this.selectedNodeID && active.packet.segments.some((hop) => hop.from.id === this.selectedNodeID || hop.to.id === this.selectedNodeID) ? 1.3 : 1;
+    const path = this.routePath(segment.from.id, segment.to.id);
+    if (!this.pathVisible(path, 24)) return;
+    const progress = easeInOut(motion.localProgress);
+    const head = graphPathPoint(path, progress);
+    if (!this.pointVisible(head, 100)) return;
+    const emphasis = active.packet.segments.some((hop) => hop.from.id === this.selectedNodeID || hop.to.id === this.selectedNodeID || hop.routeId === this.selectedRouteID) ? 1.3 : 1;
     if (emphasis > 1) this.stage.dataset.focusedPacketEmphasis = String(emphasis);
-    const trail = packetTrail(from, head, clamp(Math.hypot(to.x - from.x, to.y - from.y) * 0.28, 18, 68) * displayPreferences().trailLength);
-    if (this.gpu.batch.packet([trail.tail, head], head, active.color, active.signature, emphasis)) return;
+    const trail = surfaceTrail(path, progress, 68 * displayPreferences().trailLength);
+    if (this.gpu.batch.packet(trail, head, active.color, active.signature, emphasis)) return;
     if (this.quality.mode === 'low' || displayPreferences().quality === 'economy' || effectStrength() === 0) {
-      context.beginPath();
-      context.moveTo(trail.tail.x, trail.tail.y);
-      context.lineTo(head.x, head.y);
+      traceSurfacePath(context, trail);
       context.strokeStyle = colorWithAlpha(active.color, 0.65);
       context.lineWidth = (active.longHaul ? 3.2 : 2.2) * emphasis;
       context.stroke();
@@ -1125,38 +1234,26 @@ export class NetgraphRenderer implements ViewportProjector {
       context.fill();
       return;
     }
-    const gradient = context.createLinearGradient(trail.tail.x, trail.tail.y, head.x, head.y);
+    const tail = trail[0] ?? head;
+    const gradient = context.createLinearGradient(tail.x, tail.y, head.x, head.y);
     gradient.addColorStop(0, colorWithAlpha(active.color, 0));
     gradient.addColorStop(0.46, colorWithAlpha(active.color, 0.32));
     gradient.addColorStop(1, colorWithAlpha(active.color, 0.96));
     context.save();
     context.lineCap = 'round';
-    context.beginPath();
-    context.moveTo(trail.tail.x, trail.tail.y);
-    context.lineTo(head.x, head.y);
-    // Taper to the tail rather than painting a broad, flat tube.
-    const length = Math.max(1, Math.hypot(head.x - trail.tail.x, head.y - trail.tail.y));
-    const halfWidth = (active.longHaul ? 6 : active.crossRegion ? 5 : 4) * emphasis;
-    const px = -(head.y - trail.tail.y) / length * halfWidth;
-    const py = (head.x - trail.tail.x) / length * halfWidth;
-    context.lineTo(head.x + px, head.y + py);
-    context.lineTo(trail.tail.x, trail.tail.y);
-    context.lineTo(head.x - px, head.y - py);
-    context.closePath();
-    context.fillStyle = gradient;
-    context.globalAlpha = 0.3 * displayPreferences().glow;
-    context.fill();
-    context.globalAlpha = 1;
-    context.beginPath();
-    context.moveTo(trail.tail.x, trail.tail.y);
-    context.lineTo(head.x, head.y);
-    context.strokeStyle = gradient;
-    context.lineWidth = (active.longHaul ? 4.5 : active.crossRegion ? 3.7 : 3.1) * emphasis;
-    context.stroke();
+    // Short, tapered strokes follow the same sampled curve as the packet core.
+    for (let index = 1; index < trail.length; index++) {
+      const a = trail[index - 1]!, b = trail[index]!;
+      if (b.breakBefore) continue;
+      context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y);
+      context.strokeStyle = gradient;
+      context.lineWidth = (1 + 2.7 * index / Math.max(1, trail.length - 1)) * emphasis;
+      context.stroke();
+    }
     const sparkCount = this.quality.mode === 'balanced' || this.activeRoutes.length > 40 ? 1 : this.lowPowerQuery.matches ? 2 : 3;
     for (let index = 1; index <= sparkCount; index += 1) {
       const amount = Math.max(0, 1 - index * 0.2);
-      const spark = interpolateScreenPoint(trail.tail, head, amount);
+      const spark = graphPathPoint(path, Math.max(0, progress - (1 - amount) * 0.035));
       context.beginPath();
       context.arc(spark.x, spark.y, 1.5 - index * 0.18, 0, Math.PI * 2);
       context.fillStyle = colorWithAlpha(active.color, 0.68 - index * 0.13);
@@ -1170,7 +1267,7 @@ export class NetgraphRenderer implements ViewportProjector {
     context.arc(head.x, head.y, 3.25 * emphasis * displayPreferences().packetSize, 0, Math.PI * 2);
     context.fillStyle = displayColor(active.color);
     context.fill();
-    if (this.quality.mode === 'full') this.drawSignature(context, head, from, to, active.color, active.signature, age);
+    if (this.quality.mode === 'full') this.drawSignature(context, head, trail.at(-2) ?? tail, head, active.color, active.signature, age);
     context.restore();
   }
 
@@ -1225,22 +1322,22 @@ export class NetgraphRenderer implements ViewportProjector {
     }
   }
 
-  private drawHandoff(context: CanvasRenderingContext2D, point: ScreenPoint, color: string, progress: number): void {
+  private drawHandoff(context: CanvasRenderingContext2D, point: SurfacePoint, color: string, progress: number): void {
     if (!this.pointVisible(point, 28)) return;
-    if (this.gpu.batch.disc(point, 5 + progress * 10, color, (1-progress)*.8, 2)) return;
+    if (this.tilt === 0 && this.gpu.batch.disc(point, 5 + progress * 10, color, (1-progress)*.8, 2)) return;
     context.beginPath();
-    context.arc(point.x, point.y, 5 + progress * 10, 0, Math.PI * 2);
+    surfaceArc(context, point, 5 + progress * 10);
     context.strokeStyle = colorWithAlpha(color, (1 - progress) * 0.8);
     context.lineWidth = 1.6;
     context.stroke();
   }
 
-  private drawDestination(context: CanvasRenderingContext2D, point: ScreenPoint, color: string, progress: number): void {
+  private drawDestination(context: CanvasRenderingContext2D, point: SurfacePoint, color: string, progress: number): void {
     if (!this.pointVisible(point, 28)) return;
     const opacity = Math.sin(Math.PI * clamp(progress, 0, 1));
-    if (this.gpu.batch.disc(point, 7 + progress * 14, color, opacity*.8, 2)) return;
+    if (this.tilt === 0 && this.gpu.batch.disc(point, 7 + progress * 14, color, opacity*.8, 2)) return;
     context.beginPath();
-    context.arc(point.x, point.y, 7 + progress * 14, 0, Math.PI * 2);
+    surfaceArc(context, point, 7 + progress * 14);
     context.fillStyle = colorWithAlpha(color, opacity * 0.18);
     context.fill();
     context.beginPath();
@@ -1256,7 +1353,7 @@ export class NetgraphRenderer implements ViewportProjector {
     const radius = nodeWakeRadius(age, wake.signature, prefersReducedMotion());
     const life = Math.pow(1 - clamp(age / 6_000, 0, 1), 2);
     context.beginPath();
-    context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    surfaceArc(context, point, radius);
     context.strokeStyle = colorWithAlpha(wake.color, life * 0.72);
     context.lineWidth = 1.4;
     context.stroke();
@@ -1317,8 +1414,8 @@ export class NetgraphRenderer implements ViewportProjector {
     if (this.focusIDs && !this.focusIDs.has(nodeID)) return {x:-1_000_000,y:-1_000_000};
     const cached = this.screenPoints.get(nodeID);
     if (cached) return cached;
-    const position = this.layout.positions.get(nodeID);
-    const point = position ? this.worldToScreen(position.x, position.y) : { x: -1_000_000, y: -1_000_000 };
+    const position = this.nodePoint(nodeID);
+    const point = position ? this.projection.endpoint(position) : { x: -1_000_000, y: -1_000_000 };
     this.screenPoints.set(nodeID, point);
     return point;
   }
@@ -1393,28 +1490,89 @@ export class NetgraphRenderer implements ViewportProjector {
     return sprite;
   }
 
-  private worldToScreen(x: number, y: number): ScreenPoint {
-    return {
-      x: (x - this.centerX) * this.scale + this.width / 2,
-      y: (y - this.centerY) * this.scale + this.height / 2,
-    };
+  private nodePoint(id: string): GraphPoint | undefined {
+    const point = this.layout.positions.get(id);
+    return point && { x: point.x, y: point.y, z: this.nodesByID.get(id)?.observer ? 28 : 18 };
   }
 
-  private screenToWorld(x: number, y: number): ScreenPoint {
-    return {
-      x: (x - this.width / 2) / this.scale + this.centerX,
-      y: (y - this.height / 2) / this.scale + this.centerY,
-    };
+  private camera(): GraphCamera {
+    const b = this.layout.bounds;
+    return { x: this.centerX, y: this.centerY, zoom: this.scale, yaw: this.yaw, tilt: this.tilt,
+      distance: Math.max(1200, Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * 2) };
+  }
+
+  private resetProjection(): void {
+    this.projection = new GraphProjection(this.camera(), this.width, this.height);
+    this.screenPoints.clear(); this.screenPaths.clear();
+  }
+
+  private worldToScreen(x: number, y: number, z = 0): SurfacePoint { return this.projection.project({ x, y, z }); }
+
+  private screenToWorld(x: number, y: number): ScreenPoint { return this.projection.ground(x, y); }
+
+  private crossArea(from: string, to: string): boolean {
+    return this.layout.positions.get(from)?.areaCode !== this.layout.positions.get(to)?.areaCode;
+  }
+
+  private routePath(fromID: string, toID: string): readonly SurfacePoint[] {
+    if (this.focusIDs && (!this.focusIDs.has(fromID) || !this.focusIDs.has(toID))) return [];
+    const key = `${fromID}>${toID}`;
+    const cached = this.screenPaths.get(key);
+    if (cached) return cached;
+    const a = this.nodePoint(fromID), b = this.nodePoint(toID);
+    if (!a || !b) return [];
+    const path = projectGraphPath(this.projection, a, b, this.crossArea(fromID, toID));
+    if (this.screenPaths.size >= 40_000) this.screenPaths.delete(this.screenPaths.keys().next().value!);
+    this.screenPaths.set(key, path);
+    return path;
+  }
+
+  private pathVisible(path: readonly SurfacePoint[], margin = 8): boolean {
+    return path.some((point, i) => i > 0 && !point.breakBefore && segmentNearViewport(path[i - 1]!, point, this.width, this.height, margin));
+  }
+
+  private appendPath(context: CanvasRenderingContext2D, path: readonly SurfacePoint[]): void {
+    for (let i = 0; i < path.length; i++) {
+      const p = path[i]!;
+      if (i === 0 || p.breakBefore) context.moveTo(p.x, p.y); else context.lineTo(p.x, p.y);
+    }
+  }
+
+  private availableViewport() {
+    const view = followViewport(this.stage);
+    const inspector = document.getElementById('node-inspector-sheet');
+    if (inspector && !inspector.hidden) {
+      const stage = this.stage.getBoundingClientRect(), box = inspector.getBoundingClientRect();
+      if (box.width > this.width * 0.65) view.bottom = Math.min(view.bottom, box.top - stage.top - 16);
+      else view.right = Math.min(view.right, box.left - stage.left - 16);
+    }
+    view.right = Math.max(view.left + 48, view.right); view.bottom = Math.max(view.top + 48, view.bottom);
+    return view;
+  }
+
+  private framePoints(points: readonly GraphPoint[], maximumZoom: number): void {
+    const next = fitGraphCamera(this.camera(), points, this.width, this.height, this.availableViewport(), maximumZoom);
+    this.animateView(next.x, next.y, next.zoom);
   }
 
   private viewChanged(): void {
-    this.screenPoints.clear();
+    this.resetProjection();
     this.residueDirty = true;
     this.residueProjectionDirty = true;
     this.nodesDirty = true;
     this.stage.dataset.viewScale = this.scale.toFixed(4);
     this.stage.dataset.viewCenter = `${this.centerX.toFixed(2)},${this.centerY.toFixed(2)}`;
-    if (this.quality.mode === 'low' && this.pointers.size && this.paintedView) {
+    this.stage.dataset.viewMode = this.mode3D ? '3d' : 'top-down';
+    this.stage.dataset.viewYaw = this.yaw.toFixed(4); this.stage.dataset.viewTilt = this.tilt.toFixed(4);
+    if (this.selectedNodeID) {
+      const p = this.screenPoint(this.selectedNodeID); this.stage.dataset.selectedNodeScreen = `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }
+    if (this.selectedRouteID) {
+      const r = this.getRoute(this.selectedRouteID);
+      if (r) { const p = graphPathPoint(this.routePath(r.fromId, r.toId), 0.5); this.stage.dataset.selectedRouteScreen = `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }
+    }
+    this.callbacks.onViewChange?.();
+    if (this.tilt === 0 && this.quality.mode === 'low' && this.pointers.size && this.paintedView) {
       // Reuse the actual rendered topology while fingers move. Its affine
       // transform is the same projection used by live packets and hit testing.
       const scale = this.scale / this.paintedView.scale;
@@ -1428,18 +1586,20 @@ export class NetgraphRenderer implements ViewportProjector {
     }
   }
 
-  private animateView(centerX: number, centerY: number, scale: number): void {
+  private animateView(centerX: number, centerY: number, scale: number, yaw = this.yaw, tilt = this.tilt): void {
     this.cancelViewAnimation();
     if (prefersReducedMotion() || this.quality.mode === 'low') {
       this.centerX = centerX;
       this.centerY = centerY;
       this.scale = scale;
+      this.yaw = yaw; this.tilt = tilt;
       this.viewChanged();
       return;
     }
     const fromX = this.centerX;
     const fromY = this.centerY;
     const fromScale = this.scale;
+    const fromYaw = this.yaw, fromTilt = this.tilt;
     const started = performance.now();
     const tick = (now: number): void => {
       const progress = clamp((now - started) / VIEW_ANIMATION_MS, 0, 1);
@@ -1447,6 +1607,8 @@ export class NetgraphRenderer implements ViewportProjector {
       this.centerX = fromX + (centerX - fromX) * eased;
       this.centerY = fromY + (centerY - fromY) * eased;
       this.scale = fromScale + (scale - fromScale) * eased;
+      this.yaw = fromYaw + (yaw - fromYaw) * eased;
+      this.tilt = fromTilt + (tilt - fromTilt) * eased;
       this.viewChanged();
       if (progress < 1) this.viewFrame = requestAnimationFrame(tick);
       else this.viewFrame = 0;
@@ -1455,7 +1617,13 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   private cancelViewAnimation(): void {
-    if (this.viewFrame) cancelAnimationFrame(this.viewFrame);
+    if (this.viewFrame) {
+      cancelAnimationFrame(this.viewFrame);
+      this.mode3D = this.tilt > 0.001;
+      if (!this.mode3D) { this.tilt = 0; this.yaw = 0; }
+      this.stage.dataset.viewMode = this.mode3D ? '3d' : 'top-down';
+      this.callbacks.onViewChange?.();
+    }
     this.viewFrame = 0;
   }
 
@@ -1474,10 +1642,23 @@ export class NetgraphRenderer implements ViewportProjector {
     return closest ? { ...closest, point: this.screenPoint(closest.node.id), node: this.nodesByID.get(closest.node.id) ?? closest.node } : null;
   }
 
+  private nearestRoutes(x: number, y: number): string[] {
+    const hits: Array<{ id: string; distance: number }> = [];
+    for (const route of this.visibleRoutes) {
+      const path = this.routePath(route.fromId, route.toId);
+      const distance = distanceToGraphPath(path, x, y);
+      if (distance <= Math.max(7, displayPreferences().width + 4)) hits.push({ id: route.id, distance });
+    }
+    return hits.sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)).slice(0, 12).map(hit => hit.id);
+  }
+
+  private handleContextMenu = (event: MouseEvent): void => { if (this.mode3D) event.preventDefault(); };
+
   private handlePointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0 || this.paused) return;
+    if ((event.button !== 0 && !(this.mode3D && event.button === 2)) || this.paused) return;
     this.cancelViewAnimation();
-    this.dragMoved = this.pointers.size > 0;
+    this.rotationGesture = this.mode3D && (event.button === 2 || event.shiftKey);
+    this.dragMoved = this.pointers.size > 0 || this.rotationGesture;
     this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.rebaseGesture();
     this.stage.setPointerCapture(event.pointerId);
@@ -1489,17 +1670,26 @@ export class NetgraphRenderer implements ViewportProjector {
       this.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       const [first, second] = this.pointers.values();
       if (first && second && this.pinchStart) {
-        const { distance, scale, anchor, offset } = this.pinchStart;
-        this.scale = clamp(scale * Math.hypot(second.x - first.x, second.y - first.y) / distance, 0.035, 8);
-        this.centerX = anchor.x - ((first.x + second.x) / 2 - offset.x - this.width / 2) / this.scale;
-        this.centerY = anchor.y - ((first.y + second.y) / 2 - offset.y - this.height / 2) / this.scale;
+        const { distance, scale, anchor, offset, angle, yaw } = this.pinchStart;
+        this.scale = clamp(scale * Math.hypot(second.x - first.x, second.y - first.y) / distance, 0.002, 8);
+        if (this.tilt > 0) { const turn = Math.atan2(second.y - first.y, second.x - first.x) - angle;
+          this.yaw = yaw + Math.atan2(Math.sin(turn), Math.cos(turn)); }
+        this.resetProjection();
+        const point = this.screenToWorld((first.x + second.x) / 2 - offset.x, (first.y + second.y) / 2 - offset.y);
+        this.centerX += anchor.x - point.x; this.centerY += anchor.y - point.y;
         this.dragMoved = true;
       } else {
         const deltaX = event.clientX - this.pointerStart.x;
         const deltaY = event.clientY - this.pointerStart.y;
         if (Math.hypot(deltaX, deltaY) > 4) this.dragMoved = true;
-        this.centerX = this.viewStart.x - deltaX / this.scale;
-        this.centerY = this.viewStart.y - deltaY / this.scale;
+        if (this.rotationGesture) {
+          this.yaw = this.gestureYaw + deltaX * 0.006;
+          this.tilt = clamp(this.gestureTilt + deltaY * 0.006, 0.12, MAX_GRAPH_TILT);
+        } else {
+          const rect = this.stage.getBoundingClientRect();
+          const current = this.screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
+          this.centerX += this.viewStart.x - current.x; this.centerY += this.viewStart.y - current.y;
+        }
       }
       this.viewChanged();
       return;
@@ -1526,7 +1716,13 @@ export class NetgraphRenderer implements ViewportProjector {
     const rect = this.stage.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    this.callbacks.onNodeSelect(this.nearestNode(x, y)?.node.id ?? null);
+    const node = this.nearestNode(x, y);
+    if (node) this.callbacks.onNodeSelect(node.node.id);
+    else {
+      const routes = this.nearestRoutes(x, y);
+      if (routes.length) this.callbacks.onRouteSelect?.(routes);
+      else this.callbacks.onNodeSelect(null);
+    }
   };
 
   private handlePointerCancel = (event: PointerEvent): void => {
@@ -1549,12 +1745,15 @@ export class NetgraphRenderer implements ViewportProjector {
     const [first, second] = this.pointers.values();
     if (!first) return;
     this.pointerStart = first;
-    this.viewStart = { x: this.centerX, y: this.centerY };
-    if (!second) return;
     const rect = this.stage.getBoundingClientRect();
+    this.viewStart = this.screenToWorld(first.x - rect.left, first.y - rect.top);
+    this.gestureYaw = this.yaw; this.gestureTilt = this.tilt;
+    if (!second) return;
     this.pinchStart = {
       distance: Math.max(1, Math.hypot(second.x - first.x, second.y - first.y)),
       scale: this.scale,
+      yaw: this.yaw,
+      angle: Math.atan2(second.y - first.y, second.x - first.x),
       anchor: this.screenToWorld((first.x + second.x) / 2 - rect.left, (first.y + second.y) / 2 - rect.top),
       offset: { x: rect.left, y: rect.top },
     };
@@ -1571,13 +1770,13 @@ export class NetgraphRenderer implements ViewportProjector {
 
   panBy(x: number, y: number): void {
     this.cancelViewAnimation();
-    this.centerX += x / this.scale;
-    this.centerY += y / this.scale;
+    const point = this.screenToWorld(this.width / 2 + x, this.height / 2 + y);
+    this.centerX = point.x; this.centerY = point.y;
     this.viewChanged();
   }
 
   zoomBy(factor: number): void {
-    this.animateView(this.centerX, this.centerY, clamp(this.scale * factor, 0.035, 8));
+    this.animateView(this.centerX, this.centerY, clamp(this.scale * factor, 0.002, 8));
   }
 
   private handleWheel = (event: WheelEvent): void => {
@@ -1587,22 +1786,23 @@ export class NetgraphRenderer implements ViewportProjector {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
     const anchor = this.screenToWorld(x, y);
-    const nextScale = clamp(this.scale * Math.exp(-event.deltaY * 0.0012), 0.035, 8);
+    const nextScale = clamp(this.scale * Math.exp(-event.deltaY * 0.0012), 0.002, 8);
     this.scale = nextScale;
-    this.centerX = anchor.x - (x - this.width / 2) / nextScale;
-    this.centerY = anchor.y - (y - this.height / 2) / nextScale;
+    this.resetProjection();
+    const point = this.screenToWorld(x, y);
+    this.centerX += anchor.x - point.x; this.centerY += anchor.y - point.y;
     this.viewChanged();
   };
 
   private handleDoubleClick = (event: MouseEvent): void => {
     const rect = this.stage.getBoundingClientRect();
     const anchor = this.screenToWorld(event.clientX - rect.left, event.clientY - rect.top);
-    this.animateView(anchor.x, anchor.y, clamp(this.scale * 1.65, 0.035, 8));
+    this.animateView(anchor.x, anchor.y, clamp(this.scale * 1.65, 0.002, 8));
   };
 
   private handleMotionPreference = (): void => {
     this.stage.dataset.motionMode = prefersReducedMotion() ? 'static' : 'animated';
-    if (prefersReducedMotion()) this.activeRoutes = [];
+    if (prefersReducedMotion()) { this.activeRoutes = []; this.cancelViewAnimation(); }
     else this.clearResidueCleanup();
     this.requestMotionFrame();
   };

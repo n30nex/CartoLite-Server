@@ -108,8 +108,11 @@ export function createNodeInspectorContent(
   options: {
     mobile?: boolean;
     now?: number;
+    regionLabel?: string;
+    windowLabel?: string;
     onClose?: () => void;
     onSelectNeighbor: (nodeID: string) => void;
+    onInspectConnection?: (nodeID: string) => void;
   },
 ): HTMLElement {
   const now = options.now ?? Date.now();
@@ -124,7 +127,15 @@ export function createNodeInspectorContent(
   const summary = ownerDocument.createElement('span');
   summary.textContent = `${roleLabel(model.node.role)}${model.node.observer ? ' · observer' : ''}`;
   titleWrap.append(title, summary);
+  if (options.regionLabel) {
+    const region = ownerDocument.createElement('small'); region.className = 'inspector-region';
+    region.textContent = options.regionLabel; titleWrap.append(region);
+  }
   header.append(titleWrap);
+  if (options.onInspectConnection) {
+    const map = ownerDocument.createElement('a'); map.className = 'inspector-map-link'; map.textContent = 'Map';
+    map.href = '/?node=' + encodeURIComponent(model.node.id); map.setAttribute('aria-label', 'Open selected node on map'); header.append(map);
+  }
   if (options.mobile) {
     const close = ownerDocument.createElement('button');
     close.type = 'button';
@@ -143,7 +154,7 @@ export function createNodeInspectorContent(
   root.append(facts);
 
   const heading = ownerDocument.createElement('h3');
-  heading.textContent = model.neighbors.length === 0 ? 'No neighbours in this route window' : 'Neighbours · newest first';
+  heading.textContent = model.neighbors.length === 0 ? 'No neighbours in this route window' : `Neighbours · ${options.windowLabel ? 'heard within ' + options.windowLabel : 'newest first'}`;
   root.append(heading);
   if (model.neighbors.length === 0) return root;
   const totalsNote = ownerDocument.createElement('small');
@@ -167,7 +178,13 @@ export function createNodeInspectorContent(
     traffic.textContent = `${neighbor.lastKind} · ${packets} · ${relativeTime(neighbor.lastHeard, now)}`;
     button.append(label, role, traffic);
     button.addEventListener('click', () => options.onSelectNeighbor(neighbor.id));
-    list.append(button);
+    if (options.onInspectConnection) {
+      const row = ownerDocument.createElement('div'); row.className = 'neighbor-item';
+      const inspect = ownerDocument.createElement('button'); inspect.type = 'button'; inspect.className = 'inspect-connection';
+      inspect.textContent = '↔'; inspect.setAttribute('aria-label', `Inspect connection to ${neighbor.label}`);
+      inspect.title = 'Connection details'; inspect.addEventListener('click', () => options.onInspectConnection!(neighbor.id));
+      row.append(button, inspect); list.append(row);
+    } else list.append(button);
   }
   root.append(list);
   return root;

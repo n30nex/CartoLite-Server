@@ -38,6 +38,26 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 .netgraph-stage.is-dragging { cursor: grabbing; }
 .netgraph-stage.node-hover:not(.is-dragging) { cursor: pointer; }
+.graph-camera { display: grid; gap: 10px; margin-top: 12px; border-top: 1px solid var(--panel-border); padding-top: 12px; color: var(--ink); }
+.graph-camera[hidden] { display: none; }
+.graph-camera > div { display: flex; gap: 6px; }
+.graph-camera button, .inspector-map-link, .inspect-connection, .route-endpoints button, .route-endpoints a { min-width: 44px; min-height: 44px; border: 1px solid var(--panel-border); border-radius: 8px; padding: 6px 9px; color: var(--ink-strong); background: var(--field-bg); cursor: pointer; }
+.graph-camera label { display: flex; gap: 8px; align-items: center; }
+.graph-camera input { min-width: 0; flex: 1; min-height: 44px; accent-color: var(--focus-ring); }
+.graph-camera small { font-size: 11px; line-height: 1.5; color: var(--muted); }
+.inspector-region { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.inspector-map-link { display: grid; place-items: center; font-size: 11px; text-decoration: none; }
+.neighbor-item { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; }
+.inspect-connection { font-size: 20px; padding: 0; }
+.route-endpoints { display: grid; gap: 8px; padding: 10px 13px; }
+.route-endpoints > div { display: flex; gap: 6px; min-width: 0; }
+.route-endpoints button { flex: 1; min-width: 0; text-align: left; overflow-wrap: anywhere; }
+.route-endpoints a { display: grid; place-items: center; text-decoration: none; font-size: 11px; }
+.node-inspector.route-inspector { display: flex; flex-direction: column; overflow-y: auto; }
+.route-inspector > p { margin: 0; padding: 8px 13px 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.node-inspector.route-inspector dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.node-inspector.route-inspector dd { overflow: visible; white-space: normal; }
+.route-inspector .neighbor-list { min-height: 90px; }
 #graph-canvas, #packet-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 #graph-canvas { z-index: 0; transform-origin: 0 0; }
 #packet-canvas { z-index: 2; }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 - 3D Netgraph and connection inspection
+
+- Start top-down, with a 3D button for raised geographic groups, arched links and depth-aware live packet effects.
+- Add desktop orbit and touch pinch/twist controls, keyboard rotation, tilt controls in Display and Fit all.
+- Frame a selected node and its current-window neighbours once; incoming traffic preserves the camera.
+- Inspect connections directly or from neighbour lists, choose overlapping lines, and see endpoint distance, last category/time and honestly labelled retained totals.
+- Share projected curves across drawing, packet progress, picking and audio visibility; preserve themes, route styles, 31 voices and the existing public API.
+- Preserve established positions through reconnects and relocate reassigned nodes without rearranging their peers.
+- Extend synthetic camera, gesture, inspection and 4,000-node/7,000-route performance checks in Actions.
+
 ## 0.6.4 - Dial-up packet sound
 
 - Add **Dial-up** under Sound → Voice → Signals & percussion: a short modem carrier, answer sweep and scratchy handshake chatter.
