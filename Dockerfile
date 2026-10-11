@@ -8,7 +8,7 @@ COPY web/ ./
 # Published images contain no operator or CI browser credentials.
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.25.13-bookworm AS go-build
+FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm AS go-build
 ARG APP_VERSION=dev
 ARG GIT_SHA=unknown
 ARG BUILD_TIME=unknown

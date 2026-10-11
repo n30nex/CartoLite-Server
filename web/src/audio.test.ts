@@ -135,6 +135,9 @@ describe('route hop sonification', () => {
       expect(first).toHaveLength(route.segments.length);
       expect(routeSoundPlan(route, projector, 100, 100, scene)).toEqual(first);
       expect(first.every((note) => note.scene === scene)).toBe(true);
+      expect(first.map(({ startMS, pan }) => ({ startMS, pan }))).toEqual(
+        routeSoundPlan(route, projector, 100, 100).map(({ startMS, pan }) => ({ startMS, pan })),
+      );
     }
   });
 
@@ -197,12 +200,13 @@ describe('route hop sonification', () => {
 });
 
 describe('sound preference and autoplay state', () => {
-  it('previews one voice without opting the listener into live sound', async () => {
+  it.each(['aurora', 'dial-up'] as const)('previews %s without opting the listener into live sound', async (scene) => {
     const original=window.AudioContext;
     FakeAudioContext.initialState='running'; FakeAudioContext.oscillators=0;
     Object.defineProperty(window,'AudioContext',{configurable:true,value:FakeAudioContext});
     const sonifier=new RouteSonifier(projector as never,document.createElement('div'));
     try {
+      sonifier.setScene(scene);
       await sonifier.preview();
       expect(FakeAudioContext.oscillators).toBe(1);
       expect(sonifier.isEnabled()).toBe(false);

@@ -430,8 +430,24 @@ export class RouteSonifier {
   ): OscillatorNode {
     const oscillator = this.context!.createOscillator();
     oscillator.setPeriodicWave(this.periodicWave(note.scene, note.variation, note.character));
-    oscillator.frequency.setValueAtTime(note.frequency, starts);
-    oscillator.frequency.exponentialRampToValueAtTime(note.frequency * SCENES[note.scene].pitchEndRatio * CHARACTERS[note.character].pitchEndRatio, ends);
+    if (note.scene === 'dial-up') {
+      // Abbreviated carrier, answer sweep and data chatter inside this hop's
+      // existing envelope. Audio-clock automation keeps one oscillator per hop.
+      const carrier = clamp(note.frequency * 4, 1600, 2300);
+      const duration = ends - starts;
+      oscillator.frequency.setValueAtTime(carrier, starts);
+      oscillator.frequency.setValueAtTime(carrier, starts + duration * 0.16);
+      oscillator.frequency.exponentialRampToValueAtTime(carrier * 0.56, starts + duration * 0.24);
+      oscillator.frequency.setValueAtTime(carrier * 0.92, starts + duration * 0.30);
+      oscillator.frequency.setValueAtTime(carrier * 0.56, starts + duration * 0.37);
+      for (let step = 0; step < 20; step += 1) {
+        const ratio = step % 2 === 0 ? 1 : (step + note.variation) % 3 === 0 ? 0.32 : 0.58;
+        oscillator.frequency.setValueAtTime(carrier * ratio, starts + duration * (0.44 + step * 0.027));
+      }
+    } else {
+      oscillator.frequency.setValueAtTime(note.frequency, starts);
+      oscillator.frequency.exponentialRampToValueAtTime(note.frequency * SCENES[note.scene].pitchEndRatio * CHARACTERS[note.character].pitchEndRatio, ends);
+    }
     oscillator.connect(destination);
     oscillator.start(starts);
     oscillator.stop(ends + 0.04);
