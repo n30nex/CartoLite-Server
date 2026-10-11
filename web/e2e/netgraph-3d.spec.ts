@@ -71,6 +71,10 @@ test('3D starts top-down, frames neighbours, inspects the drawn curve and preser
     await page.screenshot({ path: info.outputPath(`netgraph-3d-${scene}.png`) });
   }
   const midpoint = (await stage.getAttribute('data-selected-route-screen'))!.split(',').map(Number);
+  if (info.project.name === 'mobile') {
+    expect((await page.locator('.controls').boundingBox())!.height).toBeLessThanOrEqual(100);
+    expect(midpoint[1]).toBeLessThan((await inspector.boundingBox())!.y - 8);
+  }
   await page.getByRole('button', { name: 'Close connection details' }).click();
   await expect(inspector).toBeHidden(); await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await stage.click({ position: { x: midpoint[0]!, y: midpoint[1]! } });

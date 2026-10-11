@@ -360,3 +360,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   .graph-summary { display: grid; grid-template-columns: repeat(2, max-content); gap: 3px 12px; }
   .graph-summary div + div { border: 0; padding-left: 0; }
 }
+
+@media(max-width:480px) {
+  html:root[data-cinematic] #netgraph-app .dock-views a { padding-inline:4px; }
+  html:root[data-cinematic] #netgraph-app .route-window select { width:56px; }
+}
+@media(max-width:480px) and (orientation:portrait) {
+  html:root[data-cinematic] #netgraph-app :is(.node-inspector-sheet,.node-inspector) { max-height:min(50dvh,calc(100dvh - var(--dock-height) - var(--dock-bottom) - 260px)); }
+}
