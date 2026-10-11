@@ -6,6 +6,7 @@
 - Expand the shared Map and Netgraph catalog to 31 voices, with explicit preview and saved selection.
 - Preserve opt-in sound, volume, visible-hop timing, stereo positioning and one oscillator per hop. No samples, downloads or audio dependencies.
 - Extend Actions audio checks and retain a synthetic Dial-up WAV for listening review.
+- Update the Go build/runtime to 1.26.9 and x/net to 0.60.0 for the October HTTP/TLS security fixes, retaining the existing image scan gate.
 
 ## 0.6.3 - Reliability and ingest performance
 
