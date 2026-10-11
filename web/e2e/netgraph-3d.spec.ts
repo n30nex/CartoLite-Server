@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import type { StateV2 } from '../src/types';
 
-async function fixture(page: Page, dateLine = false): Promise<void> {
+async function fixture(page: Page, dateLine = false): Promise<StateV2> {
   await visualFixture(page);
   const now = Date.now();
   const nodes = [
@@ -19,6 +19,7 @@ async function fixture(page: Page, dateLine = false): Promise<void> {
       ({ id: id!, fromId: fromId!, toId: toId!, packetCount: 12, lastHeard: now, intensity: 2, lastKind: 'Text', traffic: 12 })),
   };
   await page.route('**/api/state', route => route.fulfill({ json: state }));
+  return state;
 }
 
 async function selectAlpha(page: Page) {
@@ -143,4 +144,23 @@ test('3D frames worldwide date-line neighbours without a false long-distance con
   expect(point[1]).toBeGreaterThan(0); expect(point[1]).toBeLessThan(page.viewportSize()!.height);
   await expect(stage).toHaveAttribute('data-visible-routes', '3');
   await page.screenshot({ path: info.outputPath('netgraph-3d-date-line.png') });
+});
+
+
+test('explicit selection reveals a quiet node outside an active area focus', async ({ page }) => {
+  const state = await fixture(page);
+  state.routes[2]!.lastHeard -= 2 * 60 * 60_000;
+  await page.emulateMedia({ reducedMotion: 'reduce' }); await page.goto('/netgraph/');
+  const stage = page.locator('#netgraph-stage'), focus = page.getByLabel('Topology focus');
+  await page.locator('#graph-3d-button').click(); await selectAlpha(page);
+  await focus.selectOption('area');
+  await page.getByRole('button', { name: 'Close node details' }).click();
+  await focus.selectOption('component');
+  await expect(focus).toHaveValue('area');
+  await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Delta');
+  await page.locator('.node-search-result').first().click();
+  await expect(stage).toHaveAttribute('data-selected-node-id', 'visual-d');
+  await expect(stage).toHaveAttribute('data-focus-mode', 'all');
+  await expect(focus).toHaveValue('all');
+  await expect(page.locator('#node-inspector-sheet')).toContainText('No neighbours');
 });

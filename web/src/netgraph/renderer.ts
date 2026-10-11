@@ -391,6 +391,7 @@ export class NetgraphRenderer implements ViewportProjector {
     const ids = packet.mode === 'observer' ? [packet.observer.id] : packet.segments.flatMap(hop => [hop.from.id,hop.to.id]);
     const points = ids.map(id => this.#layout.positions.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
     if (!points.length) return;
+    if (this.#focusIDs && points.some(point => !this.#focusIDs!.has(point.id))) this.setFocus('all');
     const view=this.#availableViewport();
     if (points.every(p => { const q=this.#screenPoint(p.id); return q.x>=view.left&&q.x<=view.right&&q.y>=view.top&&q.y<=view.bottom; })) return;
     const targets = points.map(p => this.#nodePoint(p.id)!);
@@ -431,6 +432,7 @@ export class NetgraphRenderer implements ViewportProjector {
   focusNode(nodeID: string): void {
     const anchor = this.#nodePoint(nodeID);
     if (!anchor) return;
+    if (this.#focusIDs && !this.#focusIDs.has(nodeID)) this.setFocus('all');
     const points = [anchor];
     for (const route of this.adjacentRoutes(nodeID)) {
       if (!this.#visibleRouteIDs.has(route.id)) continue;

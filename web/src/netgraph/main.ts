@@ -242,7 +242,7 @@ async function start(): Promise<void> {
       const select = event.target as HTMLSelectElement;
       const applied = graph.setFocus(select.value as 'all' | 'area' | 'component');
       focusControl.querySelector('small')!.textContent = applied ? '' : 'Select a node first';
-      if (!applied) select.value = 'all';
+      if (!applied) select.value = stage.dataset.focusMode ?? 'all';
     });
 
     const director = mountGraphFollow(graph, id => selectNode(id, true));
