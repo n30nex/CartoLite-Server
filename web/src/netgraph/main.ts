@@ -139,6 +139,7 @@ async function start(): Promise<void> {
         const routes = selectedRouteIDs.map(id => graph.getRoute(id)).filter((route): route is RouteV2 => Boolean(route));
         selectedRouteIDs = routes.map(route => route.id);
         if (routes.length) {
+          graph.setSelectedRoute(routes.length === 1 ? routes[0]!.id : null);
           inspectorSheet.setAttribute('aria-label', routes.length === 1 ? 'Selected connection details' : 'Choose a connection');
           replaceInspector(inspectorSheet, createRouteInspector(document, routes, graph.getNodes(), {
             window: routeWindow.selectedOptions[0]?.textContent ?? 'this window', onClose: () => selectNode(null),

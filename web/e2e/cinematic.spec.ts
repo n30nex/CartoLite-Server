@@ -84,10 +84,11 @@ test('cinematic preferences migrate and layer combinations are reversible', asyn
   await credits.click();
 });
 
-test('GPU live effects survive context loss with Canvas fallback', async ({page},info) => {
+for (const tilted of [false, true]) test(`GPU live effects survive context loss with Canvas fallback (${tilted ? '3D' : 'top-down'})`, async ({page},info) => {
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await visualFixture(page);await page.goto('/netgraph/');
   await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  if (tilted) { await page.locator('#graph-3d-button').click(); await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-view-mode', '3d'); }
   await visualPacket(page,1,'Text');
   await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-effects-renderer','webgl2');
   await page.screenshot({path:info.outputPath('netgraph-gpu-packet.png')});

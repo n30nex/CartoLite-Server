@@ -17,10 +17,12 @@ export function rememberNode(id: string | null): void {
 export function replaceInspector(host: HTMLElement, content: HTMLElement): void {
   const active = document.activeElement instanceof HTMLElement && host.contains(document.activeElement) ? document.activeElement : null;
   const id = active?.closest<HTMLButtonElement>('button')?.dataset.nodeId;
+  const route = active?.closest<HTMLButtonElement>('button')?.dataset.routeId;
   const label = active?.getAttribute('aria-label');
   host.replaceChildren(content);
   if (!active) return;
   const target = id ? [...host.querySelectorAll<HTMLButtonElement>('button[data-node-id]')].find(button => button.dataset.nodeId === id)
+    : route ? [...host.querySelectorAll<HTMLButtonElement>('button[data-route-id]')].find(button => button.dataset.routeId === route)
     : [...host.querySelectorAll<HTMLElement>('[aria-label]')].find(element => element.getAttribute('aria-label') === label);
   (target ?? host.querySelector<HTMLElement>('button'))?.focus({preventScroll:true});
 }

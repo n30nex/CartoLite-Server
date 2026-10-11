@@ -35,6 +35,14 @@ export interface NetgraphLayout {
   bounds: { minX: number; minY: number; maxX: number; maxY: number };
 }
 
+/** Recalculate from the current layout: areas move and components can merge. */
+export function focusedNodeIDs(layout: NetgraphLayout, mode: 'all' | 'area' | 'component', anchorID: string | null): Set<string> | undefined {
+  const anchor = anchorID ? layout.positions.get(anchorID) : undefined;
+  if (mode === 'all' || !anchor) return undefined;
+  return new Set([...layout.positions.values()].filter(point => mode === 'area'
+    ? point.areaCode === anchor.areaCode : point.component === anchor.component).map(point => point.id));
+}
+
 interface Component {
   ids: string[];
   rootID: string;

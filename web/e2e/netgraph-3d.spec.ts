@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import type { StateV2 } from '../src/types';
 
-async function fixture(page: Page): Promise<void> {
+async function fixture(page: Page, dateLine = false): Promise<void> {
   await visualFixture(page);
   const now = Date.now();
   const nodes = [
@@ -11,6 +11,7 @@ async function fixture(page: Page): Promise<void> {
     { id: 'visual-c', label: 'Visual Charlie', lat: 45.51, lng: -73.57, role: 'companion' as const },
     { id: 'visual-d', label: 'Visual Delta', lat: 49.16, lng: -123.93, role: 'room_server' as const },
   ].map(node => ({ ...node, observer: node.id === 'visual-b', lastSeen: now }));
+  if (dateLine) for (const [index, node] of nodes.entries()) { node.lat = 0; node.lng = index % 2 ? -179.9 : 179.9; }
   const state: StateV2 = { schemaVersion: 2, bootId: 'graph-3d-fixture', seq: 0, serverTime: now,
     status: { feed: 'connected', activity: 'active', dropped: 0, version: 'test', gitSha: 'synthetic' },
     map: { center: [-79.4, 43.65], zoom: 7 }, nodes,
@@ -27,6 +28,7 @@ async function selectAlpha(page: Page) {
 }
 
 test('3D starts top-down, frames neighbours, inspects the drawn curve and preserves styles', async ({ page }, info) => {
+  if (info.project.name === 'mobile') await page.setViewportSize({ width: 320, height: 640 });
   await fixture(page); await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/netgraph/');
   const stage = page.locator('#netgraph-stage'), inspector = page.locator('#node-inspector-sheet');
@@ -121,4 +123,24 @@ test('3D camera gestures keep selection and packets/audio on the shared live clo
   await visualPacket(page, 2, 'Text');
   await expect(page.locator('#sound-activity')).toHaveAttribute('data-scheduled', '2');
   await expect(stage).toHaveAttribute('data-last-packet-hops', '1');
+});
+
+
+test('3D frames worldwide date-line neighbours without a false long-distance connection', async ({ page }, info) => {
+  await fixture(page, true); await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/netgraph/');
+  const stage = page.locator('#netgraph-stage');
+  await expect(stage).toHaveAttribute('data-render-state', 'idle');
+  await page.locator('#graph-3d-button').click(); await selectAlpha(page);
+  await page.getByRole('button', { name: 'Inspect connection to Visual Bravo', exact: true }).click();
+  await expect(page.locator('#node-inspector-sheet')).toContainText('22 km approx.');
+  await page.locator('#display-button').click();
+  await page.getByRole('button', { name: 'Rotate topology right' }).click();
+  await page.keyboard.press('Escape');
+  const point = (await stage.getAttribute('data-selected-route-screen'))!.split(',').map(Number);
+  expect(point.every(Number.isFinite)).toBe(true);
+  expect(point[0]).toBeGreaterThan(0); expect(point[0]).toBeLessThan(page.viewportSize()!.width);
+  expect(point[1]).toBeGreaterThan(0); expect(point[1]).toBeLessThan(page.viewportSize()!.height);
+  await expect(stage).toHaveAttribute('data-visible-routes', '3');
+  await page.screenshot({ path: info.outputPath('netgraph-3d-date-line.png') });
 });
