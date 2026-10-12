@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2 - Arrange and filter Netgraph regions
+
+- Spread region bubbles with a 100–400% spacing slider; drag a region label or use movement buttons to rearrange its whole group in top-down or 3D.
+- Search region codes/names and choose one or several with checkboxes. Filtering also limits search, inspection, live effects and Follow to those regions.
+- Hide standing route lines with the Routes button while live packets keep moving and briefly light their connections before fading.
+- Remember layout, filtering and route visibility on this device. Reset the arrangement without changing sound, display style, route window or region selection.
+- Keep node membership, route meaning and packet/audio clocks unchanged during layout edits; cover persistence, gestures, filtering and dense-scene performance in Actions.
+
 ## 0.7.1 - Correct 3D Netgraph camera orientation
 
 - Correct the reversed perspective depth so 3D looks down onto the scene: nearby groups appear larger and raised connections sit above the ground.

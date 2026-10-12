@@ -369,3 +369,28 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 @media(max-width:480px) and (orientation:portrait) {
   html:root[data-cinematic] #netgraph-app :is(.node-inspector-sheet,.node-inspector) { max-height:min(50dvh,calc(100dvh - var(--dock-height) - var(--dock-bottom) - 260px)); }
 }
+
+/* Region controls use the existing focus row and Display sheet. */
+.graph-focus { max-width:calc(100vw - 16px); gap:6px; padding-inline:6px; }
+.graph-focus > span { display:none; }
+.graph-focus select { max-width:112px; }
+.region-filter summary, #graph-routes-button { cursor:pointer; white-space:nowrap; padding:9px 6px; font:inherit; color:var(--ink-strong); }
+#graph-routes-button { border:1px solid var(--panel-border); border-radius:7px; background:var(--field-bg); }
+#graph-routes-button.selected { background:var(--selected); }
+.region-options { position:absolute; top:calc(100% + 6px); left:0; width:min(300px,calc(100vw - 16px)); padding:10px; border:1px solid var(--panel-border); border-radius:10px; background:var(--panel-solid); box-shadow:0 8px 25px #0003; }
+.region-options > input { width:100%; min-height:40px; }
+.region-checks { max-height:min(280px,45dvh); overflow:auto; overscroll-behavior:contain; }
+.region-checks label { display:flex; align-items:center; gap:8px; min-height:44px; cursor:pointer; }
+.region-checks label[hidden] { display:none; }
+.region-checks input { accent-color:var(--focus-ring); }
+.region-actions { display:flex; gap:6px; margin-block:6px; }
+.region-actions button, .graph-layout > button { min-height:44px; min-width:44px; border:1px solid var(--panel-border); border-radius:8px; color:var(--ink-strong); background:var(--field-bg); cursor:pointer; }
+.graph-layout { padding-block:10px; border-top:1px solid var(--panel-border); }
+.graph-layout summary { cursor:pointer; padding-block:8px; font-weight:700; }
+.graph-layout label { display:flex; align-items:center; gap:8px; margin-block:8px; }
+.graph-layout input { min-width:0; flex:1; accent-color:var(--focus-ring); }
+.graph-layout select { min-width:0; max-width:66%; min-height:44px; color:var(--ink-strong); background:var(--field-bg); }
+.graph-layout small { display:block; margin-top:8px; line-height:1.4; color:var(--muted); }
+#netgraph-stage.region-hover { cursor:grab; }
+#netgraph-stage.is-dragging { cursor:grabbing; }
+@media(pointer:coarse) { .region-filter summary, #graph-routes-button, .graph-focus select { min-height:44px; } }

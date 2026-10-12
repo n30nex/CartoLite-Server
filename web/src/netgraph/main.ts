@@ -1,3 +1,4 @@
+import { mountRegionControls } from './regionControls';
 import { mountGraphFollow } from './follow';
 import { mountGraphCamera } from './cameraControls';
 import { createRouteInspector } from './routeInspector';
@@ -56,6 +57,7 @@ const componentCount = required<HTMLElement>('component-count');
 const tooltip = required<HTMLElement>('tooltip');
 const inspectorSheet = required<HTMLElement>('node-inspector-sheet');
 const emptyState = required<HTMLElement>('empty-state');
+const emptyMessage = emptyState.textContent;
 const fatal = required<HTMLElement>('fatal');
 
 let soundPulseTimer: number | undefined;
@@ -101,6 +103,7 @@ async function start(): Promise<void> {
   let selectNode: (nodeID: string | null, focus?: boolean) => void = () => undefined;
   let selectRoutes: (ids: string[], focus?: boolean) => void = () => undefined;
   let syncCamera = (): void => undefined;
+  let syncRegions = (): void => undefined;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
 
   try {
@@ -119,7 +122,7 @@ async function start(): Promise<void> {
     const graphControls = [findButton, resetButton, zoomInButton, zoomOutButton, routeWindow, required<HTMLButtonElement>('graph-3d-button')];
     for (const control of graphControls) control.disabled = true;
     syncCamera = () => {
-      updateCamera();
+      updateCamera(); syncRegions();
       const focus = document.querySelector<HTMLSelectElement>('.graph-focus select');
       if (focus && stage.dataset.focusMode) focus.value = stage.dataset.focusMode;
     };
@@ -216,16 +219,16 @@ async function start(): Promise<void> {
     };
 
     const updateSummary = (): void => {
-      connectedCount.textContent = Number(stage.dataset.connectedNodes ?? 0).toLocaleString();
-      routeCount.textContent = Number(stage.dataset.visibleRoutes ?? 0).toLocaleString();
-      areaCount.textContent = Number(stage.dataset.areas ?? 0).toLocaleString();
-      componentCount.textContent = Number(stage.dataset.components ?? 0).toLocaleString();
+      for (const [element, value] of [[connectedCount, stage.dataset.connectedNodes], [routeCount, stage.dataset.visibleRoutes], [areaCount, stage.dataset.areas], [componentCount, stage.dataset.components]] as const) {
+        const text = Number(value ?? 0).toLocaleString(); if (element.textContent !== text) element.textContent = text;
+      }
       emptyState.hidden = Number(stage.dataset.visibleRoutes ?? 0) > 0;
+      emptyState.textContent = graph.regionLayout().regions?.length === 0 ? 'No regions selected. Choose Regions to show your mesh.' : emptyMessage;
     };
 
     liveStore.subscribe((state, changes) => {
       graph.render(state, changes);
-      if (changes?.reset || changes?.routes?.length) updateSummary();
+      if (changes?.reset || changes?.routes?.length || changes?.nodes?.length) updateSummary();
       updateStatus();
       if (!changes) return;
       if (selectedRouteIDs.length && (changes.reset || changes.routes?.length || changes.nodes?.length)) { renderInspector(); return; }
@@ -236,7 +239,7 @@ async function start(): Promise<void> {
     });
     const requestedSelection = requestedNode();
     if (requestedSelection && graph.getNodes().has(requestedSelection)) selectNode(requestedSelection, true);
-    const focusControl = document.createElement('label'); focusControl.className = 'graph-focus';
+    const focusControl = document.createElement('div'); focusControl.className = 'graph-focus';
     focusControl.innerHTML = '<span>Focus</span><select aria-label="Topology focus"><option value="all">Show all</option><option value="area">Selected area</option><option value="component">Selected component</option></select><small role="status"></small>';
     inspectorSheet.before(focusControl);
     focusControl.querySelector('select')!.addEventListener('change', event => {
@@ -245,6 +248,10 @@ async function start(): Promise<void> {
       focusControl.querySelector('small')!.textContent = applied ? '' : 'Select a node first';
       if (!applied) select.value = stage.dataset.focusMode ?? 'all';
     });
+
+    const regions = mountRegionControls(graph, focusControl, () => { updateSummary(); renderInspector(); }, () => { closeFindPanel(); closeSoundPanel(); closeDisplay(); });
+    syncRegions = regions.sync;
+    window.addEventListener('pagehide', event => { if (!event.persisted) regions.destroy(); });
 
     const director = mountGraphFollow(graph, id => selectNode(id, true));
     window.addEventListener('pagehide',event=>{if(!event.persisted)director.destroy();});

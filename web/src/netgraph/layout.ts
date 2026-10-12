@@ -314,7 +314,7 @@ function isDistinct(x: number, y: number, positions: ReadonlyMap<string, Netgrap
   return true;
 }
 
-function layoutBounds(
+export function layoutBounds(
   positions: ReadonlyMap<string, NetgraphPosition>,
   areas: readonly NetgraphArea[],
 ): NetgraphLayout['bounds'] {

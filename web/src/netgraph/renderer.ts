@@ -1,8 +1,9 @@
+import { arrangeRegions, loadRegionLayout, regionOffsetLimit, saveRegionLayout } from './regionLayout';
 import { followViewport } from '../cinematicChrome';
 import { surfaceArc, surfaceTrail, traceSurfacePath, type SurfacePoint } from '../terrainProjection';
 import { GraphProjection, GRAPH_TILT, MAX_GRAPH_TILT, fitGraphCamera, graphArcPoint, graphPathPoint, distanceToGraphPath, projectGraphPath, type GraphCamera, type GraphPoint } from './camera';
 import { canvasEffects } from '../gpuEffects';
-import { canvasColorWithAlpha as colorWithAlpha, DISPLAY_EVENT, displayColor, displayPreferences, displayResidueAge, lightScene, lineDash, residueLifetime, prefersReducedMotion, effectStrength } from '../displayPreferences';
+import { canvasColorWithAlpha as colorWithAlpha, DISPLAY_EVENT, displayColor, displayPreferences, lightScene, lineDash, residueLifetime, prefersReducedMotion, effectStrength } from '../displayPreferences';
 import type { ViewportProjector } from '../audio';
 import {
   DESTINATION_BLOOM_MS,
@@ -144,7 +145,12 @@ export class NetgraphRenderer implements ViewportProjector {
   #regionAreasByTag = new Map<string, NetgraphAreaAnchor>();
   #regionActivityCues: RegionActivityCue[] = [];
   #topology = new Map<string, string>();
-  #layout: NetgraphLayout = buildNetgraphLayout([], []);
+  #baseLayout: NetgraphLayout = buildNetgraphLayout([], []);
+  #layout = this.#baseLayout;
+  #regionLayout = loadRegionLayout();
+  #regionMask = this.#regionLayout.regions === null ? null : new Set(this.#regionLayout.regions);
+  #regionLabels: Array<LabelRect & { code: string }> = [];
+  #regionDrag?: { code: string; offset: ScreenPoint; projection: GraphProjection; anchor: ScreenPoint };
   #visibleRoutes: RouteV2[] = [];
   #visibleRouteIDs = new Set<string>();
   #screenNodes: ScreenNode[] = [];
@@ -288,9 +294,9 @@ export class NetgraphRenderer implements ViewportProjector {
 
     if (changes.reset || movedArea || graphTopologyChanged(this.#topology, changes.routes ?? [], state.routes.length)) {
       if (firstLayout) {
-        this.#layout = buildNetgraphLayout(state.nodes, state.routes, this.#assignedAreas);
+        this.#baseLayout = buildNetgraphLayout(state.nodes, state.routes, this.#assignedAreas);
       } else {
-        this.#layout = extendNetgraphLayout(this.#layout, state.nodes, state.routes, this.#assignedAreas);
+        this.#baseLayout = extendNetgraphLayout(this.#baseLayout, state.nodes, state.routes, this.#assignedAreas);
       }
       this.#topology = routeTopology(state.routes);
       this.#refreshFocus();
@@ -303,15 +309,13 @@ export class NetgraphRenderer implements ViewportProjector {
     }
 
     if (changes.reset || changes.routes?.length) {
-      this.#visibleRoutes = routesInWindow(state.routes, Date.now(), this.#routeWindow);
+      this.#visibleRoutes = this.#routesInRegions(routesInWindow(state.routes, Date.now(), this.#routeWindow));
       this.#visibleRouteIDs = new Set(this.#visibleRoutes.map((route) => route.id));
     }
     this.stage.dataset.totalNodes = String(state.nodes.length);
-    this.stage.dataset.connectedNodes = String(this.#layout.connectedNodeIDs.size);
     this.stage.dataset.totalRoutes = String(state.routes.length);
     this.stage.dataset.visibleRoutes = String(this.#visibleRoutes.length);
     this.stage.dataset.components = String(this.#layout.componentCount);
-    this.stage.dataset.areas = String(this.#layout.areas.length);
     this.stage.dataset.renderApplyMs = (performance.now() - started).toFixed(1);
     if (!this.#initializedView && this.#layout.positions.size > 0) this.home(false);
     if (visualChange) {
@@ -329,7 +333,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   refreshRouteWindow(now = Date.now()): boolean {
-    const nextRoutes = routesInWindow([...this.#routesByID.values()], now, this.#routeWindow);
+    const nextRoutes = this.#routesInRegions(routesInWindow([...this.#routesByID.values()], now, this.#routeWindow));
     const nextIDs = new Set(nextRoutes.map((route) => route.id));
     const changed = nextIDs.size !== this.#visibleRouteIDs.size
       || [...nextIDs].some((routeID) => !this.#visibleRouteIDs.has(routeID));
@@ -367,16 +371,72 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#nodesDirty = true; this.#requestStaticDraw();
   }
 
+  regionLayout() { return this.#regionLayout; }
+  regions() { return this.#baseLayout.areas; }
+  nodeInRegions(id: string): boolean {
+    return !this.#regionMask || this.#regionMask.has(this.#layout.positions.get(id)?.areaCode ?? this.#assignedAreas.get(id)?.code ?? '');
+  }
+  #routesInRegions(routes: RouteV2[]): RouteV2[] {
+    return this.#regionMask ? routes.filter(r => this.nodeInRegions(r.fromId) && this.nodeInRegions(r.toId)) : routes;
+  }
+  #saveRegions(): void {
+    this.stage.dataset.layoutSaved = String(saveRegionLayout(this.#regionLayout));
+  }
+  setRegionSpacing(value: number): void {
+    if (!Number.isFinite(value)) return;
+    this.#clearPointers(); this.#cancelViewAnimation();
+    const spacing = clamp(value, 1, 4), ratio = spacing / this.#regionLayout.spacing;
+    this.#centerX *= ratio; this.#centerY *= ratio;
+    this.#regionLayout.spacing = spacing; this.#arrangementChanged(); this.#saveRegions();
+  }
+  resetRegionLayout(): void {
+    this.#regionLayout.offsets = Object.create(null); this.setRegionSpacing(1); this.home();
+  }
+  setRegions(regions: string[] | null): void {
+    this.#clearPointers(); this.#cancelViewAnimation();
+    this.#regionLayout.regions = regions === null ? null : [...new Set(regions)];
+    this.#regionMask = regions === null ? null : new Set(regions);
+    this.#refreshFocus(); this.refreshRouteWindow();
+    if (this.#selectedNodeID && !this.nodeInRegions(this.#selectedNodeID)) this.callbacks.onNodeSelect(null);
+    if (this.#selectedRouteID && !this.getRoute(this.#selectedRouteID)) this.callbacks.onRouteSelect?.([]);
+    this.#viewChanged(); this.#saveRegions(); this.home();
+    this.stage.dispatchEvent(new Event('graphfilter'));
+  }
+  setRoutesVisible(visible: boolean): void {
+    this.#regionLayout.routes = visible; this.#residueDirty = true;
+    this.#viewChanged(); this.#saveRegions();
+  }
+  moveRegion(code: string, dx: number, dy: number): void {
+    const area = this.#layout.areas.find(a => a.code === code);
+    if (!area) return;
+    this.#cancelViewAnimation();
+    const at = this.#projection.project(area), from = this.#projection.ground(at.x, at.y);
+    const to = this.#projection.ground(at.x + dx, at.y + dy), offset = this.#regionLayout.offsets[code] ?? { x: 0, y: 0 };
+    this.#offsetRegion(code, offset.x + (to.x - from.x) / this.#regionLayout.spacing, offset.y + (to.y - from.y) / this.#regionLayout.spacing);
+    this.#saveRegions();
+  }
+  #offsetRegion(code: string, x: number, y: number): void {
+    const limit = regionOffsetLimit(this.#baseLayout);
+    this.#regionLayout.offsets[code] = { x: clamp(x, -limit, limit), y: clamp(y, -limit, limit) };
+    this.#arrangementChanged();
+  }
+  #arrangementChanged(): void {
+    this.#layout = arrangeRegions(this.#baseLayout, this.#regionLayout);
+    this.#paintedView = undefined; this.graphCanvas.style.transform = '';
+    this.#viewChanged();
+  }
+  #residueMS(): number { return this.#regionLayout.routes ? residueLifetime() : 1800; }
+
   connectedNodes(): NodeV2[] {
     return [...this.#layout.connectedNodeIDs]
       .map((nodeID) => this.#nodesByID.get(nodeID))
-      .filter((node): node is NodeV2 => Boolean(node));
+      .filter((node): node is NodeV2 => Boolean(node) && this.nodeInRegions(node!.id));
   }
 
   adjacentRoutes(nodeID: string): RouteV2[] {
     return [...(this.#adjacentRouteIDs.get(nodeID) ?? [])]
       .map((routeID) => this.#routesByID.get(routeID))
-      .filter((route): route is RouteV2 => Boolean(route));
+      .filter((route): route is RouteV2 => Boolean(route) && this.nodeInRegions(route!.fromId) && this.nodeInRegions(route!.toId));
   }
 
   setSelectedNode(nodeID: string | null): void {
@@ -423,8 +483,14 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #refreshFocus(): void {
-    this.#focusIDs = focusedNodeIDs(this.#layout, this.#focusMode, this.#focusAnchorID);
-    if (!this.#focusIDs) this.#focusMode = 'all';
+    this.#layout = arrangeRegions(this.#baseLayout, this.#regionLayout);
+    const focus = focusedNodeIDs(this.#layout, this.#focusMode, this.#focusAnchorID);
+    if (!focus) this.#focusMode = 'all';
+    const included = this.#regionMask ? [...this.#layout.positions.values()].filter(p => this.#regionMask!.has(p.areaCode)) : null;
+    this.#focusIDs = included ? new Set(included.filter(p => !focus || focus.has(p.id)).map(p => p.id)) : focus;
+    this.stage.dataset.connectedNodes = String(included?.length ?? this.#layout.connectedNodeIDs.size);
+    this.stage.dataset.areas = String(this.#layout.areas.filter(a => !this.#regionMask || this.#regionMask.has(a.code)).length);
+    this.refreshRouteWindow();
     this.stage.dataset.focusMode = this.#focusMode;
     this.callbacks.onViewChange?.();
   }
@@ -432,6 +498,7 @@ export class NetgraphRenderer implements ViewportProjector {
   focusNode(nodeID: string): void {
     const anchor = this.#nodePoint(nodeID);
     if (!anchor) return;
+    if (!this.nodeInRegions(nodeID)) this.setRegions([...(this.#regionLayout.regions ?? []), this.#layout.positions.get(nodeID)!.areaCode]);
     if (this.#focusIDs && !this.#focusIDs.has(nodeID)) this.setFocus('all');
     const points = [anchor];
     for (const route of this.adjacentRoutes(nodeID)) {
@@ -475,7 +542,12 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   home(animate = true): void {
-    const bounds = this.#layout.bounds;
+    const areas = this.#layout.areas.filter(a => !this.#regionMask || this.#regionMask.has(a.code));
+    if (!areas.length) return;
+    const bounds = this.#regionMask ? {
+      minX: Math.min(...areas.map(a => a.x - a.radius - 42)), maxX: Math.max(...areas.map(a => a.x + a.radius + 42)),
+      minY: Math.min(...areas.map(a => a.y - a.radius - 72)), maxY: Math.max(...areas.map(a => a.y + a.radius + 42)),
+    } : this.#layout.bounds;
     const points = [{ x: bounds.minX, y: bounds.minY }, { x: bounds.minX, y: bounds.maxY },
       { x: bounds.maxX, y: bounds.minY }, { x: bounds.maxX, y: bounds.maxY },
       { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2, z: 650 }];
@@ -547,8 +619,8 @@ export class NetgraphRenderer implements ViewportProjector {
         traffic: 1,
       });
     }
-    this.#layout = extendNetgraphLayout(
-      this.#layout,
+    this.#baseLayout = extendNetgraphLayout(
+      this.#baseLayout,
       [...this.#nodesByID.values()],
       [...routes.values()],
       this.#assignedAreas,
@@ -558,9 +630,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#residueProjectionDirty = true;
     this.#residueDirty = true;
     this.#nodesDirty = true;
-    this.stage.dataset.connectedNodes = String(this.#layout.connectedNodeIDs.size);
     this.stage.dataset.components = String(this.#layout.componentCount);
-    this.stage.dataset.areas = String(this.#layout.areas.length);
     this.#requestStaticDraw();
   }
 
@@ -652,7 +722,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #requestStaticDraw(): void {
-    if (this.#tilt === 0 && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) {
+    if (this.#tilt === 0 && !this.#regionDrag && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) {
       this.stage.dataset.renderState = 'composited';
       return;
     }
@@ -660,7 +730,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.stage.dataset.renderState = 'scheduled';
     this.#staticFrame = requestAnimationFrame(() => {
       this.#staticFrame = 0;
-      if (this.#tilt === 0 && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) return;
+      if (this.#tilt === 0 && !this.#regionDrag && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) return;
       this.#drawStatic();
     });
   }
@@ -671,7 +741,7 @@ export class NetgraphRenderer implements ViewportProjector {
     context.clearRect(0, 0, this.#width, this.#height);
     this.#drawGrid(context);
     this.#drawAreaHalos(context);
-    this.#drawRoutes(context);
+    if (this.#regionLayout.routes) this.#drawRoutes(context);
     if (this.#nodesDirty) {
       this.#nodesContext.clearRect(0, 0, this.#width, this.#height);
       this.#drawNodes(this.#nodesContext);
@@ -721,6 +791,7 @@ export class NetgraphRenderer implements ViewportProjector {
 
   #visibleAreas(): Array<{ area: NetgraphLayout['areas'][number]; point: ScreenPoint; radius: number }> {
     return this.#layout.areas
+      .filter(a => !this.#regionMask || this.#regionMask.has(a.code))
       .map((area) => { const point = this.#worldToScreen(area.x, area.y); return { area, point, radius: area.radius * this.#scale * (point.scale ?? 1) }; })
       .filter(({ point, radius }) => (
         point.x + radius >= -80 && point.x - radius <= this.#width + 80
@@ -762,13 +833,14 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #drawAreaLabels(context: CanvasRenderingContext2D): void {
+    this.#regionLabels = [];
     context.save();
     const occupied: LabelRect[] = [];
     const labels = this.#visibleAreas().sort((left, right) => right.area.nodeCount - left.area.nodeCount || left.area.code.localeCompare(right.area.code));
     for (const { area, point, radius } of labels) {
       if (area.nodeCount < 2 && this.#scale < 0.16) continue;
       const title = `${area.code} · ${area.name}`;
-      const detail = `${area.nodeCount.toLocaleString()} nodes`;
+      const detail = `${area.nodeCount.toLocaleString()} nodes · ↔`;
       context.font = '750 11px Inter, ui-sans-serif, system-ui, sans-serif';
       const titleWidth = this.#textWidth(context, title);
       context.font = '600 8px Inter, ui-sans-serif, system-ui, sans-serif';
@@ -784,6 +856,7 @@ export class NetgraphRenderer implements ViewportProjector {
       if (x + width < 5 || x > this.#width - 5 || y + height < 5 || y > this.#height - 5) continue;
       if (occupied.some((other) => rectanglesOverlap(rect, other, 5))) continue;
       occupied.push(rect);
+      this.#regionLabels.push({ code: area.code, x: x - 6, y: y - 7, width: width + 12, height: 45 });
 
       const connectorY = y < point.y ? y + height : y;
       context.beginPath();
@@ -1061,7 +1134,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#activeRoutes = this.#activeRoutes.filter((route) => now - route.started <= route.duration + DESTINATION_BLOOM_MS);
     this.#observerWakes = this.#observerWakes.filter((wake) => now - wake.started <= 6_000);
     const residueCount = this.#residue.length;
-    this.#residue = this.#residue.filter((item) => now - item.addedAt < residueLifetime());
+    this.#residue = this.#residue.filter((item) => now - item.addedAt < this.#residueMS());
     if (residueCount !== this.#residue.length) this.#residueProjectionDirty = true;
     this.#regionActivityCues = this.#regionActivityCues.filter((cue) => now < cue.startedAt + cue.duration);
     this.#drawResidue(context, now);
@@ -1112,7 +1185,7 @@ export class NetgraphRenderer implements ViewportProjector {
     for (const [regionTag, frame] of frames) {
       const area = this.#layout.areas.find((candidate) => candidate.code.toLowerCase() === regionTag);
       const identity = this.#regionAreasByTag.get(regionTag);
-      if (!area || !identity) continue;
+      if (!area || !identity || (this.#regionMask && !this.#regionMask.has(area.code))) continue;
       const point = this.#projection.endpoint({ x: area.x, y: area.y });
       const radius = Math.max(18, area.radius * this.#scale);
       if (
@@ -1189,7 +1262,7 @@ export class NetgraphRenderer implements ViewportProjector {
       const path = this.#routePath(residue.fromId, residue.toId);
       if (!this.#pathVisible(path, 12)) continue;
       const age = now - residue.addedAt;
-      const style = residueStyle(displayResidueAge(age));
+      const style = residueStyle(age * 45_000 / Math.max(1, this.#residueMS()));
       context.beginPath();
       this.#appendPath(context, path);
       context.strokeStyle = colorWithAlpha(residue.color, style.bloomOpacity * displayPreferences().glow);
@@ -1362,7 +1435,7 @@ export class NetgraphRenderer implements ViewportProjector {
     if (this.#residueCleanupTimer) return;
     const expiries = [
       ...this.#activeRoutes.map((route) => route.started + route.duration + DESTINATION_BLOOM_MS),
-      ...this.#residue.map((item) => item.addedAt + residueLifetime()),
+      ...this.#residue.map((item) => item.addedAt + this.#residueMS()),
       ...this.#observerWakes.map((wake) => wake.started + 6_000),
       ...this.#regionActivityCues.map((cue) => cue.startedAt + cue.duration),
       ...this.#regionActivityCues.filter((cue) => cue.startedAt > now).map((cue) => cue.startedAt),
@@ -1467,9 +1540,9 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #camera(): GraphCamera {
-    const b = this.#layout.bounds;
+    const b = this.#baseLayout.bounds;
     return { x: this.#centerX, y: this.#centerY, zoom: this.#scale, yaw: this.#yaw, tilt: this.#tilt,
-      distance: Math.max(1200, Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * 2) };
+      distance: this.#regionDrag?.projection.camera.distance ?? Math.max(1200, Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * 2) * this.#regionLayout.spacing };
   }
 
   #resetProjection(): void {
@@ -1531,6 +1604,9 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#residueDirty = true;
     this.#residueProjectionDirty = true;
     this.#nodesDirty = true;
+    this.stage.dataset.regionSpacing = String(this.#regionLayout.spacing);
+    this.stage.dataset.regionFilter = this.#regionLayout.regions?.join(',') ?? 'all';
+    this.stage.dataset.historyRoutes = String(this.#regionLayout.routes);
     this.stage.dataset.viewScale = String(this.#scale);
     this.stage.dataset.viewCenter = `${this.#centerX},${this.#centerY}`;
     this.stage.dataset.viewMode = this.#mode3D ? '3d' : 'top-down';
@@ -1543,7 +1619,7 @@ export class NetgraphRenderer implements ViewportProjector {
       if (r) { const p = graphPathPoint(this.#routePath(r.fromId, r.toId), 0.5); this.stage.dataset.selectedRouteScreen = `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }
     }
     this.callbacks.onViewChange?.();
-    if (this.#tilt === 0 && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) {
+    if (this.#tilt === 0 && !this.#regionDrag && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) {
       // Reuse the actual rendered topology while fingers move. Its affine
       // transform is the same projection used by live packets and hit testing.
       const scale = this.#scale / this.#paintedView.scale;
@@ -1630,6 +1706,16 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#cancelViewAnimation();
     this.#rotationGesture = this.#mode3D && (event.button === 2 || event.shiftKey);
     this.#dragMoved = this.#pointers.size > 0 || this.#rotationGesture;
+    if (this.#pointers.size) this.#endRegionDrag();
+    else if (!this.#rotationGesture) {
+      const box = this.stage.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top;
+      const label = this.#regionLabels.find(r => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height);
+      if (label) {
+        this.#regionDrag = { code: label.code, offset: this.#regionLayout.offsets[label.code] ?? { x: 0, y: 0 },
+          projection: this.#projection, anchor: this.#projection.ground(x, y) };
+        this.stage.dataset.movingRegion = label.code;
+      }
+    }
     this.#pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     this.#rebaseGesture();
     this.stage.setPointerCapture(event.pointerId);
@@ -1653,7 +1739,13 @@ export class NetgraphRenderer implements ViewportProjector {
         const deltaX = event.clientX - this.#pointerStart.x;
         const deltaY = event.clientY - this.#pointerStart.y;
         if (Math.hypot(deltaX, deltaY) > 4) this.#dragMoved = true;
-        if (this.#rotationGesture) {
+        if (this.#regionDrag) {
+          const rect = this.stage.getBoundingClientRect(), drag = this.#regionDrag;
+          const point = drag.projection.ground(event.clientX - rect.left, event.clientY - rect.top);
+          if (this.#dragMoved) this.#offsetRegion(drag.code, drag.offset.x + (point.x - drag.anchor.x) / this.#regionLayout.spacing,
+            drag.offset.y + (point.y - drag.anchor.y) / this.#regionLayout.spacing);
+          return;
+        } else if (this.#rotationGesture) {
           this.#yaw = this.#gestureYaw + deltaX * 0.006;
           this.#tilt = clamp(this.#gestureTilt + deltaY * 0.006, 0.12, MAX_GRAPH_TILT);
         } else {
@@ -1669,7 +1761,9 @@ export class NetgraphRenderer implements ViewportProjector {
     const rect = this.stage.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const hovered = this.#nearestNode(x, y);
+    const label = this.#regionLabels.some(r => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height);
+    this.stage.classList.toggle('region-hover', label);
+    const hovered = label ? null : this.#nearestNode(x, y);
     const nextID = hovered?.node.id ?? null;
     if (nextID === this.#hoveredNodeID) return;
     this.#hoveredNodeID = nextID;
@@ -1681,7 +1775,7 @@ export class NetgraphRenderer implements ViewportProjector {
 
   #handlePointerUp = (event: PointerEvent): void => {
     if (!this.#pointers.has(event.pointerId)) return;
-    const select = this.#pointers.size === 1 && !this.#dragMoved;
+    const select = this.#pointers.size === 1 && !this.#dragMoved && !this.#regionDrag;
     this.#finishPointer(event.pointerId);
     if (!select) return;
     const rect = this.stage.getBoundingClientRect();
@@ -1701,7 +1795,13 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#finishPointer(event.pointerId);
   };
 
+  #endRegionDrag(): void {
+    if (this.#regionDrag) this.#saveRegions();
+    this.#regionDrag = undefined; delete this.stage.dataset.movingRegion;
+  }
+
   #finishPointer(pointerID: number): void {
+    this.#endRegionDrag();
     this.#pointers.delete(pointerID);
     if (this.stage.hasPointerCapture(pointerID)) this.stage.releasePointerCapture(pointerID);
     // Re-anchor the remaining finger so a pinch can become a drag without a jump.
@@ -1730,6 +1830,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #clearPointers(): void {
+    this.#endRegionDrag();
     const ids = [...this.#pointers.keys()];
     this.#pointers.clear();
     this.#pinchStart = undefined;
