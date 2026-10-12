@@ -46,13 +46,18 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await expect(stage).toHaveAttribute('data-visible-routes', '2');
   await page.getByRole('button', { name: 'Move region right', exact: true }).click();
   const first = await saved(page); expect(Object.keys(first.centres)).toHaveLength(1);
-  await page.getByLabel('Motion preference').selectOption('full');
   await page.keyboard.press('Escape');
   await page.locator('#reset-button').click();
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await page.locator('#graph-3d-button').click();
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await expect.poll(() => stage.getAttribute('data-view-tilt').then(Number)).toBeCloseTo(Math.PI / 4, 3);
+  // Finish camera setup under reduced motion, then enable live packet motion.
+  // Clicking 3D during a Fit all transition deliberately interrupts that camera move.
+  await page.locator('#display-button').click();
+  await page.getByLabel('Motion preference').selectOption('full');
+  await page.keyboard.press('Escape');
+  await expect(stage).toHaveAttribute('data-render-state', 'idle');
   const code = Object.keys(first.centres)[0]!;
   const point = await page.evaluate(code => (window as unknown as { regionHandles: Record<string, { x: number; y: number }> }).regionHandles[code]!, code);
   expect(point).toBeTruthy(); expect(Number.isFinite(point.x) && Number.isFinite(point.y)).toBe(true);
