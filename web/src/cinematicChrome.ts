@@ -43,7 +43,7 @@ export function mountCinematicDock(): void {
     controls.insertBefore(display, controls.querySelector('.sound-control'));
   }
   if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
-  const menuIDs = ['layers-panel', 'find-panel', 'sound-panel', 'display-panel', 'follow-card', 'node-inspector-sheet'];
+  const menuIDs = ['layers-panel', 'find-panel', 'sound-panel', 'display-panel', 'region-options', 'follow-card', 'node-inspector-sheet'];
   const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden; });
   let closingHistory = false;
   let closingURL = location.href;
@@ -75,6 +75,7 @@ export function mountCinematicDock(): void {
       return;
     }
     const target = history.state?.cartolitePanel;
+    if (target !== 'region-options') document.querySelector('#region-filter[open]')?.removeAttribute('open');
     for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
       if(button.getAttribute('aria-controls') !== target) button.click();
     }

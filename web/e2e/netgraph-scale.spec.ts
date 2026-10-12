@@ -81,6 +81,16 @@ test('Netgraph keeps all 4,000 nodes and 7,000 links responsive', async ({ page 
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   expect(Number(await stage.getAttribute('data-static-draw-ms'))).toBeLessThan(100);
   await page.screenshot({ path: testInfo.outputPath('netgraph-3d-4000-nodes-7000-routes.png') });
+  await page.locator('#display-button').click(); await page.locator('.graph-layout > summary').click();
+  await page.getByLabel('Region spacing', { exact: true }).focus(); await page.keyboard.press('End');
+  await expect(stage).toHaveAttribute('data-region-spacing', '4');
+  await page.getByRole('button', { name: 'Move region right', exact: true }).click();
+  await page.keyboard.press('Escape'); await page.locator('#reset-button').click();
+  await expect(stage).toHaveAttribute('data-render-state', 'idle');
+  await expect(stage).toHaveAttribute('data-visible-routes', '7000');
+  expect(Number(await stage.getAttribute('data-static-draw-ms')), 'arranging regions keeps the same rendering budget').toBeLessThan(100);
+  await page.screenshot({ path: testInfo.outputPath('netgraph-arranged-7000-routes.png') });
+
   await page.locator('#find-button').click();
   await page.locator('#node-search').fill('Scale Node 3999');
   await page.locator('.node-search-result').first().click();

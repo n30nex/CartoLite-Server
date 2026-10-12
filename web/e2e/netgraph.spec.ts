@@ -111,7 +111,7 @@ test('Netgraph defaults to 15 minutes and preserves an explicit window choice', 
   await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-visible-routes', '3');
 });
 
-test('native touch pinches, pans, lifts and cancels without jumping or losing selection', async ({ page, context }) => {
+test('native touch pinches, pans, lifts and cancels without jumping or losing selection @regions', async ({ page, context }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   // Camera easing is covered above; exact positions here make jump regressions measurable.
@@ -199,7 +199,7 @@ test('native touch pinches, pans, lifts and cancels without jumping or losing se
   await session.detach();
 });
 
-test('slow renderers adapt decoration without losing hops and composite camera gestures', async ({ page }) => {
+test('slow renderers adapt decoration without losing hops and composite camera gestures @regions', async ({ page }) => {
   await instrumentAudioContext(page);
   await page.route('**/api/state', (route) => route.fulfill({ json: netgraphState(Date.now()) }));
   await page.addInitScript(() => {
@@ -251,10 +251,13 @@ test('slow renderers adapt decoration without losing hops and composite camera g
   await expect(page.locator('#netgraph-residue-canvas')).toBeVisible();
   await expect.poll(() => canvasHasPixels(page, '#netgraph-residue-canvas')).toBe(true);
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
-  await page.mouse.move(100, 250);
+  // Drag open canvas, not one of the new movable region labels.
+  const pan = { x: 24, y: Math.round(page.viewportSize()!.height * 0.55) };
+  await page.mouse.move(pan.x, pan.y);
+  await expect(stage).not.toHaveClass(/region-hover/);
   await page.mouse.down();
   const paints = await page.evaluate(() => (window as unknown as { graphPaints: number }).graphPaints);
-  await page.mouse.move(160, 280, { steps: 6 });
+  await page.mouse.move(pan.x + 60, pan.y + 30, { steps: 6 });
   await expect(stage).toHaveAttribute('data-render-state', 'composited');
   expect(await page.evaluate(() => (window as unknown as { graphPaints: number }).graphPaints)).toBe(paints);
   await expect(page.locator('#graph-canvas')).not.toHaveCSS('transform', 'none');

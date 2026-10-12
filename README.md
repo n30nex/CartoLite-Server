@@ -171,3 +171,18 @@ Selecting a node frames its recent confirmed neighbours once. Tap a connection
 for its endpoints, latest category, last-heard time and approximate geographic
 distance, or open either endpoint on Map. The height is schematic, not measured
 antenna elevation. All six route presets, themes and 31 voices still apply.
+
+### Arrange and filter regions
+
+In Netgraph, open **Display → Region layout** to spread region centres from 100% to
+400%. Drag a region label to move its whole bubble, or choose a region and use
+the arrow buttons. **Reset region layout** restores the geographic arrangement.
+Nodes keep their positions inside each bubble; routes and live packets follow
+when the bubble moves. These controls change the diagram, not reported locations.
+
+Use **Regions** to search geographic region codes or names and select multiple regions.
+**None** followed by one checkbox isolates a region; **All** restores the full mesh.
+Only connections with both endpoints in the selected regions are shown. Search
+and Follow respect this selection. Use **Routes** to hide standing connections;
+live packets still illuminate their paths and leave a brief fading trace.
+Layout, region choices and route visibility are remembered in this browser.

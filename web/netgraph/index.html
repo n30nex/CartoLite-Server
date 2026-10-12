@@ -75,7 +75,7 @@
 
       <aside id="graph-summary" class="graph-summary glass" aria-label="Topology summary">
         <div><strong id="connected-count">—</strong><span class="summary-full">connected nodes</span><span class="summary-compact" aria-hidden="true">nodes</span></div>
-        <div><strong id="route-count">—</strong><span class="summary-full">visible links</span><span class="summary-compact" aria-hidden="true">links</span></div>
+        <div><strong id="route-count">—</strong><span class="summary-full">window links</span><span class="summary-compact" aria-hidden="true">links</span></div>
         <div><strong id="area-count">—</strong><span class="summary-full">geo areas</span><span class="summary-compact" aria-hidden="true">areas</span></div>
         <div><strong id="component-count">—</strong><span class="summary-full">components</span><span class="summary-compact" aria-hidden="true">groups</span></div>
       </aside>
@@ -93,6 +93,9 @@
         <a class="control-button" href="">Try again</a>
       </p>
     </main>
+    <template id="graph-camera-ui"><div class="graph-camera" role="group" aria-label="3D camera controls" hidden><strong>3D camera</strong><div><button type="button" data-left aria-label="Rotate topology left" title="Rotate left">↶</button><button type="button" data-right aria-label="Rotate topology right" title="Rotate right">↷</button><button type="button" data-flat>Top-down</button></div><label>Tilt<input type="range" min="8" max="65" step="1" value="45" aria-label="Topology tilt"><output>45°</output></label><small>Drag to pan. Shift-drag or right-drag to rotate. Pinch to zoom and twist to rotate. Height is schematic.</small></div></template>
+    <template id="graph-regions-ui"><details id="region-filter" class="region-filter"><summary aria-label="Filter regions">Regions · All</summary><div id="region-options" class="region-options" hidden><input type="search" aria-label="Search regions" placeholder="Region code / name"><div class="region-actions"><button type="button" data-all>All</button><button type="button" data-none>None</button></div><div class="region-checks" role="group" aria-label="Regions"></div></div></details></template>
+    <template id="graph-layout-ui"><details class="graph-layout"><summary>Region layout</summary><label>Spacing<input type="range" min="1" max="4" step="0.1" aria-label="Region spacing"><output></output></label><label>Move region<select aria-label="Region to move"></select></label><div class="region-actions"><button type="button" aria-label="Move region left" data-move="-40,0">←</button><button type="button" aria-label="Move region up" data-move="0,-40">↑</button><button type="button" aria-label="Move region down" data-move="0,40">↓</button><button type="button" aria-label="Move region right" data-move="40,0">→</button></div><button type="button" data-reset>Reset region layout</button><small>Drag a region label to move its whole bubble. <span data-save-state>Saved on this device.</span></small></details></template>
     <script type="module" src="/src/netgraph/main.ts"></script>
   </body>
 </html>

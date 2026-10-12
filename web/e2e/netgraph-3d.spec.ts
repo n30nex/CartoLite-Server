@@ -28,7 +28,7 @@ async function selectAlpha(page: Page) {
   await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-selected-node-id', 'visual-a');
 }
 
-test('3D starts top-down, frames neighbours, inspects the drawn curve and preserves styles', async ({ page }, info) => {
+test('3D starts top-down, frames neighbours, inspects the drawn curve and preserves styles @regions', async ({ page }, info) => {
   if (info.project.name === 'mobile') await page.setViewportSize({ width: 320, height: 640 });
   await fixture(page); await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/netgraph/');
@@ -82,6 +82,14 @@ test('3D starts top-down, frames neighbours, inspects the drawn curve and preser
   if (await choice.isVisible()) await choice.click();
   await expect(stage).toHaveAttribute('data-selected-route-id', 'visual-hop');
   await expect(inspector).toBeVisible();
+  await page.getByRole('button', { name: 'Close connection details' }).click();
+  await page.locator('#graph-routes-button').click();
+  await expect(stage).toHaveAttribute('data-history-routes', 'false');
+  await stage.click({ position: { x: midpoint[0]!, y: midpoint[1]! } });
+  await expect(stage).toHaveAttribute('data-selected-route-id', '');
+  // Nearby node markers remain inspectable when historical lines are hidden.
+  if (await inspector.isVisible()) await expect(inspector).toHaveAttribute('aria-label', 'Selected node details');
+  await page.locator('#graph-routes-button').click();
   await page.locator('#display-button').click();
   await page.getByRole('button', { name: 'Rotate topology right' }).click();
   await expect.poll(() => stage.getAttribute('data-view-yaw').then(Number)).toBeGreaterThan(0.2);

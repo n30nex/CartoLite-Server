@@ -3,6 +3,7 @@ export interface NetgraphAreaAnchor {
   name: string;
   lat: number;
   lng: number;
+  aliases?: readonly string[];
 }
 
 // Four-character Maidenhead squares: 2 degrees longitude by 1 degree latitude.

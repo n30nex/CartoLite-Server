@@ -19,6 +19,7 @@ export interface NetgraphPosition {
 }
 
 export interface NetgraphArea {
+  aliases?: readonly string[];
   code: string;
   name: string;
   x: number;
@@ -99,6 +100,7 @@ export function buildNetgraphLayout(
       area = {
         code: anchor.code,
         name: anchor.name,
+        aliases: anchor.aliases,
         x: anchor.lng * AREA_GEO_SCALE_X,
         y: -anchor.lat * AREA_GEO_SCALE_Y,
         desiredX: anchor.lng * AREA_GEO_SCALE_X,
@@ -154,7 +156,7 @@ export function buildNetgraphLayout(
     });
   }
 
-  const areas = areaDrafts.map(({ code, name, x, y, radius, nodeCount }) => ({ code, name, x, y, radius, nodeCount }));
+  const areas = areaDrafts.map(({ code, name, x, y, radius, nodeCount, aliases }) => ({ code, name, x, y, radius, nodeCount, aliases }));
 
   return {
     positions,
@@ -314,7 +316,7 @@ function isDistinct(x: number, y: number, positions: ReadonlyMap<string, Netgrap
   return true;
 }
 
-function layoutBounds(
+export function layoutBounds(
   positions: ReadonlyMap<string, NetgraphPosition>,
   areas: readonly NetgraphArea[],
 ): NetgraphLayout['bounds'] {

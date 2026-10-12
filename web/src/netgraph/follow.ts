@@ -30,6 +30,8 @@ export function mountGraphFollow(graph: NetgraphRenderer, select: (id: string) =
   const stage=document.getElementById('netgraph-stage')!;
   stage.addEventListener('pointerdown',pause);stage.addEventListener('wheel',pause,{passive:true});stage.addEventListener('keydown',pause);
   stage.addEventListener('graphnavigate',pause);
+  const filterChanged=()=>{queue.clear();clearActivity();pause();};
+  stage.addEventListener('graphfilter',filterChanged);
   function tick():void {
     if(!enabled||document.hidden)return;
     if(held){card.querySelector('[data-state]')!.textContent='Held · explore freely';return;}
@@ -44,5 +46,5 @@ export function mountGraphFollow(graph: NetgraphRenderer, select: (id: string) =
   };
   document.addEventListener('keydown',dismiss);
   const timer=window.setInterval(tick,250);
-  return {offer(packet:PacketView){if(!enabled)return;const points=followEndpoints(packet);if(matches && (scope.value==='node'?!points.some(p=>matches!(p.id)):!points.every(p=>matches!(p.id))))return;const nearby=points.some(point=>{const p=graph.projectEndpoint(point);return p.x>=0&&p.x<=stage.clientWidth&&p.y>=0&&p.y<=stage.clientHeight;});queue.offer(packet,nearby?2:0,Date.now());tick();},destroy(){clearInterval(timer);document.removeEventListener('keydown',dismiss);stage.removeEventListener('pointerdown',pause);stage.removeEventListener('wheel',pause);stage.removeEventListener('keydown',pause);stage.removeEventListener('graphnavigate',pause);card.remove();button.remove();}};
+  return {offer(packet:PacketView){if(!enabled)return;const points=followEndpoints(packet);if(!points.every(p=>graph.nodeInRegions(p.id)))return;if(matches && (scope.value==='node'?!points.some(p=>matches!(p.id)):!points.every(p=>matches!(p.id))))return;const nearby=points.some(point=>{const p=graph.projectEndpoint(point);return p.x>=0&&p.x<=stage.clientWidth&&p.y>=0&&p.y<=stage.clientHeight;});queue.offer(packet,nearby?2:0,Date.now());tick();},destroy(){clearInterval(timer);document.removeEventListener('keydown',dismiss);stage.removeEventListener('pointerdown',pause);stage.removeEventListener('wheel',pause);stage.removeEventListener('keydown',pause);stage.removeEventListener('graphnavigate',pause);stage.removeEventListener('graphfilter',filterChanged);card.remove();button.remove();}};
 }
