@@ -34,7 +34,7 @@ async function layoutPanel(page: Page) {
   await page.locator('.graph-layout > summary').click();
 }
 
-test('spacing and dragging survive refresh while live packets keep their routes and clock', async ({ page, context }, info) => {
+test('spacing and dragging survive refresh while live packets keep their routes and clock @regions', async ({ page, context }, info) => {
   if (info.project.name === 'mobile') await page.setViewportSize({ width: 320, height: 640 });
   await fixture(page); await page.emulateMedia({ reducedMotion: 'reduce' }); await page.goto('/netgraph/');
   const stage = page.locator('#netgraph-stage');
@@ -55,6 +55,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await expect.poll(() => stage.getAttribute('data-view-tilt').then(Number)).toBeCloseTo(Math.PI / 4, 3);
   const code = Object.keys(first.centres)[0]!;
   const point = await page.evaluate(code => (window as unknown as { regionHandles: Record<string, { x: number; y: number }> }).regionHandles[code]!, code);
+  expect(point).toBeTruthy(); expect(Number.isFinite(point.x) && Number.isFinite(point.y)).toBe(true);
   const camera = await stage.getAttribute('data-view-center');
   const touch = info.project.name !== 'desktop' ? await context.newCDPSession(page) : null;
   if (touch) {
@@ -103,7 +104,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   expect(page.url()).toContain('/netgraph/');
 });
 
-test('checkbox regions filter topology, search and Follow and retain their device selection', async ({ page }, info) => {
+test('checkbox regions filter topology, search and Follow and retain their device selection @regions', async ({ page }, info) => {
   await fixture(page); await page.emulateMedia({ reducedMotion: 'reduce' }); await page.goto('/netgraph/');
   const stage = page.locator('#netgraph-stage'); await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Charlie');

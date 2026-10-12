@@ -5,7 +5,7 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   const stage = document.getElementById('netgraph-stage')!;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
   const measure = () => document.documentElement.style.setProperty('--graph-controls-bottom', `${Math.ceil(host.getBoundingClientRect().bottom)}px`);
-  const resize = new ResizeObserver(measure); resize.observe(host);
+  const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined; resize?.observe(host);
   window.addEventListener('resize', measure); measure();
   const menu = graphTemplate<HTMLDetailsElement>('graph-regions-ui');
   const summary = menu.querySelector('summary')!, search = menu.querySelector('input')!, list = menu.querySelector<HTMLElement>('.region-checks')!;
@@ -70,5 +70,5 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     }
   }
   sync();
-  return { sync, destroy() { resize.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); layout.remove(); } };
+  return { sync, destroy() { resize?.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); layout.remove(); } };
 }
