@@ -215,11 +215,18 @@ export class RouteSonifier {
   readonly #waves = new Map<string, PeriodicWave>();
   #statusListener?: (status: SoundStatus) => void;
 
+  readonly #map: ViewportProjector;
+  readonly #viewport: HTMLElement;
+  readonly #storage: Storage;
+
   constructor(
-    private readonly map: ViewportProjector,
-    private readonly viewport: HTMLElement,
-    private readonly storage: Storage = browserStorage(),
+    map: ViewportProjector,
+    viewport: HTMLElement,
+    storage: Storage = browserStorage(),
   ) {
+    this.#map = map;
+    this.#viewport = viewport;
+    this.#storage = storage;
     const preference = loadSoundPreference(storage);
     this.#preferredEnabled = preference.enabled;
     this.#volume = preference.volume;
@@ -310,9 +317,9 @@ export class RouteSonifier {
     if (!this.#enabled || this.#paused || !context || context.state !== 'running' || !this.#master) return 0;
     const notes = routeSoundPlan(
       packet,
-      this.map,
-      this.viewport.clientWidth,
-      this.viewport.clientHeight,
+      this.#map,
+      this.#viewport.clientWidth,
+      this.#viewport.clientHeight,
       this.#scene,
       character,
     );
@@ -492,7 +499,7 @@ export class RouteSonifier {
   }
 
   #persist(): void {
-    saveSoundPreference(this.storage, { enabled: this.#preferredEnabled, volume: this.#volume, scene: this.#scene });
+    saveSoundPreference(this.#storage, { enabled: this.#preferredEnabled, volume: this.#volume, scene: this.#scene });
   }
 
   #notify(): void {

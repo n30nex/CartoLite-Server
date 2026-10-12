@@ -1,3 +1,4 @@
+import type { RouteV2 } from '../types';
 import { layoutBounds, type NetgraphLayout } from './layout';
 
 export const REGION_LAYOUT_KEY = 'cartolite:netgraph-layout:v1';
@@ -47,4 +48,17 @@ export function arrangeRegions(base: NetgraphLayout, preferences: RegionLayoutPr
     return [id, { ...p, x: p.x + shift.x, y: p.y + shift.y }];
   }));
   return { ...base, positions, areas, bounds: layoutBounds(positions, areas) };
+}
+
+/** Connectivity of the visible regions; hidden regions cannot bridge components. */
+export function regionComponents(layout: NetgraphLayout, routes: Iterable<RouteV2>, regions: ReadonlySet<string>): Map<string, string> {
+  const parents = new Map([...layout.positions.values()].filter(p => regions.has(p.areaCode)).map(p => [p.id, p.id]));
+  const root = (id: string): string => {
+    let current = id;
+    while (parents.get(current)! !== current) { parents.set(current, parents.get(parents.get(current)!)!); current = parents.get(current)!; }
+    return current;
+  };
+  for (const route of routes) if (parents.has(route.fromId) && parents.has(route.toId)) parents.set(root(route.fromId), root(route.toId));
+  for (const id of parents.keys()) parents.set(id, root(id));
+  return parents;
 }

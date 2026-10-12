@@ -95,10 +95,16 @@ test('spacing and dragging survive refresh while live packets keep their routes 
 test('checkbox regions filter topology, search and Follow and retain their device selection', async ({ page }, info) => {
   await fixture(page); await page.emulateMedia({ reducedMotion: 'reduce' }); await page.goto('/netgraph/');
   const stage = page.locator('#netgraph-stage'); await expect(stage).toHaveAttribute('data-render-state', 'idle');
+  await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Charlie');
+  await page.locator('.node-search-result').first().click();
+  await page.getByLabel('Topology focus').selectOption('area');
+  await page.getByRole('button', { name: 'Close node details' }).click();
   await page.locator('#region-filter > summary').click();
   const codes = await page.locator('.region-checks input').evaluateAll(inputs => inputs.map(i => (i as HTMLInputElement).dataset.region!));
   expect(codes).toHaveLength(2);
   await page.locator('[data-none]').click(); await expect(stage).toHaveAttribute('data-visible-routes', '0');
+  await expect(stage).toHaveAttribute('data-components', '0');
+  await expect(stage).toHaveAttribute('data-focus-mode', 'all');
   await expect(page.locator('#empty-state')).toContainText('No regions selected');
   // Find the two-node Toronto region without coupling either edition to a particular code system.
   const labels = await page.locator('.region-checks label').allTextContents();

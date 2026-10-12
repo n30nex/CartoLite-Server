@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildNetgraphLayout, extendNetgraphLayout } from './layout';
-import { arrangeRegions, loadRegionLayout, normalizeRegionLayout, REGION_LAYOUT_KEY, saveRegionLayout } from './regionLayout';
+import { arrangeRegions, loadRegionLayout, regionComponents, normalizeRegionLayout, REGION_LAYOUT_KEY, saveRegionLayout } from './regionLayout';
 import { GraphProjection, GRAPH_TILT } from './camera';
 import type { NodeV2, RouteV2 } from '../types';
 
@@ -45,6 +45,14 @@ describe('saved region arrangements', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     expect(saveRegionLayout(value)).toBe(false);
     expect(localStorage.getItem('cartolite:display:v1')).toBe('saved appearance');
+  });
+  it('does not count hidden regions as bridges between visible components', () => {
+    const middle = { code: 'MID', name: 'Middle', lat: 45, lng: -95 };
+    const layout = buildNetgraphLayout(nodes, routes, new Map([['a', west], ['b', middle], ['c', middle], ['d', east]]));
+    expect(regionComponents(layout, routes, new Set()).size).toBe(0);
+    const visible = regionComponents(layout, routes, new Set(['WEST', 'EAST']));
+    expect(visible.size).toBe(2); expect(new Set(visible.values()).size).toBe(2);
+    expect(regionComponents(layout, routes, new Set(['WEST', 'MID', 'EAST'])).size).toBe(4);
   });
   it('keeps permitted rearrangements above the 3D near plane', () => {
     const base = buildNetgraphLayout(nodes, routes, assignments), b = base.bounds;
