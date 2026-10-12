@@ -40,9 +40,8 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     spacing.value = String(prefs.spacing); output.value = `${Math.round(prefs.spacing * 100)}%`;
     routes.setAttribute('aria-pressed', String(prefs.routes)); routes.classList.toggle('selected', prefs.routes);
     summary.textContent = `Regions · ${prefs.regions === null ? 'All' : prefs.regions.length}`;
-    layout.querySelector('small')!.textContent = stage.dataset.layoutSaved === 'false'
-      ? 'Drag region labels to arrange. Storage unavailable; changes last for this visit.'
-      : 'Drag a region label to move its whole bubble. Saved on this device.';
+    layout.querySelector('[data-save-state]')!.textContent = stage.dataset.layoutSaved === 'false'
+      ? 'Kept for this visit; storage unavailable.' : 'Saved on this device.';
     if (areas !== lastAreas || prefs.regions !== lastRegions) {
       lastAreas = areas; lastRegions = prefs.regions;
       const entries = new Map(areas.map(a => [a.code, a.name]));
