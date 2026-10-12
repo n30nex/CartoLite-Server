@@ -1789,7 +1789,9 @@ export class NetgraphRenderer implements ViewportProjector {
 
   #handlePointerUp = (event: PointerEvent): void => {
     if (!this.#pointers.has(event.pointerId)) return;
-    const select = this.#pointers.size === 1 && !this.#dragMoved && !this.#regionDrag;
+    // A label becomes a drag handle only after movement; a tap still inspects
+    // the node or connection beneath it.
+    const select = this.#pointers.size === 1 && !this.#dragMoved;
     this.#finishPointer(event.pointerId);
     if (!select) return;
     const rect = this.#stage.getBoundingClientRect();

@@ -28,7 +28,7 @@ async function selectAlpha(page: Page) {
   await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-selected-node-id', 'visual-a');
 }
 
-test('3D starts top-down, frames neighbours, inspects the drawn curve and preserves styles', async ({ page }, info) => {
+test('3D starts top-down, frames neighbours, inspects the drawn curve and preserves styles @regions', async ({ page }, info) => {
   if (info.project.name === 'mobile') await page.setViewportSize({ width: 320, height: 640 });
   await fixture(page); await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/netgraph/');
