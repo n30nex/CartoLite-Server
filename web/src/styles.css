@@ -75,7 +75,15 @@ button { font: inherit; }
 
 #packet-canvas { z-index: 4; }
 
-.glass { border: 1px solid var(--panel-border); background: var(--panel-background); box-shadow: var(--panel-shadow); transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease; }
+.glass {
+  z-index: 5;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-background);
+  box-shadow: var(--panel-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(1.18);
+  backdrop-filter: blur(14px) saturate(1.18);
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
 
 @media (pointer: coarse), (max-width: 700px) {
   .glass {
