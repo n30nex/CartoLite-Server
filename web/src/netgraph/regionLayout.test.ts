@@ -13,7 +13,8 @@ afterEach(() => { localStorage.clear(); vi.restoreAllMocks(); });
 describe('saved region arrangements', () => {
   it('moves whole bubbles, preserves internal spacing and never mutates source geometry/topology', () => {
     const base = buildNetgraphLayout(nodes, routes, assignments), original = structuredClone(base);
-    const settings = normalizeRegionLayout({ spacing: 3, offsets: { WEST: { x: 210, y: -80 } } });
+    const westArea = base.areas.find(a => a.code === 'WEST')!;
+    const settings = normalizeRegionLayout({ spacing: 3, centres: { WEST: { x: westArea.x + 210, y: westArea.y - 80 } } });
     const moved = arrangeRegions(base, settings);
     const a = moved.positions.get('a')!, b = moved.positions.get('b')!;
     expect(a.x - b.x).toBeCloseTo(base.positions.get('a')!.x - base.positions.get('b')!.x);
@@ -26,7 +27,8 @@ describe('saved region arrangements', () => {
   });
   it('keeps an arrangement through live extension and restores it from device storage', () => {
     const base = buildNetgraphLayout(nodes, routes, assignments);
-    const settings = normalizeRegionLayout({ spacing: 2, offsets: { WEST: { x: 200, y: 90 } }, regions: ['WEST'], routes: false });
+    const westArea = base.areas.find(a => a.code === 'WEST')!;
+    const settings = normalizeRegionLayout({ spacing: 2, centres: { WEST: { x: westArea.x + 200, y: westArea.y + 90 } }, regions: ['WEST'], routes: false });
     expect(saveRegionLayout(settings)).toBe(true);
     const before = arrangeRegions(base, settings);
     const newNode = { ...nodes[0]!, id: 'new' }, newRoute = { ...routes[0]!, id: 'new-route', toId: 'new' };
@@ -34,14 +36,17 @@ describe('saved region arrangements', () => {
     const after = arrangeRegions(extended, loadRegionLayout());
     for (const id of nodes.map(n => n.id)) expect(after.positions.get(id)!.x).toBe(before.positions.get(id)!.x);
     expect(after.positions.get('new')!.areaCode).toBe('WEST');
+    const reloaded = arrangeRegions(buildNetgraphLayout([...nodes, newNode], [...routes, newRoute], new Map([...assignments, ['new', west]])), loadRegionLayout());
+    expect(reloaded.areas.find(a => a.code === 'WEST')!.x).toBe(before.areas.find(a => a.code === 'WEST')!.x);
+    expect(reloaded.areas.find(a => a.code === 'WEST')!.y).toBe(before.areas.find(a => a.code === 'WEST')!.y);
     expect(loadRegionLayout().regions).toEqual(['WEST']); expect(loadRegionLayout().routes).toBe(false);
     expect(JSON.parse(localStorage.getItem(REGION_LAYOUT_KEY)!)).not.toHaveProperty('nodes');
   });
-  it('rejects corrupt storage, unbounded offsets and prototype keys without touching other preferences', () => {
+  it('rejects corrupt storage, unbounded centres and prototype keys without touching other preferences', () => {
     localStorage.setItem('cartolite:display:v1', 'saved appearance');
     localStorage.setItem(REGION_LAYOUT_KEY, '{bad json'); expect(loadRegionLayout().spacing).toBe(1);
-    const value = normalizeRegionLayout(JSON.parse('{"spacing":999,"offsets":{"__proto__":{"x":1,"y":2},"WEST":{"x":1e99,"y":0}},"regions":["WEST","WEST",4,"<script>"],"routes":false}'));
-    expect(value.spacing).toBe(4); expect(Object.keys(value.offsets)).toEqual([]); expect(value.regions).toEqual(['WEST']);
+    const value = normalizeRegionLayout(JSON.parse('{"spacing":999,"centres":{"__proto__":{"x":1,"y":2},"WEST":{"x":1e99,"y":0}},"regions":["WEST","WEST",4,"<script>"],"routes":false}'));
+    expect(value.spacing).toBe(4); expect(Object.keys(value.centres)).toEqual([]); expect(value.regions).toEqual(['WEST']);
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     expect(saveRegionLayout(value)).toBe(false);
     expect(localStorage.getItem('cartolite:display:v1')).toBe('saved appearance');
@@ -57,7 +62,8 @@ describe('saved region arrangements', () => {
   it('keeps permitted rearrangements above the 3D near plane', () => {
     const base = buildNetgraphLayout(nodes, routes, assignments), b = base.bounds;
     const d = Math.hypot(b.maxX - b.minX, b.maxY - b.minY);
-    const settings = normalizeRegionLayout({ spacing: 4, offsets: { WEST: { x: d, y: d } } });
+    const westArea = base.areas.find(a => a.code === 'WEST')!;
+    const settings = normalizeRegionLayout({ spacing: 4, centres: { WEST: { x: westArea.x + d, y: westArea.y + d } } });
     const layout = arrangeRegions(base, settings);
     for (const yaw of [0, 1.2, 2.5]) {
       const projection = new GraphProjection({ x: (b.minX + b.maxX) * 2, y: (b.minY + b.maxY) * 2, zoom: 0.01, distance: d * 8, tilt: GRAPH_TILT, yaw }, 1200, 800);

@@ -150,7 +150,7 @@ export class NetgraphRenderer implements ViewportProjector {
   #regionLayout = loadRegionLayout();
   #regionMask = this.#regionLayout.regions === null ? null : new Set(this.#regionLayout.regions);
   #regionLabels: Array<LabelRect & { code: string }> = [];
-  #regionDrag?: { code: string; offset: ScreenPoint; projection: GraphProjection; anchor: ScreenPoint };
+  #regionDrag?: { code: string; origin: ScreenPoint; projection: GraphProjection; anchor: ScreenPoint };
   #visibleRoutes: RouteV2[] = [];
   #visibleRouteIDs = new Set<string>();
   #screenNodes: ScreenNode[] = [];
@@ -387,6 +387,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
   #saveRegions(): void {
     this.#stage.dataset.layoutSaved = String(saveRegionLayout(this.#regionLayout));
+    this.#callbacks.onViewChange?.();
   }
   setRegionSpacing(value: number): void {
     if (!Number.isFinite(value)) return;
@@ -396,7 +397,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#regionLayout.spacing = spacing; this.#arrangementChanged(); this.#saveRegions();
   }
   resetRegionLayout(): void {
-    this.#regionLayout.offsets = Object.create(null); this.setRegionSpacing(1); this.home();
+    this.#regionLayout.centres = Object.create(null); this.setRegionSpacing(1); this.home();
   }
   setRegions(regions: string[] | null): void {
     this.#clearPointers(); this.#cancelViewAnimation();
@@ -417,13 +418,15 @@ export class NetgraphRenderer implements ViewportProjector {
     if (!area) return;
     this.#cancelViewAnimation();
     const at = this.#projection.project(area), from = this.#projection.ground(at.x, at.y);
-    const to = this.#projection.ground(at.x + dx, at.y + dy), offset = this.#regionLayout.offsets[code] ?? { x: 0, y: 0 };
-    this.#offsetRegion(code, offset.x + (to.x - from.x) / this.#regionLayout.spacing, offset.y + (to.y - from.y) / this.#regionLayout.spacing);
+    const to = this.#projection.ground(at.x + dx, at.y + dy);
+    this.#offsetRegion(code, (area.x + to.x - from.x) / this.#regionLayout.spacing, (area.y + to.y - from.y) / this.#regionLayout.spacing);
     this.#saveRegions();
   }
   #offsetRegion(code: string, x: number, y: number): void {
+    const area = this.#baseLayout.areas.find(a => a.code === code);
+    if (!area) return;
     const limit = regionOffsetLimit(this.#baseLayout);
-    this.#regionLayout.offsets[code] = { x: clamp(x, -limit, limit), y: clamp(y, -limit, limit) };
+    this.#regionLayout.centres[code] = { x: clamp(x, area.x - limit, area.x + limit), y: clamp(y, area.y - limit, area.y + limit) };
     this.#arrangementChanged();
   }
   #arrangementChanged(): void {
@@ -1721,8 +1724,9 @@ export class NetgraphRenderer implements ViewportProjector {
     else if (!this.#rotationGesture) {
       const box = this.#stage.getBoundingClientRect(), x = event.clientX - box.left, y = event.clientY - box.top;
       const label = this.#regionLabels.find(r => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height);
-      if (label) {
-        this.#regionDrag = { code: label.code, offset: this.#regionLayout.offsets[label.code] ?? { x: 0, y: 0 },
+      const area = label && this.#layout.areas.find(a => a.code === label.code);
+      if (label && area) {
+        this.#regionDrag = { code: label.code, origin: { x: area.x / this.#regionLayout.spacing, y: area.y / this.#regionLayout.spacing },
           projection: this.#projection, anchor: this.#projection.ground(x, y) };
         this.#stage.dataset.movingRegion = label.code;
       }
@@ -1753,8 +1757,8 @@ export class NetgraphRenderer implements ViewportProjector {
         if (this.#regionDrag) {
           const rect = this.#stage.getBoundingClientRect(), drag = this.#regionDrag;
           const point = drag.projection.ground(event.clientX - rect.left, event.clientY - rect.top);
-          if (this.#dragMoved) this.#offsetRegion(drag.code, drag.offset.x + (point.x - drag.anchor.x) / this.#regionLayout.spacing,
-            drag.offset.y + (point.y - drag.anchor.y) / this.#regionLayout.spacing);
+          if (this.#dragMoved) this.#offsetRegion(drag.code, drag.origin.x + (point.x - drag.anchor.x) / this.#regionLayout.spacing,
+            drag.origin.y + (point.y - drag.anchor.y) / this.#regionLayout.spacing);
           return;
         } else if (this.#rotationGesture) {
           this.#yaw = this.#gestureYaw + deltaX * 0.006;

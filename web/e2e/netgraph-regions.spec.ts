@@ -45,7 +45,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await expect(stage).toHaveAttribute('data-region-spacing', '2');
   await expect(stage).toHaveAttribute('data-visible-routes', '2');
   await page.getByRole('button', { name: 'Move region right', exact: true }).click();
-  const first = await saved(page); expect(Object.keys(first.offsets)).toHaveLength(1);
+  const first = await saved(page); expect(Object.keys(first.centres)).toHaveLength(1);
   await page.getByLabel('Motion preference').selectOption('full');
   await page.keyboard.press('Escape');
   await page.locator('#reset-button').click();
@@ -53,7 +53,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await page.locator('#graph-3d-button').click();
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await expect.poll(() => stage.getAttribute('data-view-tilt').then(Number)).toBeCloseTo(Math.PI / 4, 3);
-  const code = Object.keys(first.offsets)[0]!;
+  const code = Object.keys(first.centres)[0]!;
   const point = await page.evaluate(code => (window as unknown as { regionHandles: Record<string, { x: number; y: number }> }).regionHandles[code]!, code);
   const camera = await stage.getAttribute('data-view-center');
   const touch = info.project.name !== 'desktop' ? await context.newCDPSession(page) : null;
@@ -64,13 +64,14 @@ test('spacing and dragging survive refresh while live packets keep their routes 
     await page.mouse.move(point.x, point.y); await page.mouse.down();
     await page.mouse.move(point.x + 30, point.y + 24, { steps: 4 });
   }
-  await visualPacket(page, 1, 'Text');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('visual-packet', { detail: { seq: 1, id: 'new-connection', at: Date.now(), payloadType: 'Text', mode: 'route', segments: [{ routeId: 'reverse-hop', fromId: 'visual-b', toId: 'visual-a' }] } })));
+  await expect(stage).toHaveAttribute('data-visible-routes', '3');
   await expect(stage).toHaveAttribute('data-active-packets', '1');
   if (touch) { await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await touch.detach(); }
   else await page.mouse.up();
   await expect(stage).toHaveAttribute('data-view-center', camera!);
-  await expect(stage).toHaveAttribute('data-visible-routes', '2');
-  const moved = await saved(page); expect(moved.offsets[code]).not.toEqual(first.offsets[code]);
+  await expect(stage).toHaveAttribute('data-visible-routes', '3');
+  const moved = await saved(page); expect(moved.centres[code]).not.toEqual(first.centres[code]);
   await page.locator('#graph-routes-button').click();
   await expect(stage).toHaveAttribute('data-history-routes', 'false');
   await visualPacket(page, 2, 'Text');
@@ -84,7 +85,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await expect(stage).toHaveAttribute('data-region-spacing', '2');
   await expect(stage).toHaveAttribute('data-history-routes', 'false');
   await layoutPanel(page); await page.getByRole('button', { name: 'Reset region layout', exact: true }).click();
-  expect((await saved(page)).offsets).toEqual({}); expect((await saved(page)).spacing).toBe(1);
+  expect((await saved(page)).centres).toEqual({}); expect((await saved(page)).spacing).toBe(1);
   expect((await saved(page)).routes).toBe(false);
   await page.keyboard.press('Escape');
   // The checkbox disclosure stays bounded and supports Back/Escape on touch screens.
@@ -94,6 +95,10 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   expect(box.y + box.height).toBeLessThan((await page.locator('.controls').boundingBox())!.y);
   await page.keyboard.press('Escape'); await expect(page.locator('#region-filter')).not.toHaveAttribute('open', '');
   await expect(page.locator('#region-filter > summary')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => history.state?.cartolitePanel)).toBe('region-options');
+  await page.goBack(); await expect(page.locator('#region-filter')).not.toHaveAttribute('open', '');
+  expect(page.url()).toContain('/netgraph/');
 });
 
 test('checkbox regions filter topology, search and Follow and retain their device selection', async ({ page }, info) => {
@@ -119,6 +124,12 @@ test('checkbox regions filter topology, search and Follow and retain their devic
   await page.locator('.region-checks input').nth(index).check();
   await expect(stage).toHaveAttribute('data-visible-routes', '1');
   await expect(stage).toHaveAttribute('data-connected-nodes', '2');
+  await expect(stage).toHaveAttribute('data-areas', '1');
+  await page.getByLabel('Search regions', { exact: true }).fill('');
+  await page.locator('.region-checks input').nth(1 - index).check();
+  await expect(stage).toHaveAttribute('data-areas', '2');
+  await expect(stage).toHaveAttribute('data-visible-routes', '2');
+  await page.locator('.region-checks input').nth(1 - index).uncheck();
   await expect(stage).toHaveAttribute('data-areas', '1');
   await page.keyboard.press('Escape');
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Charlie');
