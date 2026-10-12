@@ -7,9 +7,7 @@ export function mountGraphCamera(graph: NetgraphRenderer): () => void {
   button.textContent = '3D'; button.setAttribute('aria-label', '3D Netgraph'); button.setAttribute('aria-pressed', 'false');
   button.title = 'Tilt and rotate the topology';
   controls.insertBefore(button, controls.querySelector('.display-disclosure'));
-  const panel = document.createElement('div'); panel.className = 'graph-camera'; panel.hidden = true;
-  panel.setAttribute('role', 'group'); panel.setAttribute('aria-label', '3D camera controls');
-  panel.innerHTML = '<strong>3D camera</strong><div><button type="button" data-left aria-label="Rotate topology left" title="Rotate left">↶</button><button type="button" data-right aria-label="Rotate topology right" title="Rotate right">↷</button><button type="button" data-flat>Top-down</button></div><label>Tilt<input type="range" min="8" max="65" step="1" value="45" aria-label="Topology tilt"><output>45°</output></label><small>Drag to pan. Shift-drag or right-drag to rotate. Pinch to zoom and twist to rotate. Height is schematic.</small>';
+  const panel = graphTemplate<HTMLElement>('graph-camera-ui');
   document.getElementById('display-panel')!.append(panel);
   const tilt = panel.querySelector('input')!, output = panel.querySelector('output')!;
   const navigate = () => document.getElementById('netgraph-stage')!.dispatchEvent(new Event('graphnavigate'));
@@ -27,4 +25,8 @@ export function mountGraphCamera(graph: NetgraphRenderer): () => void {
     output.value = `${degrees}°`;
   };
   sync(); return sync;
+}
+
+export function graphTemplate<T extends HTMLElement>(id: string): T {
+  return (document.getElementById(id) as HTMLTemplateElement).content.firstElementChild!.cloneNode(true) as T;
 }

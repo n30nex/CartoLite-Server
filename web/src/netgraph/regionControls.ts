@@ -1,16 +1,15 @@
+import { graphTemplate } from './cameraControls';
 import type { NetgraphRenderer } from './renderer';
 
 export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, changed: () => void, closePanels: () => void) {
   const stage = document.getElementById('netgraph-stage')!;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
-  const menu = document.createElement('details'); menu.id = 'region-filter'; menu.className = 'region-filter';
-  menu.innerHTML = '<summary aria-label="Filter regions">Regions · All</summary><div id="region-options" class="region-options" hidden><input type="search" aria-label="Search regions" placeholder="IATA / region"><div class="region-actions"><button type="button" data-all>All</button><button type="button" data-none>None</button></div><div class="region-checks" role="group" aria-label="Regions"></div></div>';
+  const menu = graphTemplate<HTMLDetailsElement>('graph-regions-ui');
   const summary = menu.querySelector('summary')!, search = menu.querySelector('input')!, list = menu.querySelector<HTMLElement>('.region-checks')!;
   const routes = document.createElement('button'); routes.type = 'button'; routes.id = 'graph-routes-button'; routes.textContent = 'Routes';
   routes.setAttribute('aria-label', 'Show historical routes'); routes.title = 'Hide standing lines; live packets still light their routes briefly';
   host.append(menu, routes);
-  const layout = document.createElement('details'); layout.className = 'graph-layout';
-  layout.innerHTML = '<summary>Region layout</summary><label>Spacing<input type="range" min="1" max="4" step="0.1" aria-label="Region spacing"><output></output></label><label>Move region<select aria-label="Region to move"></select></label><div class="region-actions"><button type="button" aria-label="Move region left" data-move="-40,0">←</button><button type="button" aria-label="Move region up" data-move="0,-40">↑</button><button type="button" aria-label="Move region down" data-move="0,40">↓</button><button type="button" aria-label="Move region right" data-move="40,0">→</button></div><button type="button" data-reset>Reset region layout</button><small>Drag a region label to move its whole bubble. Saved on this device.</small>';
+  const layout = graphTemplate<HTMLDetailsElement>('graph-layout-ui');
   document.getElementById('display-panel')!.append(layout);
   const spacing = layout.querySelector('input')!, output = layout.querySelector('output')!, move = layout.querySelector('select')!;
   let lastAreas: ReturnType<NetgraphRenderer['regions']> | undefined, lastRegions: string[] | null | undefined, signature = '';

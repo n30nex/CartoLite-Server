@@ -40,7 +40,8 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   const stage = page.locator('#netgraph-stage');
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await layoutPanel(page);
-  await page.getByLabel('Region spacing', { exact: true }).fill('2');
+  await page.getByLabel('Region spacing', { exact: true }).focus(); await page.keyboard.press('Home');
+  for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowRight');
   await expect(stage).toHaveAttribute('data-region-spacing', '2');
   await expect(stage).toHaveAttribute('data-visible-routes', '2');
   await page.getByRole('button', { name: 'Move region right', exact: true }).click();
@@ -76,6 +77,8 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await expect(stage).toHaveAttribute('data-last-packet-hops', '1');
   await expect.poll(() => stage.getAttribute('data-active-packets').then(Number)).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath('netgraph-arranged-live-only.png') });
+  await expect(stage).toHaveAttribute('data-active-packets', '0', { timeout: 12_000 });
+  await expect(stage).toHaveAttribute('data-residue-count', '0', { timeout: 5_000 });
   await page.reload(); await expect(stage).toHaveAttribute('data-render-state', 'idle');
   expect(await saved(page)).toEqual({ ...moved, routes: false });
   await expect(stage).toHaveAttribute('data-region-spacing', '2');
@@ -88,6 +91,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await page.locator('#region-filter > summary').click();
   const box = (await page.locator('.region-options').boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(box.y + box.height).toBeLessThan((await page.locator('.controls').boundingBox())!.y);
   await page.keyboard.press('Escape'); await expect(page.locator('#region-filter')).not.toHaveAttribute('open', '');
   await expect(page.locator('#region-filter > summary')).toBeFocused();
 });
