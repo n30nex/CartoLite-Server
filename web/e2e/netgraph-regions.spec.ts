@@ -44,6 +44,9 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   for (let i = 0; i < 10; i++) await page.keyboard.press('ArrowRight');
   await expect(stage).toHaveAttribute('data-region-spacing', '2');
   await expect(stage).toHaveAttribute('data-visible-routes', '2');
+  const moving = await page.getByLabel('Region to move', { exact: true }).locator('option').evaluateAll(options =>
+    (options as HTMLOptionElement[]).find(o => o.textContent!.includes('Toronto') || o.textContent!.includes('43.5'))!.value);
+  await page.getByLabel('Region to move', { exact: true }).selectOption(moving);
   await page.getByRole('button', { name: 'Move region right', exact: true }).click();
   const first = await saved(page); expect(Object.keys(first.centres)).toHaveLength(1);
   await page.keyboard.press('Escape');
@@ -52,12 +55,16 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await page.locator('#graph-3d-button').click();
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await expect.poll(() => stage.getAttribute('data-view-tilt').then(Number)).toBeCloseTo(Math.PI / 4, 3);
+  await page.locator('#reset-button').click();
+  await expect(stage).toHaveAttribute('data-render-state', 'idle');
   // Finish camera setup under reduced motion, then enable live packet motion.
   // Clicking 3D during a Fit all transition deliberately interrupts that camera move.
   await page.locator('#display-button').click();
   await page.getByLabel('Motion preference').selectOption('full');
   await page.keyboard.press('Escape');
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
+  await page.locator('#sound-button').click(); await page.locator('#sound-toggle').click();
+  await expect(page.locator('#sound-state')).toHaveText('On'); await page.keyboard.press('Escape');
   const code = Object.keys(first.centres)[0]!;
   const point = await page.evaluate(code => (window as unknown as { regionHandles: Record<string, { x: number; y: number }> }).regionHandles[code]!, code);
   expect(point).toBeTruthy(); expect(Number.isFinite(point.x) && Number.isFinite(point.y)).toBe(true);
@@ -66,15 +73,16 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   if (touch) {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...point }] });
     await expect(stage).toHaveAttribute('data-moving-region', code);
-    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: point.x + 30, y: point.y + 24 }] });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: point.x - 30, y: point.y - 24 }] });
   } else {
     await page.mouse.move(point.x, point.y); await page.mouse.down();
     await expect(stage).toHaveAttribute('data-moving-region', code);
-    await page.mouse.move(point.x + 30, point.y + 24, { steps: 4 });
+    await page.mouse.move(point.x - 30, point.y - 24, { steps: 4 });
   }
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('visual-packet', { detail: { seq: 1, id: 'new-connection', at: Date.now(), payloadType: 'Text', mode: 'route', segments: [{ routeId: 'reverse-hop', fromId: 'visual-b', toId: 'visual-a' }] } })));
   await expect(stage).toHaveAttribute('data-visible-routes', '3');
   await expect(stage).toHaveAttribute('data-active-packets', '1');
+  await expect(page.locator('#sound-activity')).toHaveAttribute('data-scheduled', '1');
   if (touch) { await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await touch.detach(); }
   else await page.mouse.up();
   await expect(stage).toHaveAttribute('data-view-center', camera!);
@@ -83,6 +91,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await page.locator('#graph-routes-button').click();
   await expect(stage).toHaveAttribute('data-history-routes', 'false');
   await visualPacket(page, 2, 'Text');
+  await expect(page.locator('#sound-activity')).toHaveAttribute('data-scheduled', '2');
   await expect(stage).toHaveAttribute('data-last-packet-hops', '1');
   await expect.poll(() => stage.getAttribute('data-active-packets').then(Number)).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath('netgraph-arranged-live-only.png') });
