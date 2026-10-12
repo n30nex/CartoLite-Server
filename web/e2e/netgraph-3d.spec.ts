@@ -82,6 +82,13 @@ test('3D starts top-down, frames neighbours, inspects the drawn curve and preser
   if (await choice.isVisible()) await choice.click();
   await expect(stage).toHaveAttribute('data-selected-route-id', 'visual-hop');
   await expect(inspector).toBeVisible();
+  await page.getByRole('button', { name: 'Close connection details' }).click();
+  await page.locator('#graph-routes-button').click();
+  await expect(stage).toHaveAttribute('data-history-routes', 'false');
+  await stage.click({ position: { x: midpoint[0]!, y: midpoint[1]! } });
+  await expect(stage).toHaveAttribute('data-selected-route-id', '');
+  await expect(inspector).toBeHidden();
+  await page.locator('#graph-routes-button').click();
   await page.locator('#display-button').click();
   await page.getByRole('button', { name: 'Rotate topology right' }).click();
   await expect.poll(() => stage.getAttribute('data-view-yaw').then(Number)).toBeGreaterThan(0.2);

@@ -1704,7 +1704,12 @@ export class NetgraphRenderer implements ViewportProjector {
 
   #nearestRoutes(x: number, y: number): string[] {
     const hits: Array<{ id: string; distance: number }> = [];
+    const lit = this.#regionLayout.routes ? null : new Set([
+      ...this.#residue.map(r => r.routeId),
+      ...this.#activeRoutes.flatMap(a => a.packet.segments.map(s => s.routeId)),
+    ]);
     for (const route of this.#visibleRoutes) {
+      if (lit && !lit.has(route.id)) continue;
       const path = this.#routePath(route.fromId, route.toId);
       const distance = distanceToGraphPath(path, x, y);
       if (distance <= Math.max(7, displayPreferences().width + 4)) hits.push({ id: route.id, distance });
