@@ -107,6 +107,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await page.keyboard.press('Escape');
   // The checkbox disclosure stays bounded and supports Back/Escape on touch screens.
   await page.locator('#region-filter > summary').click();
+  await expect(page.locator('.region-options')).toBeVisible();
   const box = (await page.locator('.region-options').boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(box.y + box.height).toBeLessThan((await page.locator('.controls').boundingBox())!.y);

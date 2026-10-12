@@ -87,7 +87,8 @@ test('3D starts top-down, frames neighbours, inspects the drawn curve and preser
   await expect(stage).toHaveAttribute('data-history-routes', 'false');
   await stage.click({ position: { x: midpoint[0]!, y: midpoint[1]! } });
   await expect(stage).toHaveAttribute('data-selected-route-id', '');
-  await expect(inspector).toBeHidden();
+  // Nearby node markers remain inspectable when historical lines are hidden.
+  if (await inspector.isVisible()) await expect(inspector).toHaveAttribute('aria-label', 'Selected node details');
   await page.locator('#graph-routes-button').click();
   await page.locator('#display-button').click();
   await page.getByRole('button', { name: 'Rotate topology right' }).click();

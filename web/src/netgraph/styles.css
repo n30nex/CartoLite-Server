@@ -281,7 +281,11 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 /* Region controls use the existing focus row and Display sheet. */
 .graph-focus { flex-wrap:wrap; z-index:10; max-width:calc(100vw - 16px); gap:6px; padding-inline:6px; }
 .graph-focus > span { display:none; }
-@media(min-width:600px) and (max-height:520px) and (orientation:landscape) { .graph-focus { top:12px; left:auto; right:8px; } }
+@media(min-width:600px) and (max-height:520px) and (orientation:landscape) {
+  .graph-focus { top:12px; left:auto; right:8px; }
+  #region-filter .region-options { left:auto; right:0; }
+  #netgraph-app #node-inspector-sheet { max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - var(--graph-controls-bottom,68px) - 24px); }
+}
 .graph-focus select { max-width:112px; }
 .region-filter summary, #graph-routes-button { cursor:pointer; white-space:nowrap; padding:9px 6px; font:inherit; color:var(--ink-strong); }
 #graph-routes-button { border:1px solid var(--panel-border); border-radius:7px; background:var(--field-bg); }
