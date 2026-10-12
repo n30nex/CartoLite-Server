@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 - Correct 3D Netgraph camera orientation
+
+- Correct the reversed perspective depth so 3D looks down onto the scene: nearby groups appear larger and raised connections sit above the ground.
+- Keep panning, pointer anchoring, route picking and packet effects aligned with the corrected camera; top-down mode is unchanged.
+- Add physical camera-orientation regressions alongside the existing projection, gesture, mobile and scale checks.
+
 ## 0.7.0 - 3D Netgraph and connection inspection
 
 - Start top-down, with a 3D button for raised geographic groups, arched links and depth-aware live packet effects.
