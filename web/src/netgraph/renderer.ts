@@ -852,7 +852,6 @@ export class NetgraphRenderer implements ViewportProjector {
     const occupied: LabelRect[] = [];
     const labels = this.#visibleAreas().sort((left, right) => right.area.nodeCount - left.area.nodeCount || left.area.code.localeCompare(right.area.code));
     for (const { area, point, radius } of labels) {
-      if (area.nodeCount < 2 && this.#scale < 0.16) continue;
       const title = `${area.code} · ${area.name}`;
       const detail = `${area.nodeCount.toLocaleString()} nodes · ↔`;
       context.font = '750 11px Inter, ui-sans-serif, system-ui, sans-serif';

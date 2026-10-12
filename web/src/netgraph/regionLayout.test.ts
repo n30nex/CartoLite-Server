@@ -26,17 +26,20 @@ describe('saved region arrangements', () => {
     expect(arrangeRegions(base, normalizeRegionLayout(null))).toEqual(base);
   });
   it('keeps an arrangement through live extension and restores it from device storage', () => {
-    const base = buildNetgraphLayout(nodes, routes, assignments);
+    const close = new Map([...assignments].map(([id, area]) => [id, { ...area, lng: area.code === 'WEST' ? -75.1 : -75 }]));
+    const base = buildNetgraphLayout(nodes, routes, close);
     const westArea = base.areas.find(a => a.code === 'WEST')!;
     const settings = normalizeRegionLayout({ spacing: 2, centres: { WEST: { x: westArea.x + 200, y: westArea.y + 90 } }, regions: ['WEST'], routes: false });
     expect(saveRegionLayout(settings)).toBe(true);
     const before = arrangeRegions(base, settings);
     const newNode = { ...nodes[0]!, id: 'new' }, newRoute = { ...routes[0]!, id: 'new-route', toId: 'new' };
-    const extended = extendNetgraphLayout(base, [...nodes, newNode], [...routes, newRoute], new Map([...assignments, ['new', west]]));
+    const extended = extendNetgraphLayout(base, [...nodes, newNode], [...routes, newRoute], new Map([...close, ['new', close.get('a')!]]));
     const after = arrangeRegions(extended, loadRegionLayout());
     for (const id of nodes.map(n => n.id)) expect(after.positions.get(id)!.x).toBe(before.positions.get(id)!.x);
     expect(after.positions.get('new')!.areaCode).toBe('WEST');
-    const reloaded = arrangeRegions(buildNetgraphLayout([...nodes, newNode], [...routes, newRoute], new Map([...assignments, ['new', west]])), loadRegionLayout());
+    const fresh = buildNetgraphLayout([...nodes, newNode], [...routes, newRoute], new Map([...close, ['new', close.get('a')!]]));
+    expect(fresh.areas.find(a => a.code === 'WEST')!.x).not.toBe(westArea.x);
+    const reloaded = arrangeRegions(fresh, loadRegionLayout());
     expect(reloaded.areas.find(a => a.code === 'WEST')!.x).toBe(before.areas.find(a => a.code === 'WEST')!.x);
     expect(reloaded.areas.find(a => a.code === 'WEST')!.y).toBe(before.areas.find(a => a.code === 'WEST')!.y);
     expect(loadRegionLayout().regions).toEqual(['WEST']); expect(loadRegionLayout().routes).toBe(false);

@@ -16,7 +16,7 @@ the arrow buttons. **Reset region layout** restores the geographic arrangement.
 Nodes keep their positions inside each bubble; routes and live packets follow
 when the bubble moves. These controls change the diagram, not reported locations.
 
-Use **Regions** to search IATA/region codes or names and select multiple regions.
+Use **Regions** to search geographic region codes or names and select multiple regions.
 **None** followed by one checkbox isolates a region; **All** restores the full mesh.
 Only connections with both endpoints in the selected regions are shown. Search
 and Follow respect this selection. Use **Routes** to hide standing connections;

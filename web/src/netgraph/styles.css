@@ -279,13 +279,13 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 }
 
 /* Region controls use the existing focus row and Display sheet. */
-.graph-focus { max-width:calc(100vw - 16px); gap:6px; padding-inline:6px; }
+.graph-focus { flex-wrap:wrap; z-index:10; max-width:calc(100vw - 16px); gap:6px; padding-inline:6px; }
 .graph-focus > span { display:none; }
 .graph-focus select { max-width:112px; }
 .region-filter summary, #graph-routes-button { cursor:pointer; white-space:nowrap; padding:9px 6px; font:inherit; color:var(--ink-strong); }
 #graph-routes-button { border:1px solid var(--panel-border); border-radius:7px; background:var(--field-bg); }
 #graph-routes-button.selected { background:var(--selected); }
-.region-options { max-height:min(420px,calc(100dvh - var(--dock-height,54px) - var(--dock-bottom,12px) - 176px)); overflow:auto; overscroll-behavior:contain; position:absolute; top:calc(100% + 6px); left:0; width:min(300px,calc(100vw - 16px)); padding:10px; border:1px solid var(--panel-border); border-radius:10px; background:var(--panel-solid); box-shadow:0 8px 25px #0003; }
+.region-options { max-height:min(420px,calc(100dvh - var(--dock-height,54px) - var(--dock-bottom,12px) - var(--graph-controls-bottom,160px) - 16px)); overflow:auto; overscroll-behavior:contain; position:absolute; top:calc(100% + 6px); left:0; width:min(300px,calc(100vw - 16px)); padding:10px; border:1px solid var(--panel-border); border-radius:10px; background:var(--panel-solid); box-shadow:0 8px 25px #0003; }
 .region-options > input { width:100%; min-height:40px; }
 
 .region-checks label { display:flex; align-items:center; gap:8px; min-height:44px; cursor:pointer; }
@@ -302,3 +302,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 #netgraph-stage.region-hover { cursor:grab; }
 #netgraph-stage.is-dragging { cursor:grabbing; }
 @media(pointer:coarse) { .region-filter summary, #graph-routes-button, .graph-focus select { min-height:44px; } }
+
+html:root[data-cinematic] #netgraph-app #follow-card { max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - var(--graph-controls-bottom,116px) - 24px); }
+@media(min-width:901px) and (pointer:fine) { html:root[data-cinematic] #netgraph-app #follow-card { top:calc(var(--graph-controls-bottom,116px) + 8px); } }
+html:root[data-cinematic]:has(#region-filter[open]) :is(.node-inspector-sheet,.follow-card) { visibility:hidden; }

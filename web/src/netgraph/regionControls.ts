@@ -4,6 +4,9 @@ import type { NetgraphRenderer } from './renderer';
 export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, changed: () => void, closePanels: () => void) {
   const stage = document.getElementById('netgraph-stage')!;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
+  const measure = () => document.documentElement.style.setProperty('--graph-controls-bottom', `${Math.ceil(host.getBoundingClientRect().bottom)}px`);
+  const resize = new ResizeObserver(measure); resize.observe(host);
+  window.addEventListener('resize', measure); measure();
   const menu = graphTemplate<HTMLDetailsElement>('graph-regions-ui');
   const summary = menu.querySelector('summary')!, search = menu.querySelector('input')!, list = menu.querySelector<HTMLElement>('.region-checks')!;
   const routes = document.createElement('button'); routes.type = 'button'; routes.id = 'graph-routes-button'; routes.textContent = 'Routes';
@@ -22,10 +25,11 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     if (input.checked) selected.add(code); else selected.delete(code);
     applyFilter([...selected]);
   });
-  const filterList = () => { const query = search.value.trim().toLocaleLowerCase();
-    for (const label of list.children) (label as HTMLElement).hidden = !label.textContent!.toLocaleLowerCase().includes(query); };
+  const fold = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase();
+  const filterList = () => { const query = fold(search.value.trim());
+    for (const label of list.children) (label as HTMLElement).hidden = !fold((label as HTMLElement).dataset.search ?? '').includes(query); };
   search.addEventListener('input', filterList);
-  menu.addEventListener('toggle', () => { menu.querySelector<HTMLElement>('.region-options')!.hidden = !menu.open; if (menu.open) closePanels(); });
+  menu.addEventListener('toggle', () => { menu.querySelector<HTMLElement>('.region-options')!.hidden = !menu.open; if (menu.open) { navigate(); closePanels(); } });
   menu.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { event.preventDefault(); event.stopPropagation(); menu.open = false; summary.focus(); } });
   const dismiss = (event: PointerEvent) => { if (!menu.contains(event.target as Node)) menu.open = false; };
   document.addEventListener('pointerdown', dismiss);
@@ -44,16 +48,17 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
       ? 'Kept for this visit; storage unavailable.' : 'Saved on this device.';
     if (areas !== lastAreas || prefs.regions !== lastRegions) {
       lastAreas = areas; lastRegions = prefs.regions;
-      const entries = new Map(areas.map(a => [a.code, a.name]));
-      for (const code of prefs.regions ?? []) if (!entries.has(code)) entries.set(code, 'No current activity');
+      const entries = new Map(areas.map(a => [a.code, [a.name, ...(a.aliases ?? [])]]));
+      for (const code of prefs.regions ?? []) if (!entries.has(code)) entries.set(code, ['No current activity']);
       const next = JSON.stringify([...entries]);
       if (next !== signature) {
         signature = next;
         const focused = (document.activeElement as HTMLElement | null)?.dataset.region, scroll = list.scrollTop, moving = move.value;
         list.replaceChildren(); move.replaceChildren();
-        for (const [code, name] of [...entries].sort(([a], [b]) => a.localeCompare(b))) {
+        for (const [code, names] of [...entries].sort(([a], [b]) => a.localeCompare(b))) {
           const label = document.createElement('label'), input = document.createElement('input'), text = document.createElement('span');
-          input.type = 'checkbox'; input.dataset.region = code; text.textContent = `${code} · ${name}`;
+          input.type = 'checkbox'; input.dataset.region = code; text.textContent = `${code} · ${names[0]}`;
+          label.dataset.search = [code, ...names].join(' ');
           label.append(input, text); list.append(label);
           if (areas.some(a => a.code === code)) move.add(new Option(text.textContent!, code));
           if (focused === code) input.focus({ preventScroll: true });
@@ -65,5 +70,5 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     }
   }
   sync();
-  return { sync, destroy() { document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); layout.remove(); } };
+  return { sync, destroy() { resize.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); layout.remove(); } };
 }

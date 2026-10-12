@@ -59,9 +59,11 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   const touch = info.project.name !== 'desktop' ? await context.newCDPSession(page) : null;
   if (touch) {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, ...point }] });
+    await expect(stage).toHaveAttribute('data-moving-region', code);
     await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: point.x + 30, y: point.y + 24 }] });
   } else {
     await page.mouse.move(point.x, point.y); await page.mouse.down();
+    await expect(stage).toHaveAttribute('data-moving-region', code);
     await page.mouse.move(point.x + 30, point.y + 24, { steps: 4 });
   }
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('visual-packet', { detail: { seq: 1, id: 'new-connection', at: Date.now(), payloadType: 'Text', mode: 'route', segments: [{ routeId: 'reverse-hop', fromId: 'visual-b', toId: 'visual-a' }] } })));
