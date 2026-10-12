@@ -1,0 +1,2 @@
+/* Shared Map/Netgraph chrome; zero-specificity scope keeps Labs independent. */
+:where(#app, #netgraph-app) .glass { z-index: 5; -webkit-backdrop-filter: blur(14px) saturate(1.18); backdrop-filter: blur(14px) saturate(1.18); }
