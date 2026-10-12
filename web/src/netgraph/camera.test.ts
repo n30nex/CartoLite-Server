@@ -13,6 +13,24 @@ describe('Netgraph shared 3D geometry', () => {
     }
   });
 
+  it('views the ground from above: foreground is larger and raised links rise toward the camera', () => {
+    for (const tilt of [Math.PI / 6, GRAPH_TILT, 1.1]) for (const yaw of [-2.8, 0, 1.4]) {
+      const p = new GraphProjection({ ...camera, x: 0, y: 0, zoom: 1, tilt, yaw }, 1200, 800);
+      const point = (y: number, z = 0) => ({ x: y * Math.sin(yaw), y: y * Math.cos(yaw), z });
+      const front = p.project(point(600)), back = p.project(point(-600));
+      expect(front.scale).toBeGreaterThan(1); expect(back.scale).toBeLessThan(1);
+      expect(front.y).toBeGreaterThan(400); expect(back.y).toBeLessThan(400);
+      for (const y of [-600, 0, 600]) {
+        expect(p.project(point(y, 100)).y).toBeLessThan(p.project(point(y)).y);
+      }
+      // A point lifted along the viewing ray stays centered and gets nearer.
+      const alongRay = p.project(point(300 * Math.sin(tilt), 300 * Math.cos(tilt)));
+      expect(alongRay.x).toBeCloseTo(600); expect(alongRay.y).toBeCloseTo(400);
+      expect(alongRay.depth).toBeCloseTo(-300);
+      expect(alongRay.scale).toBeCloseTo(camera.distance / (camera.distance - 300));
+    }
+  });
+
   it('fits neighbours and arc crests into the space left by desktop and mobile inspectors', () => {
     const a = { x: -450, y: -100, z: 18 }, b = { x: 900, y: 450, z: 28 };
     const points = [a, b, graphArcPoint(a, b, 0.5, true)];
@@ -47,7 +65,7 @@ describe('Netgraph shared 3D geometry', () => {
 
   it('clips behind-camera points without drawing or picking a line across the gap', () => {
     const projection = new GraphProjection({ ...camera, tilt: 1, distance: 1000 }, 1200, 800);
-    expect(projection.project({ x: 0, y: -5000 }).visible).toBe(false);
+    expect(projection.project({ x: 0, y: 5000 }).visible).toBe(false);
     const broken = [{ x: 0, y: 0, progress: 0 }, { x: 100, y: 100, progress: 0.5, breakBefore: true }, { x: 110, y: 110, progress: 1 }];
     expect(distanceToGraphPath(broken, 50, 50)).toBeGreaterThan(50);
     expect(graphPathPoint(broken, 0.25).x).toBeLessThan(0);

@@ -25,7 +25,9 @@ export class GraphProjection {
     const dx = point.x - camera.x, dy = point.y - camera.y;
     const x = dx * this.cy - dy * this.sy, y = dx * this.sy + dy * this.cy;
     const z = camera.tilt === 0 ? 0 : (point.z ?? 0);
-    const depth = y * this.st - z * this.ct;
+    // The camera sits above the foreground (+y, +z). Screen-down and
+    // depth must be orthogonal; foreground objects are nearer, not farther.
+    const depth = -y * this.st - z * this.ct;
     const denominator = camera.distance + depth;
     if (!Number.isFinite(denominator) || denominator < camera.distance * 0.08) return hidden();
     const scale = camera.tilt === 0 ? 1 : camera.distance / denominator;
@@ -38,9 +40,9 @@ export class GraphProjection {
   ground(x: number, y: number): GraphPoint {
     const u = (x - this.width / 2) / this.camera.zoom;
     const v = (y - this.height / 2) / this.camera.zoom;
-    const denominator = Math.max(0.08, this.ct - v * this.st / this.camera.distance);
+    const denominator = Math.max(0.08, this.ct + v * this.st / this.camera.distance);
     const ry = v / denominator;
-    const rx = u * (1 + ry * this.st / this.camera.distance);
+    const rx = u * (1 - ry * this.st / this.camera.distance);
     return { x: this.camera.x + rx * this.cy + ry * this.sy,
       y: this.camera.y - rx * this.sy + ry * this.cy };
   }
