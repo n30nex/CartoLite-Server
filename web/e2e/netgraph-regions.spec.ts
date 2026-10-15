@@ -1,3 +1,4 @@
+import { graphFilters, graphFocus, graphRoutes, viewTool } from './dockControls';
 import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import type { StateV2 } from '../src/types';
@@ -50,12 +51,12 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await page.getByRole('button', { name: 'Move region right', exact: true }).click();
   const first = await saved(page); expect(Object.keys(first.centres)).toHaveLength(1);
   await page.keyboard.press('Escape');
-  await page.locator('#reset-button').click();
+  await viewTool(page, '#reset-button');
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await page.locator('#graph-3d-button').click();
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await expect.poll(() => stage.getAttribute('data-view-tilt').then(Number)).toBeCloseTo(Math.PI / 4, 3);
-  await page.locator('#reset-button').click();
+  await viewTool(page, '#reset-button');
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   // Finish camera setup under reduced motion, then enable live packet motion.
   // Clicking 3D during a Fit all transition deliberately interrupts that camera move.
@@ -88,7 +89,7 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   await expect(stage).toHaveAttribute('data-view-center', camera!);
   await expect(stage).toHaveAttribute('data-visible-routes', '3');
   const moved = await saved(page); expect(moved.centres[code]).not.toEqual(first.centres[code]);
-  await page.locator('#graph-routes-button').click();
+  await graphRoutes(page);
   await expect(stage).toHaveAttribute('data-history-routes', 'false');
   await visualPacket(page, 2, 'Text');
   await expect(page.locator('#sound-activity')).toHaveAttribute('data-scheduled', '2');
@@ -106,9 +107,9 @@ test('spacing and dragging survive refresh while live packets keep their routes 
   expect((await saved(page)).routes).toBe(false);
   await page.keyboard.press('Escape');
   // The checkbox disclosure stays bounded and supports Back/Escape on touch screens.
-  await page.locator('#region-filter > summary').click();
+  await graphFilters(page); await page.locator('#region-filter > summary').click();
   await expect(page.locator('.region-options')).toBeVisible();
-  const box = (await page.locator('.region-options').boundingBox())!;
+  const box = (await page.locator(await page.locator('html').getAttribute('data-mobile-dock') === 'true' ? '#display-panel' : '.region-options').boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(box.y + box.height).toBeLessThan((await page.locator('.controls').boundingBox())!.y);
   await page.keyboard.press('Escape'); await expect(page.locator('#region-filter')).not.toHaveAttribute('open', '');
@@ -124,9 +125,9 @@ test('checkbox regions filter topology, search and Follow and retain their devic
   const stage = page.locator('#netgraph-stage'); await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Charlie');
   await page.locator('.node-search-result').first().click();
-  await page.getByLabel('Topology focus').selectOption('area');
+  await graphFocus(page, 'area');
   await page.getByRole('button', { name: 'Close node details' }).click();
-  await page.locator('#region-filter > summary').click();
+  await graphFilters(page); await page.locator('#region-filter > summary').click();
   const codes = await page.locator('.region-checks input').evaluateAll(inputs => inputs.map(i => (i as HTMLInputElement).dataset.region!));
   expect(codes).toHaveLength(2);
   await page.locator('[data-none]').click(); await expect(stage).toHaveAttribute('data-visible-routes', '0');
@@ -159,6 +160,6 @@ test('checkbox regions filter topology, search and Follow and retain their devic
   await expect(page.locator('#follow-card')).toContainText('Waiting for activity');
   await visualPacket(page, 2, 'Text'); await expect(page.locator('#follow-card [data-title]')).toContainText('Visual');
   await page.screenshot({ path: info.outputPath('netgraph-region-filter.png') });
-  await page.locator('#region-filter > summary').click(); await page.locator('[data-all]').click();
+  await graphFilters(page); await page.locator('#region-filter > summary').click(); await page.locator('[data-all]').click();
   await expect(stage).toHaveAttribute('data-visible-routes', '2'); await expect(stage).toHaveAttribute('data-areas', '2');
 });

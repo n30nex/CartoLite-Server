@@ -1,9 +1,12 @@
+import { required } from './dom';
+import { requestScreenAwake, releaseScreenAwake } from './screenAwake';
+import { updateSoundChrome } from './soundControls';
 import './networkControls.css';
 import { mountSoundPreview } from './soundPreview';
 import { requestedNode } from './selection';
 import { mountCinematicDock, mountLayerCombinations } from './cinematicChrome';
 import { browserStorage } from './browserStorage';
-import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from './soundScenes';
+import { populateSoundScenes, syncSoundScene } from './soundScenes';
 import { mountDisplayControls } from './displayControls';
 import { loadBasemapConfiguration } from './basemap';
 import { attachMapNotice } from './mapNotice';
@@ -11,7 +14,7 @@ import { DEFAULT_DISPLAY, DISPLAY_EVENT, displayPreferences, initializeDisplay, 
 import './maplibre-base.css';
 import './styles.css';
 import { fetchState, LiveFeed } from './api';
-import { RouteSonifier, type SoundScene, type SoundStatus } from './audio';
+import { RouteSonifier, type SoundScene } from './audio';
 import {
   LIVE_FOLLOW_MIN_INTERVAL_MS,
   LiveMap,
@@ -105,66 +108,6 @@ let scheduledNoteCount = 0;
 let activeViewClass: ViewClass = viewClass();
 let trafficWakeTimer: number | undefined;
 let recentTraffic: number[] = [];
-let screenWakeLock: ScreenWakeLockSentinel | undefined;
-let screenWakeLockRequest: Promise<void> | undefined;
-
-interface ScreenWakeLockSentinel extends EventTarget {
-  readonly released: boolean;
-  release(): Promise<void>;
-}
-
-interface ScreenWakeLockAPI {
-  request(type: 'screen'): Promise<ScreenWakeLockSentinel>;
-}
-
-function mobileScreenAwakeWanted(): boolean {
-  return activeViewClass === 'mobile' || window.matchMedia('(pointer: coarse)').matches;
-}
-
-function requestScreenAwake(): Promise<void> {
-  if (/CartoLiteAndroid\//.test(navigator.userAgent)) { appElement.dataset.screenAwake = 'native'; return Promise.resolve(); }
-  if (!mobileScreenAwakeWanted()) {
-    appElement.dataset.screenAwake = 'desktop';
-    return Promise.resolve();
-  }
-  const api = (navigator as Navigator & { wakeLock?: ScreenWakeLockAPI }).wakeLock;
-  if (!api) {
-    appElement.dataset.screenAwake = 'unsupported';
-    return Promise.resolve();
-  }
-  if (document.hidden || (screenWakeLock && !screenWakeLock.released)) return Promise.resolve();
-  if (screenWakeLockRequest) return screenWakeLockRequest;
-  appElement.dataset.screenAwake = 'requesting';
-  screenWakeLockRequest = api.request('screen')
-    .then(async (sentinel) => {
-      if (document.hidden) {
-        await sentinel.release();
-        return;
-      }
-      screenWakeLock = sentinel;
-      appElement.dataset.screenAwake = 'true';
-      sentinel.addEventListener('release', () => {
-        if (screenWakeLock !== sentinel) return;
-        screenWakeLock = undefined;
-        appElement.dataset.screenAwake = 'false';
-      }, { once: true });
-    })
-    .catch(() => {
-      appElement.dataset.screenAwake = 'retry';
-    })
-    .finally(() => {
-      screenWakeLockRequest = undefined;
-    });
-  return screenWakeLockRequest;
-}
-
-function releaseScreenAwake(): void {
-  const sentinel = screenWakeLock;
-  screenWakeLock = undefined;
-  if (!sentinel || sentinel.released) return;
-  appElement.dataset.screenAwake = 'false';
-  void sentinel.release().catch(() => undefined);
-}
 
 function setLayersOpen(open: boolean): void {
   layersDisclosure.toggleAttribute('open', open);
@@ -759,27 +702,6 @@ function pulseSoundChrome(notes: number): void {
   }, 720);
 }
 
-function updateSoundChrome(status: SoundStatus, volume: number, scene: SoundScene): void {
-  const label = status === 'on' ? 'On' : status === 'resume' ? 'Tap to Resume' : 'Off';
-  const percent = Math.round(volume * 100);
-  const sceneLabel = SOUND_SCENES[scene].label;
-  soundState.textContent = label;
-  soundPanelState.textContent = label;
-  soundButton.dataset.soundState = status;
-  soundPanel.dataset.soundState = status;
-  soundButton.setAttribute('aria-pressed', String(status === 'on'));
-  soundButton.classList.toggle('selected', status === 'on');
-  soundButton.title = status === 'on'
-    ? `Sound on — ${sceneLabel} · ${percent}% · visible live hops only`
-    : status === 'resume'
-      ? `Tap to resume ${sceneLabel} — ${percent}%`
-      : `Sound off — ${sceneLabel} · ${percent}%`;
-  soundToggle.textContent = status === 'on' ? 'Turn sound off' : status === 'resume' ? 'Tap to Resume' : 'Turn sound on';
-  soundVolume.value = String(percent);
-  soundVolumeOutput.value = `${percent}%`;
-  syncSoundScene(soundScene, scene);
-}
-
 function closeSoundPanel(): void {
   soundPanel.hidden = true;
   soundButton.setAttribute('aria-expanded', 'false');
@@ -795,12 +717,6 @@ function closeFindPanel(): void {
 function formatUpdate(timestamp: number): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Waiting for live state…';
   return new Date(timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
-}
-
-function required<T extends HTMLElement>(id: string): T {
-  const element = document.getElementById(id);
-  if (!element) throw new Error(`missing #${id}`);
-  return element as T;
 }
 
 function applyAppearanceChrome(): void {

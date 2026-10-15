@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3 - Compact phone controls
+
+- Use one labelled phone dock with a view picker, Find, Layers/Display, Follow, 3D and Sound. Keep reset, view tools and graph zoom reachable in their menus.
+- Keep Netgraph regions, focus, route visibility and the route window together in its mobile settings sheet; retain desktop controls and saved layouts.
+- Add explicit Find/Sound close buttons, viewport-aware sheets for the keyboard, readable form fields and complete inspector coordinates.
+- Start phone map credits collapsed but accessible, and group secondary map details behind a disclosure. Preserve saved preferences, packet/audio timing and all retained routes.
+
 ## 0.7.2 - Arrange and filter Netgraph regions
 
 - Spread region bubbles with a 100–400% spacing slider; drag a region label or use movement buttons to rearrange its whole group in top-down or 3D.

@@ -1,3 +1,7 @@
+/* Shared document defaults keep all views on the same readable type scale. */
+:root { color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none; }
+* { box-sizing:border-box; }
+button,select,input { font:inherit; }
 .display-settings { display: grid; gap: 10px; min-width: 0; color: var(--ink, #d9e8ee); }
 .display-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 12px; }
 .display-settings select { min-width: 130px; max-width: 58%; min-height: 44px; border: 1px solid var(--panel-border, #41636a); border-radius: 8px; padding: 6px; background: var(--field-bg, #07141a); color: var(--ink-strong, #efffff); font: inherit; }
@@ -23,7 +27,7 @@
 :where(button, select, input, summary, a):focus-visible { outline: 2px solid var(--focus-ring, #69d1ca) !important; outline-offset: 2px; }
 @media (max-width: 900px), (max-height: 520px) { .display-panel { position: fixed; top: 122px; left: auto; right: 8px; max-height: calc(100dvh - 140px); } }
 
-:root[data-theme="dark"] { --ink: #d9e8ee; --ink-strong: #efffff; --muted: #a8bcc7; --field-bg: #07141a; --panel-solid: #08141a; --panel-border: #36545d; --focus-ring: #69d1ca; --selected: #193c3e; color-scheme: dark; }
+:root,:root[data-theme="dark"] { --ink: #d9e8ee; --ink-strong: #efffff; --muted: #a8bcc7; --field-bg: #07141a; --panel-solid: #08141a; --panel-border: #36545d; --focus-ring: #69d1ca; --selected: #193c3e; color-scheme: dark; }
 :root[data-theme="light"] { --ink: #28464c; --ink-strong: #15383f; --muted: #49656a; --field-bg: #f8faf4; --panel-solid: #f3f6ef; --panel-border: #9daeb0; --focus-ring: #006b60; --selected: #d5e7df; color-scheme: light; }
 :root[data-basemap] .netgraph-app, :root[data-basemap] .netgraph-stage { background: var(--scene-background); }
 :root[data-basemap="light"] .graph-grade, :root[data-basemap="streets"] .graph-grade { background: none; box-shadow: inset 0 0 80px rgba(72, 93, 85, 0.05); }
@@ -42,7 +46,6 @@
 .netgraph-app .role-legend i[data-role="companion"] { background: var(--ui-kind-ack); }
 .netgraph-app .role-legend i[data-role="room_server"] { background: var(--ui-kind-control); }
 .netgraph-app .role-legend i[data-role="sensor"] { background: var(--ui-kind-trace); }
-:root[data-theme="light"] .netgraph-app .glass { background: rgba(246, 249, 242, 0.97); border-color: var(--panel-border); box-shadow: 0 6px 24px rgba(25, 49, 51, 0.12); }
 :root[data-theme="light"] :is(.netgraph-app, #app) :is(.brand, .workspace-link, .view-title, .status, .control-button, .reset-button, .scene-control, .volume-control, .route-window, .sound-state, .sound-description, .node-search-results, .node-inspector, .neighbor-row, .graph-summary, .legend, .empty-state, .fatal) { color: var(--ink); }
 :root[data-theme="light"] .netgraph-app :is(button, a, label, strong, h2, h3, dt, dd, p, small, .node-search-name, .node-search-meta, .node-role, .neighbor-label, .neighbor-meta) { color: var(--ink); }
 :root[data-theme="light"] .netgraph-app :is(input, select, .sound-toggle, .neighbor-row, .node-search-result) { background: var(--field-bg); color: var(--ink-strong); border-color: var(--panel-border); }

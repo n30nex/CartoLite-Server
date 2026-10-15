@@ -1,3 +1,4 @@
+import { graphFilters, graphWindow } from './dockControls';
 import { expect, test, type Page } from '@playwright/test';
 import type { StateV2 } from '../src/types';
 
@@ -38,7 +39,7 @@ test('Netgraph renders stable topology, inspection, and synchronized musical hop
   await expect(stage).toHaveAttribute('data-connected-nodes', '4');
   await expect(page.locator('#route-window')).toHaveValue('15m');
   await expect(stage).toHaveAttribute('data-visible-routes', '3');
-  await page.locator('#route-window').selectOption('24h');
+  await graphWindow(page, '24h');
   await expect(stage).toHaveAttribute('data-visible-routes', '4');
   await expect(stage).toHaveAttribute('data-areas', /[2-9]/);
   expect(Number(await stage.getAttribute('data-region-assignments'))).toBeGreaterThan(0);
@@ -73,12 +74,12 @@ test('Netgraph renders stable topology, inspection, and synchronized musical hop
   await expect(stage).toHaveAttribute('data-visible-routes', '5');
   await expect(stage).toHaveAttribute('data-areas', /[2-9]/);
 
-  await page.locator('#route-window').selectOption('15m');
+  await graphWindow(page, '15m');
   await expect(stage).toHaveAttribute('data-visible-routes', '4');
   await expect(page.locator('#node-inspector-sheet')).not.toContainText('Delta Sensor');
 
   if (testInfo.project.name !== 'desktop') {
-    const targets = await page.locator('.control-button:visible, #route-window').evaluateAll((elements) => elements.map((element) => {
+    const targets = await page.locator('.control-button:visible, #route-window:visible').evaluateAll((elements) => elements.map((element) => {
       const rect = element.getBoundingClientRect();
       return { width: rect.width, height: rect.height };
     }));
@@ -101,7 +102,7 @@ test('Netgraph defaults to 15 minutes and preserves an explicit window choice', 
   await page.goto('/netgraph/');
   await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-visible-routes', '3');
   await expect(page.locator('#route-window')).toHaveValue('15m');
-  await page.locator('#route-window').selectOption('1h');
+  await graphWindow(page, '1h');
   await page.reload();
   await expect(page.locator('#route-window')).toHaveValue('1h');
   await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-visible-routes', '4');
@@ -184,6 +185,7 @@ test('native touch pinches, pans, lifts and cancels without jumping or losing se
   await touch('touchEnd', []);
   await expect(stage).toHaveAttribute('data-selected-node-id', 'a');
 
+  await graphFilters(page);
   const zoomStart = (await view()).scale;
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
   expect((await view()).scale).toBeCloseTo(zoomStart * 1.5, 3);

@@ -21,9 +21,10 @@ test('puts everyday layers first and keeps close reachable while scrolling optio
   await openMapOptions(page);
   await page.locator('.display-advanced > summary').click();
   await page.getByLabel('After-trails', { exact: true }).press('End');
+  const expanded = (await page.locator('#layers-panel').boundingBox())!;
   const close = await page.locator('#layers-close').boundingBox();
-  expect(close!.y).toBeGreaterThanOrEqual(panel!.y);
-  expect(close!.y + close!.height).toBeLessThan(panel!.y + 80);
+  expect(close!.y).toBeGreaterThanOrEqual(expanded.y);
+  expect(close!.y + close!.height).toBeLessThan(expanded.y + 80);
   await page.locator('#layers-close').click();
   await expect(page.locator('#layers-summary')).toBeFocused();
 });
@@ -115,8 +116,10 @@ test('Netgraph menus are exclusive for keyboard users and its camera supports ke
     expect(summary!.y + summary!.height <= controls!.y || summary!.x + summary!.width <= controls!.x || summary!.x >= controls!.x + controls!.width).toBe(true);
     expect(summary!.y + summary!.height).toBeLessThanOrEqual(size.height);
     if (size.width > size.height && size.height <= 520) {
-      const legend = await page.locator('#legend').boundingBox();
-      expect(summary!.y + summary!.height <= legend!.y || summary!.x + summary!.width <= legend!.x).toBe(true);
+      await expect(page.locator('#legend')).toBeHidden();
+      await page.locator('#view-button').click();
+      await expect(page.locator('#view-panel #legend')).toBeVisible();
+      await page.keyboard.press('Escape');
     }
   }
 });

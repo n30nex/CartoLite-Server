@@ -23,7 +23,7 @@ test('Netgraph keeps tablet portrait controls spacious and in bounds', async ({ 
   }));
   await page.goto('/netgraph/');
   await expect(page.locator('#netgraph-app')).toHaveAttribute('data-loading', 'false');
-  const controls = await page.locator('#topbar, .controls, .control-button:visible, #route-window').evaluateAll((elements) => elements.map((element) => {
+  const controls = await page.locator('#topbar, .controls, .control-button:visible, #route-window:visible').evaluateAll((elements) => elements.map((element) => {
     const rect = element.getBoundingClientRect();
     return { id: element.id || element.className, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height };
   }));

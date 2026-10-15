@@ -1,5 +1,5 @@
 /* Shared declarations only. View-specific layout and responsive overrides stay in each view. */
-:where(#app, #netgraph-app) .glass { z-index: 5; -webkit-backdrop-filter: blur(14px) saturate(1.18); backdrop-filter: blur(14px) saturate(1.18); }
+:where(#app, #netgraph-app) .glass { z-index: 5; }
 :where(#app, #netgraph-app) .topbar { display: flex; align-items: center; padding: 0 12px; }
 :where(#app, #netgraph-app) .brand { font-size: 13px; letter-spacing: 0.02em; }
 :where(#app, #netgraph-app) .brand-mark { width: 9px; height: 9px; border: 2px solid #35cdbc; border-radius: 50%; box-shadow: 0 0 11px #36d7c2; }

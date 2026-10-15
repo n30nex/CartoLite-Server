@@ -18,6 +18,11 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'mobile-webkit',
+      testMatch: /(?:labs-)?mobile-ux\.spec\.ts/,
+      use: { ...devices['iPhone 13'], launchOptions: { args: [] } }
+    },
+    {
       name: 'desktop',
       testIgnore: /tablet-portrait\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }

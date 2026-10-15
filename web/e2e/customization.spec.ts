@@ -21,16 +21,17 @@ test('map options are compact, persistent, and preserve live layers through styl
   await page.locator('#map-labels-button').click();
   await page.locator('#roads-button').click();
   await page.locator('.display-advanced > summary').click();
+  // One keyboard increment proves a non-default value; repeated software terrain renders add no coverage here.
   await page.locator('#route-opacity').press('Home');
-  for (let step = 0; step < 6; step++) await page.locator('#route-opacity').press('ArrowRight');
+  await page.locator('#route-opacity').press('ArrowRight');
   if (await page.locator('#hillshade-button').getAttribute('aria-pressed') !== 'true') await page.locator('#hillshade-button').click();
   await page.locator('#terrain-relief').press('Home');
-  for (let step = 0; step < 8; step++) await page.locator('#terrain-relief').press('ArrowRight');
+  await page.locator('#terrain-relief').press('ArrowRight');
   await page.locator('#basemap-style').selectOption('streets');
   await expect(map).toHaveAttribute('data-roads-visible', 'false');
   await expect(map).toHaveAttribute('data-node-labels', 'false');
   await expect(map).toHaveAttribute('data-map-labels', 'false');
-  await expect(map).toHaveAttribute('data-route-opacity', '0.5');
+  await expect(map).toHaveAttribute('data-route-opacity', '0.25');
   await page.locator('#live-packets-button').click();
   await expect(page.locator('#packet-canvas')).toBeHidden();
   await page.keyboard.press('Escape');
@@ -42,7 +43,7 @@ test('map options are compact, persistent, and preserve live layers through styl
   await expect(map).toHaveAttribute('data-node-labels', 'false');
   await expect(page.locator('#packet-canvas')).toBeHidden();
   await openMapOptions(page);
-  await expect(page.locator('#terrain-relief')).toHaveValue('40');
+  await expect(page.locator('#terrain-relief')).toHaveValue('5');
   const bounds = await page.locator('#layers-panel').boundingBox();
   const size = page.viewportSize()!;
   expect(bounds!.x).toBeGreaterThanOrEqual(0);

@@ -274,6 +274,10 @@ export class LiveMap {
     this.#updateRouteRepresentation();
     this.map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     const credits = this.container.querySelector<HTMLElement>('.maplibregl-ctrl-attrib')!;
+    // Credits stay one tap away without covering the stationary first phone view.
+    this.map.once('load', () => {
+      if (matchMedia('(max-width: 900px), (pointer: coarse)').matches && credits.hasAttribute('open')) credits.querySelector<HTMLElement>('summary')?.click();
+    });
     const creditSize = new ResizeObserver(() => document.documentElement.style.setProperty('--map-credits-height', `${credits.offsetHeight}px`));
     creditSize.observe(credits);
     this.map.once('remove', () => creditSize.disconnect());

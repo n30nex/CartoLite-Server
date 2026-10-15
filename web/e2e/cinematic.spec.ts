@@ -1,3 +1,4 @@
+import { switchView } from './dockControls';
 import { expect, test } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
@@ -43,7 +44,7 @@ test('compact map corners and dock fit desktop and touch screens', async ({page}
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   await page.screenshot({path:info.outputPath('compact-map-daylight.png')});
   await attribution.press('Enter');
-  await page.getByRole('link',{name:'Open CartoLite Netgraph',exact:true}).click();
+  await switchView(page, 'Netgraph');
   await expect(page.locator('#connected-count')).toHaveText('2');
   await expect(shortcut).toHaveCount(0);
   if(desktop) expect((await page.locator('.controls').boundingBox())!.height).toBeLessThanOrEqual(42);
@@ -106,7 +107,7 @@ test('selected public node stays selected across views and browser Back closes m
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
   await page.getByRole('option',{name:/Visual Alpha/}).click();
   await expect(page.locator('#map')).toHaveAttribute('data-selected-node-id','visual-a');
-  await page.getByRole('link',{name:'Open CartoLite Netgraph',exact:true}).click();
+  await switchView(page, 'Netgraph');
   await expect(page.locator('.node-inspector')).toHaveAttribute('data-node-id','visual-a');
   await page.locator('#display-button').click();await expect(page.locator('#display-panel')).toBeVisible();
   await page.goBack();await expect(page.locator('#display-panel')).toBeHidden();

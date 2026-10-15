@@ -1,3 +1,4 @@
+import { graphFocus, graphRoutes } from './dockControls';
 import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import type { StateV2 } from '../src/types';
@@ -83,13 +84,13 @@ test('3D starts top-down, frames neighbours, inspects the drawn curve and preser
   await expect(stage).toHaveAttribute('data-selected-route-id', 'visual-hop');
   await expect(inspector).toBeVisible();
   await page.getByRole('button', { name: 'Close connection details' }).click();
-  await page.locator('#graph-routes-button').click();
+  await graphRoutes(page);
   await expect(stage).toHaveAttribute('data-history-routes', 'false');
   await stage.click({ position: { x: midpoint[0]!, y: midpoint[1]! } });
   await expect(stage).toHaveAttribute('data-selected-route-id', '');
   // Nearby node markers remain inspectable when historical lines are hidden.
   if (await inspector.isVisible()) await expect(inspector).toHaveAttribute('aria-label', 'Selected node details');
-  await page.locator('#graph-routes-button').click();
+  await graphRoutes(page);
   await page.locator('#display-button').click();
   await page.getByRole('button', { name: 'Rotate topology right' }).click();
   await expect.poll(() => stage.getAttribute('data-view-yaw').then(Number)).toBeGreaterThan(0.2);
@@ -165,9 +166,9 @@ test('explicit selection reveals a quiet node outside an active area focus', asy
   await page.emulateMedia({ reducedMotion: 'reduce' }); await page.goto('/netgraph/');
   const stage = page.locator('#netgraph-stage'), focus = page.getByLabel('Topology focus');
   await page.locator('#graph-3d-button').click(); await selectAlpha(page);
-  await focus.selectOption('area');
+  await graphFocus(page, 'area');
   await page.getByRole('button', { name: 'Close node details' }).click();
-  await focus.selectOption('component');
+  await graphFocus(page, 'component');
   await expect(focus).toHaveValue('area');
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Delta');
   await page.locator('.node-search-result').first().click();

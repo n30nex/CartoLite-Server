@@ -18,7 +18,7 @@ test('keeps tablet portrait controls compact, separated, and touch sized', async
   const disclosure = page.locator('#layers-disclosure');
   await expect(summary).toBeVisible();
   await expect(disclosure).not.toHaveAttribute('open', '');
-  await expect(page.locator('#follow-button, #sound-button, #reset-button')).toHaveCount(3);
+  await expect(page.locator('#follow-button, #sound-button, #view-button')).toHaveCount(3);
   await expect(page.locator('#routes-button')).toBeHidden();
 
   const chrome = await page.locator('#topbar, .controls').evaluateAll((elements) => elements.map((element) => {
@@ -28,7 +28,7 @@ test('keeps tablet portrait controls compact, separated, and touch sized', async
   expect(chrome).toHaveLength(2);
   expect(chrome[0].bottom <= chrome[1].top || chrome[0].right <= chrome[1].left).toBe(true);
 
-  const primarySizes = await page.locator('#follow-button, #sound-button, #reset-button, #layers-summary').evaluateAll(
+  const primarySizes = await page.locator('#follow-button, #sound-button, #view-button, #layers-summary').evaluateAll(
     (elements) => elements.map((element) => {
       const bounds = element.getBoundingClientRect();
       return { width: bounds.width, height: bounds.height };
@@ -41,6 +41,7 @@ test('keeps tablet portrait controls compact, separated, and touch sized', async
 
   await summary.click();
   await expect(disclosure).toHaveAttribute('open', '');
+  await page.locator('#map-detail-options > summary').click();
   await page.locator('#terrain-options > summary').click();
   const layerButtons = ['routes', 'heatmap', 'clusters', 'hillshade', 'terrain'];
   for (const id of layerButtons) await expect(page.locator(`#${id}-button`)).toBeVisible();
