@@ -1,3 +1,7 @@
+/* Shared document defaults keep all views on the same readable type scale. */
+:root { color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none; }
+* { box-sizing:border-box; }
+button,select,input { font:inherit; }
 .display-settings { display: grid; gap: 10px; min-width: 0; color: var(--ink, #d9e8ee); }
 .display-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 12px; }
 .display-settings select { min-width: 130px; max-width: 58%; min-height: 44px; border: 1px solid var(--panel-border, #41636a); border-radius: 8px; padding: 6px; background: var(--field-bg, #07141a); color: var(--ink-strong, #efffff); font: inherit; }

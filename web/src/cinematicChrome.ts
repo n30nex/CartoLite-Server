@@ -100,7 +100,7 @@ export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): voi
     for (const dialog of document.querySelectorAll('dialog[open]')) if (dialog.id !== target) (dialog as HTMLDialogElement).close();
     if (target !== 'region-options') document.querySelector('#region-filter[open]')?.removeAttribute('open');
     for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
-      if(button.getAttribute('aria-controls') !== target) button.click();
+      if(button.getAttribute('aria-controls') !== target) { button.click(); button.focus({ preventScroll:true }); }
     }
     if(target !== 'follow-card') document.querySelector<HTMLButtonElement>('#follow-card:not([hidden]) #follow-close')?.click();
     if(!target) document.querySelector<HTMLButtonElement>('#node-inspector-sheet:not([hidden]) .node-inspector-close')?.click();
