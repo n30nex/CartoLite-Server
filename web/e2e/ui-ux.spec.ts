@@ -21,9 +21,10 @@ test('puts everyday layers first and keeps close reachable while scrolling optio
   await openMapOptions(page);
   await page.locator('.display-advanced > summary').click();
   await page.getByLabel('After-trails', { exact: true }).press('End');
+  const expanded = (await page.locator('#layers-panel').boundingBox())!;
   const close = await page.locator('#layers-close').boundingBox();
-  expect(close!.y).toBeGreaterThanOrEqual(panel!.y);
-  expect(close!.y + close!.height).toBeLessThan(panel!.y + 80);
+  expect(close!.y).toBeGreaterThanOrEqual(expanded.y);
+  expect(close!.y + close!.height).toBeLessThan(expanded.y + 80);
   await page.locator('#layers-close').click();
   await expect(page.locator('#layers-summary')).toBeFocused();
 });

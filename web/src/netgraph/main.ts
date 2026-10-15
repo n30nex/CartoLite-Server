@@ -1,3 +1,6 @@
+import { required } from '../dom';
+import { requestScreenAwake, releaseScreenAwake } from '../screenAwake';
+import { updateSoundChrome as updateSound } from '../soundControls';
 import '../networkControls.css';
 import { mountRegionControls } from './regionControls';
 import { mountGraphFollow } from './follow';
@@ -6,12 +9,12 @@ import { createRouteInspector } from './routeInspector';
 import { mountSoundPreview } from '../soundPreview';
 import { requestedNode, rememberNode, replaceInspector } from '../selection';
 import { mountCinematicDock } from '../cinematicChrome';
-import { populateSoundScenes, syncSoundScene, SOUND_SCENES } from '../soundScenes';
+import { populateSoundScenes, syncSoundScene } from '../soundScenes';
 import { initializeDisplay } from '../displayPreferences';
 import { mountNetgraphDisplay } from '../displayControls';
 import './styles.css';
 import { fetchState, LiveFeed } from '../api';
-import { RouteSonifier, type SoundScene, type SoundStatus } from '../audio';
+import { RouteSonifier, type SoundScene } from '../audio';
 import { buildNodeInspectorModel, createNodeInspectorContent, relativeTime, roleLabel, searchNodes } from '../nodeInspector';
 import { activityLabel, LiveStore } from '../state';
 import { wireNodeSearch } from '../nodeSearch';
@@ -65,18 +68,6 @@ let soundPulseTimer: number | undefined;
 let trafficTimer: number | undefined;
 let recentTraffic: number[] = [];
 let scheduledNotes = 0;
-let wakeLock: ScreenWakeLockSentinel | undefined;
-let wakeLockRequest: Promise<void> | undefined;
-let screenAwakeWanted = true;
-
-interface ScreenWakeLockSentinel extends EventTarget {
-  readonly released: boolean;
-  release(): Promise<void>;
-}
-
-interface ScreenWakeLockAPI {
-  request(type: 'screen'): Promise<ScreenWakeLockSentinel>;
-}
 
 const settings = loadSettings();
 routeWindow.value = settings.routeWindow;
@@ -250,7 +241,7 @@ async function start(): Promise<void> {
       if (!applied) select.value = stage.dataset.focusMode ?? 'all';
     });
 
-    const regions = mountRegionControls(graph, focusControl, () => { updateSummary(); renderInspector(); }, () => { closeFindPanel(); closeSoundPanel(); closeDisplay(); });
+    const regions = mountRegionControls(graph, focusControl, () => { updateSummary(); renderInspector(); }, () => { closeFindPanel(); closeSoundPanel(); if (!focusControl.closest('#display-panel')) closeDisplay(); });
     syncRegions = regions.sync;
     window.addEventListener('pagehide', event => { if (!event.persisted) regions.destroy(); });
 
@@ -447,25 +438,6 @@ function configureSound(sonifier: RouteSonifier): void {
   });
 }
 
-function updateSound(status: SoundStatus, volume: number, scene: SoundScene): void {
-  const label = status === 'on' ? 'On' : status === 'resume' ? 'Tap to Resume' : 'Off';
-  const percent = Math.round(volume * 100);
-  const sceneLabel = SOUND_SCENES[scene].label;
-  soundState.textContent = label;
-  soundPanelState.textContent = label;
-  soundButton.dataset.soundState = status;
-  soundPanel.dataset.soundState = status;
-  soundButton.setAttribute('aria-pressed', String(status === 'on'));
-  soundButton.classList.toggle('selected', status === 'on');
-  soundButton.title = status === 'on'
-    ? `Sound on — ${sceneLabel} · ${percent}% · visible live hops only`
-    : status === 'resume' ? `Tap to resume ${sceneLabel} — ${percent}%` : `Sound off — ${sceneLabel} · ${percent}%`;
-  soundToggle.textContent = status === 'on' ? 'Turn sound off' : status === 'resume' ? 'Tap to Resume' : 'Turn sound on';
-  soundVolume.value = String(percent);
-  soundVolumeOutput.value = `${percent}%`;
-  syncSoundScene(soundScene, scene);
-}
-
 function renderTooltip(node: NodeV2 | null, point?: { x: number; y: number }): void {
   tooltip.replaceChildren();
   if (!node || !point) {
@@ -544,58 +516,6 @@ function saveSettings(window: NetgraphWindow): void {
 
 function isNetgraphWindow(value: unknown): value is NetgraphWindow {
   return value === '15m' || value === '1h' || value === '6h' || value === '24h';
-}
-
-function requestScreenAwake(): Promise<void> {
-  if (/CartoLiteAndroid\//.test(navigator.userAgent)) { app.dataset.screenAwake = 'native'; return Promise.resolve(); }
-  screenAwakeWanted = true;
-  if (!matchMedia('(pointer: coarse)').matches) {
-    app.dataset.screenAwake = 'desktop';
-    return Promise.resolve();
-  }
-  const api = (navigator as Navigator & { wakeLock?: ScreenWakeLockAPI }).wakeLock;
-  if (!api) {
-    app.dataset.screenAwake = 'unsupported';
-    return Promise.resolve();
-  }
-  if (document.hidden || wakeLock && !wakeLock.released) return Promise.resolve();
-  if (wakeLockRequest) return wakeLockRequest;
-  app.dataset.screenAwake = 'requesting';
-  wakeLockRequest = api.request('screen')
-    .then(async (sentinel) => {
-      if (!screenAwakeWanted || document.hidden) {
-        await sentinel.release();
-        app.dataset.screenAwake = 'false';
-        return;
-      }
-      wakeLock = sentinel;
-      app.dataset.screenAwake = 'true';
-      sentinel.addEventListener('release', () => {
-        if (wakeLock === sentinel) {
-          wakeLock = undefined;
-          app.dataset.screenAwake = 'false';
-        }
-      }, { once: true });
-    })
-    .catch(() => { app.dataset.screenAwake = 'retry'; })
-    .finally(() => { wakeLockRequest = undefined; });
-  return wakeLockRequest;
-}
-
-function releaseScreenAwake(): void {
-  screenAwakeWanted = false;
-  app.dataset.screenAwake = 'false';
-  const sentinel = wakeLock;
-  wakeLock = undefined;
-  if (sentinel && !sentinel.released) {
-    void sentinel.release().catch(() => undefined);
-  }
-}
-
-function required<T extends HTMLElement>(id: string): T {
-  const element = document.getElementById(id);
-  if (!element) throw new Error(`missing required element: ${id}`);
-  return element as T;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

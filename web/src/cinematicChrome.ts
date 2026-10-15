@@ -1,3 +1,5 @@
+import { mountMobileDock } from './mobileDock';
+
 /** A single dock, with existing control handlers and accessible names preserved. */
 export function mountCinematicDock(): void {
   const controls = document.querySelector<HTMLElement>('.controls');
@@ -32,7 +34,7 @@ export function mountCinematicDock(): void {
   window.addEventListener('pageshow',()=>dockResize.observe(controls));
   if (!graph) {
     const display = document.createElement('button');
-    display.type = 'button'; display.className = 'control-button'; display.textContent = '◐ Display';
+    display.id = 'display-shortcut'; display.type = 'button'; display.className = 'control-button'; display.textContent = '◐ Display';
     display.setAttribute('aria-label', 'Display settings');
     display.addEventListener('click', () => {
       const disclosure = document.querySelector<HTMLDetailsElement>('#map-appearance');
@@ -42,48 +44,16 @@ export function mountCinematicDock(): void {
     });
     controls.insertBefore(display, controls.querySelector('.sound-control'));
   }
-  if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
-  const menuIDs = ['layers-panel', 'find-panel', 'sound-panel', 'display-panel', 'region-options', 'follow-card', 'node-inspector-sheet'];
-  const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden; });
-  let closingHistory = false;
-  let closingURL = location.href;
-  let pendingNavigation: string | undefined;
-  const syncHistory = () => {
-    if (closingHistory) { closingURL = location.href; return; }
-    const open = openMenu();
-    const current = history.state?.cartolitePanel;
-    if (open && current !== open) {
-      if (open === history.state?.cartoliteParent) { closingHistory = true; closingURL = location.href; history.back(); return; }
-      const replacing = current && current !== 'node-inspector-sheet' && current !== 'follow-card';
-      const state = { ...history.state, cartolitePanel: open, cartoliteParent: replacing ? history.state?.cartoliteParent : current };
-      if(replacing) history.replaceState(state,''); else history.pushState(state,'');
-    } else if(!open && current) { closingHistory = true; closingURL = location.href; history.back(); }
-  };
-  const observer = new MutationObserver(syncHistory);
-  observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});
-  controls.addEventListener('click', event => {
-    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a') : null;
-    if (event instanceof MouseEvent && (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return;
-    if (closingHistory && link) { event.preventDefault(); pendingNavigation = link.href; }
-  });
-  window.addEventListener('popstate', () => {
-    if (closingHistory) {
-      closingHistory = false;
-      history.replaceState(history.state, '', closingURL);
-      if (pendingNavigation) { location.assign(pendingNavigation); pendingNavigation = undefined; }
-      else syncHistory();
-      return;
-    }
-    const target = history.state?.cartolitePanel;
-    if (target !== 'region-options') document.querySelector('#region-filter[open]')?.removeAttribute('open');
-    for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
-      if(button.getAttribute('aria-controls') !== target) button.click();
-    }
-    if(target !== 'follow-card') document.querySelector<HTMLButtonElement>('#follow-card:not([hidden]) #follow-close')?.click();
-    if(!target) document.querySelector<HTMLButtonElement>('#node-inspector-sheet:not([hidden]) .node-inspector-close')?.click();
-  });
-  window.addEventListener('pagehide',()=>observer.disconnect());
-  window.addEventListener('pageshow',()=>observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']}));
+  for (const id of ['find', 'sound']) {
+    const panel = document.getElementById(`${id}-panel`)!, owner = document.getElementById(`${id}-button`)!;
+    let header = panel.querySelector('header');
+    if (!header) { header = document.createElement('header'); header.append(panel.querySelector('label')!); panel.prepend(header); }
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'panel-close'; close.textContent = '×';
+    close.setAttribute('aria-label', id === 'find' ? 'Close node search' : 'Close sound settings');
+    close.addEventListener('click', () => { if (!panel.hidden) owner.click(); owner.focus(); }); header.append(close);
+  }
+  mountMobileDock(controls, navigation, graph ? 'Netgraph' : 'Map');
+  trackPanelHistory(controls, ['view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
   // One menu at a time, including the independently mounted display control.
   let closing = false;
   controls.addEventListener('click', event => {
@@ -96,6 +66,55 @@ export function mountCinematicDock(): void {
     }
     closing = false;
   });
+}
+
+/** Keep Back dismissal shared by the map, graph and Labs menus. */
+export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): void {
+  if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
+  const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden && panel.getClientRects().length; });
+  let closingHistory = false;
+  let closingURL = location.href;
+  let pendingNavigation: string | undefined;
+  const syncHistory = () => {
+    if (closingHistory) { closingURL = location.href; return; }
+    const open = openMenu();
+    const current = history.state?.cartolitePanel;
+    if (open && current !== open) {
+      if (open === history.state?.cartoliteParent) { closingHistory = true; closingURL = location.href; history.back(); return; }
+      const replacing = current && current !== 'node-inspector-sheet' && current !== 'follow-card' && !(current === 'display-panel' && open === 'region-options');
+      const state = { ...history.state, cartolitePanel: open, cartoliteParent: replacing ? history.state?.cartoliteParent : current };
+      if(replacing) history.replaceState(state,''); else history.pushState(state,'');
+    } else if(!open && current) { closingHistory = true; closingURL = location.href; history.back(); }
+  };
+  const observer = new MutationObserver(syncHistory);
+  const observe = () => observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','open']});
+  observe();
+  controls.addEventListener('click', event => {
+    if (event.defaultPrevented) return;
+    const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a') : null;
+    if (event instanceof MouseEvent && (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)) return;
+    if (link) syncHistory();
+    if (closingHistory && link) { event.preventDefault(); pendingNavigation = link.href; }
+  });
+  window.addEventListener('popstate', () => {
+    if (closingHistory) {
+      closingHistory = false;
+      history.replaceState(history.state, '', closingURL);
+      if (pendingNavigation) { location.assign(pendingNavigation); pendingNavigation = undefined; }
+      else syncHistory();
+      return;
+    }
+    const target = history.state?.cartolitePanel;
+    for (const dialog of document.querySelectorAll('dialog[open]')) if (dialog.id !== target) (dialog as HTMLDialogElement).close();
+    if (target !== 'region-options') document.querySelector('#region-filter[open]')?.removeAttribute('open');
+    for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
+      if(button.getAttribute('aria-controls') !== target) button.click();
+    }
+    if(target !== 'follow-card') document.querySelector<HTMLButtonElement>('#follow-card:not([hidden]) #follow-close')?.click();
+    if(!target) document.querySelector<HTMLButtonElement>('#node-inspector-sheet:not([hidden]) .node-inspector-close')?.click();
+  });
+  window.addEventListener('pagehide',()=>observer.disconnect());
+  window.addEventListener('pageshow',()=>{observe();syncHistory();});
 }
 
 export function mountLayerCombinations(): void {
@@ -126,7 +145,7 @@ export function mountLayerCombinations(): void {
 export function followViewport(container: HTMLElement) {
   const box=container.getBoundingClientRect(), width=container.clientWidth, height=container.clientHeight;
   let left=24, right=width-24, top=72, bottom=height-24;
-  for(const selector of ['#topbar','.graph-focus']) {
+  for(const selector of ['#topbar','#graph-summary','.graph-focus']) {
     const chrome=document.querySelector<HTMLElement>(selector);
     if(chrome&&chrome.getClientRects().length)top=Math.max(top,chrome.getBoundingClientRect().bottom-box.top+16);
   }

@@ -1,3 +1,4 @@
+import { graphWindow, viewTool } from './dockControls';
 import { expect, test } from '@playwright/test';
 import type { StateV2 } from '../src/types';
 
@@ -66,7 +67,7 @@ test('Netgraph keeps all 4,000 nodes and 7,000 links responsive', async ({ page 
   expect(Number(await stage.getAttribute('data-render-apply-ms')), 'topology indexing and layout should stay bounded').toBeLessThan(250);
   expect(Number(await stage.getAttribute('data-static-draw-ms')), 'drawing every link should not block interaction').toBeLessThan(100);
 
-  await page.locator('#route-window').selectOption('15m');
+  await graphWindow(page, '15m');
   await expect(stage).toHaveAttribute('data-visible-routes', '7000');
   expect(Number(await stage.getAttribute('data-route-window-apply-ms')), 'age-window filtering should finish within one task').toBeLessThan(100);
 
@@ -85,7 +86,7 @@ test('Netgraph keeps all 4,000 nodes and 7,000 links responsive', async ({ page 
   await page.getByLabel('Region spacing', { exact: true }).focus(); await page.keyboard.press('End');
   await expect(stage).toHaveAttribute('data-region-spacing', '4');
   await page.getByRole('button', { name: 'Move region right', exact: true }).click();
-  await page.keyboard.press('Escape'); await page.locator('#reset-button').click();
+  await page.keyboard.press('Escape'); await viewTool(page, '#reset-button');
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await expect(stage).toHaveAttribute('data-visible-routes', '7000');
   expect(Number(await stage.getAttribute('data-static-draw-ms')), 'arranging regions keeps the same rendering budget').toBeLessThan(100);

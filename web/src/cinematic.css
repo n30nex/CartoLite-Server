@@ -23,7 +23,7 @@ html:root[data-cinematic] .map-notice { bottom: calc(var(--dock-bottom) + 64px);
 .layer-combinations p { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 0; }
 .follow-actions { display: flex; gap: 6px; }
 .follow-scope { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; margin-block: 8px; }
-:root[data-motion="reduced"] *, :root[data-effects="minimal"] .traffic-meter { animation: none !important; transition-duration: 0s !important; }
+:root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after, :root[data-effects="minimal"] .traffic-meter { animation: none !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
 :root[data-text-size="large"] :is(.display-settings label,.control-button,.node-inspector,.node-search-result,.follow-card,.layer-hint,.map-option,.map-slider,.scene-control,.volume-control) { font-size: 15px; }
 :root[data-text-size="large"] :is(.display-note,.sound-description,.neighbor-meta,.follow-detail,.node-role) { font-size: 13px; }
 html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-allowed; }
@@ -33,16 +33,14 @@ html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-a
  html:root[data-cinematic] .controls > *, html:root[data-cinematic] .dock-views { flex: 0 1 auto; }
  html:root[data-cinematic] .controls .control-button { padding-inline: 9px; font-size: 11px; }
  html:root[data-cinematic] .dock-views { border: 0; }
- html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { bottom: calc(100% + 8px); right: 0; width: min(100%, 650px); max-height: calc(100dvh - 185px); }
- html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { position: fixed; top: auto; bottom: calc(var(--dock-bottom) + 112px); left: 8px; right: 8px; width: auto; max-height: min(50dvh, 420px); }
- html:root[data-cinematic] :is(.legend,.route-legend) { bottom: calc(var(--dock-bottom) + 116px); }
+ html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { bottom: calc(100% + 8px); right: 0; width: min(100%, 650px); }
+ html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { position: fixed; top: auto; left: 8px; right: 8px; width: auto; }
  html:root[data-cinematic] .graph-summary { top: 65px; left: 8px; right: auto; font-size: 10px; }
  html:root[data-cinematic] .sound-state, html:root[data-cinematic] #sound-state { display: none; }
  html:root[data-cinematic]:has(.layers-disclosure[open],.find-panel:not([hidden]),.sound-panel:not([hidden]),.display-panel:not([hidden])) :is(.node-inspector-sheet,.follow-card) { visibility: hidden; }
 }
 @media (max-height: 520px) and (orientation: landscape) {
  html:root[data-cinematic] .controls { flex-wrap: wrap; max-width: calc(100vw - 72px); left: calc(50% + 24px); }
- html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { max-height: calc(100dvh - 95px); }
  html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { bottom: 72px; max-height: calc(100dvh - 90px); width: min(350px, 48vw); left: auto; right: 8px; }
 }
 
@@ -52,13 +50,12 @@ html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-a
 @media(max-width:900px) { .graph-focus { top: 106px; left: 8px; } }
 
 html:root[data-cinematic] .controls > :is(.layers-disclosure,.find-control,.sound-control,.popover-control), html:root[data-cinematic] .display-disclosure { position:static; }
-html:root[data-cinematic] .controls #layers-panel { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); width:min(370px,calc(100vw - 24px)); max-height:calc(100dvh - 150px); }
+html:root[data-cinematic] .controls #layers-panel { position:absolute; top:auto; right:0; bottom:calc(100% + 10px); width:min(370px,calc(100vw - 24px)); }
 html:root[data-cinematic] .maplibregl-ctrl-bottom-right { opacity:1; }
 .gpu-packet-canvas { z-index:2; }
 .sound-preview-actions { display:flex; gap:8px; }
 html:root[data-cinematic] .director-enabled[data-follow-inspect="true"] .node-inspector-sheet { visibility:visible; pointer-events:auto; }
-@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] .controls #layers-panel { width:100%; max-height:calc(100dvh - 185px); } }
-@media(max-height:520px) and (orientation:landscape) { html:root[data-cinematic] .controls #layers-panel { max-height:calc(100dvh - 95px); } }
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] .controls #layers-panel { width:100%; } }
 
 :root[data-native-app] .graph-summary { right:68px; }
 
@@ -68,14 +65,12 @@ html:root[data-cinematic] .follow-card header button { min-height:44px; min-widt
 html:root[data-cinematic] .follow-card .follow-scope, html:root[data-cinematic] .follow-card .follow-actions { margin:8px 12px; }
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] .graph-summary { left:8px; right:auto; } }
 
-html:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - 150px)); }
-
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] :is(#app,#netgraph-app)[data-follow-inspect="true"]:has(#node-inspector-sheet:not([hidden])) .follow-card { visibility:hidden; } }
 
 html:root[data-cinematic][data-text-size="large"] .control-button { font-size:15px; }
 :root[data-text-size="large"] #layers-panel .control-button { font-size:15px; }
-html:root[data-cinematic] .controls #layers-panel { height:min(750px,calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px)); max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px); }
-html:root[data-cinematic] .controls :is(.find-panel,.sound-panel,.display-panel) { max-height:calc(100dvh - var(--dock-height) - var(--dock-bottom) - 80px); }
+html:root[data-cinematic] .controls #layers-panel { max-height:calc(var(--available-height,100dvh) - var(--dock-height) - 88px); }
+html:root[data-cinematic] .controls :is(.find-panel,.sound-panel,.display-panel) { max-height:calc(var(--available-height,100dvh) - var(--dock-height) - 88px); }
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card,.legend,.route-legend) { bottom:calc(var(--dock-height) + var(--dock-bottom) + 12px); } }
 
 /* Opaque panels need no backdrop readback over animated geography. */
@@ -89,8 +84,6 @@ html:root[data-cinematic] .control-button { min-width:44px; }
  html:root[data-cinematic] #app #legend[data-focused="true"] #legend-toggle { display:none; }
  html:root[data-cinematic] #app #legend[data-collapsed="true"][data-focused="false"]:not(:has(.region-legend:not([hidden]))) { background:transparent; border-color:transparent; box-shadow:none; }
 }
-
-
 
 html:root[data-cinematic] .follow-card { position:fixed; z-index:8; color:var(--ink); }
 html:root[data-cinematic] .follow-card[hidden] { display:none; }
@@ -111,7 +104,7 @@ html:root[data-cinematic] .director-enabled:not([data-follow-inspect="true"]) .n
 @media(max-width:900px),(pointer:coarse) {
  html:root[data-cinematic] .maplibregl-ctrl-bottom-right { top:max(68px,calc(env(safe-area-inset-top) + 64px)); bottom:auto; }
 }
-html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'©'; }
+html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'Â©'; }
 
 /* Leave the map corners for the legend and credits, beside the desktop dock. */
 @media(min-width:901px) and (pointer:fine) {
@@ -131,3 +124,59 @@ html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'©';
  html:root[data-cinematic] #app #legend .focus-chip { max-width:202px; }
  html:root[data-cinematic][data-dock-tight="true"] { --dock-bottom:max(100px,calc(env(safe-area-inset-bottom) + 96px)); }
 }
+
+/* The phone dock has one labelled row; existing controls move back on desktop. */
+.view-menu { display:none; }
+.panel-close,#view-panel header button { min-width:44px; min-height:44px; border:0; border-radius:8px; background:transparent; color:var(--ink); font-size:22px; cursor:pointer; }
+.find-panel header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sound-panel header .panel-close { margin-left:auto; }
+#view-panel { position:absolute; bottom:calc(100% + 8px); left:0; width:min(360px,100%); max-height:calc(var(--available-height,100dvh) - var(--dock-height) - 88px); padding:8px; overflow:auto; overscroll-behavior:contain; border-radius:14px; }
+#view-panel[hidden] { display:none; }
+#view-panel header { display:flex; justify-content:space-between; align-items:center; position:sticky; top:-8px; z-index:1; background:var(--panel-solid); padding-left:8px; }
+.controls #view-panel .dock-views,#view-panel .view-actions { display:grid; gap:4px; padding:4px 0; border:0; }
+#view-panel .view-actions { border-top:1px solid var(--panel-border); }
+html:root #view-panel .control-button { width:100%; min-height:44px; justify-content:flex-start; padding:8px 12px; font-size:14px; }
+html:root #view-panel .control-button > span { display:inline; position:static; width:auto; height:auto; clip:auto; margin:0; overflow:visible; }
+html:root #view-panel #legend { position:static; width:auto; max-width:none; padding:12px 4px 4px; border:0; box-shadow:none; background:transparent; font-size:11px; }
+html:root[data-mobile-dock="true"] { --dock-bottom:calc(var(--keyboard-offset,0px) + max(8px,env(safe-area-inset-bottom))); }
+html:root[data-mobile-dock="true"] :is(.controls,.labs-controls) { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:2px; width:calc(100vw - max(8px,env(safe-area-inset-left)) - max(8px,env(safe-area-inset-right))); max-width:650px; min-height:0; max-height:none; left:50%; bottom:var(--dock-bottom); padding:4px; overflow:visible; }
+html:root[data-mobile-dock="true"] .view-menu { display:block; min-width:0; }
+html:root[data-mobile-dock="true"] .controls > :is(button,div):not(.view-menu),html:root[data-mobile-dock="true"] #view-button { min-width:0; width:100%; }
+html:root[data-mobile-dock="true"] .controls > button,html:root[data-mobile-dock="true"] .controls > div > button { width:100%; min-width:44px; min-height:46px; padding:4px 2px; justify-content:center; flex-direction:column; gap:2px; font-size:13px; border:0; }
+html:root[data-mobile-dock="true"] .controls > :is(button,div) > button > span:not([aria-hidden]),html:root[data-mobile-dock="true"] .controls > button > span:not([aria-hidden]) { display:inline; }
+html:root[data-mobile-dock="true"][data-text-size="large"] .controls > button,html:root[data-mobile-dock="true"][data-text-size="large"] .controls > div > button { font-size:15px; }
+html:root[data-mobile-dock="true"] .controls #find-control { order:1; }
+html:root[data-mobile-dock="true"] .controls :is(.layers-disclosure,.display-disclosure) { order:2; }
+html:root[data-mobile-dock="true"] .controls #follow-button { order:3; }
+html:root[data-mobile-dock="true"] .controls :is(#terrain-shortcut,#graph-3d-button) { order:4; }
+html:root[data-mobile-dock="true"] .controls #sound-control { order:5; }
+html:root[data-mobile-dock="true"] #display-button[data-filtered] { box-shadow:inset 0 -2px var(--focus-ring); }
+html:root[data-mobile-dock="true"] #sound-state { display:none; }
+html:root #app #view-panel #reset-button::after { content:'Reset view'; }
+html:root[data-mobile-dock="true"] .controls :is(.find-panel,.sound-panel,.display-panel) { width:100%; }
+html:root[data-mobile-dock="true"] .find-panel { display:flex; flex-direction:column; }
+html:root[data-mobile-dock="true"] .find-panel[hidden] { display:none; }
+html:root[data-mobile-dock="true"] .find-panel :is(header,input) { flex:none; }
+html:root[data-mobile-dock="true"] .node-search-results { min-height:0; }
+html:root[data-mobile-dock="true"] :is(.find-panel,.sound-panel,.display-panel,#layers-panel,#view-panel) :is(input:not([type=range]):not([type=checkbox]),select) { font-size:16px; min-height:44px; }
+html:root[data-mobile-dock="true"] input[type=range] { min-height:44px; }
+html:root[data-mobile-dock="true"] .display-panel > header,html:root[data-mobile-dock="true"] .sound-panel > header { position:sticky; top:-13px; z-index:2; background:var(--panel-solid); }
+html:root[data-mobile-dock="true"] .mobile-network-controls { display:grid; gap:8px; border-bottom:1px solid var(--panel-border); padding-bottom:12px; }
+html:root[data-mobile-dock="true"] .display-panel .graph-focus { position:static; display:flex; padding:0; border:0; background:transparent; max-width:none; }
+html:root[data-mobile-dock="true"] .display-panel .route-window { justify-content:space-between; }
+html:root[data-mobile-dock="true"] .display-panel .route-window > span { display:inline; }
+html:root[data-mobile-dock="true"] .display-panel .region-options { position:static; width:100%; max-height:none; box-shadow:none; }
+html:root[data-mobile-dock="true"] .display-panel .region-checks { max-height:30dvh; overflow:auto; }
+html:root[data-mobile-dock="true"] .display-panel .region-filter[open] { flex-basis:100%; }
+html:root[data-mobile-dock="true"] .display-panel .zoom-controls { position:static; display:flex; width:auto; }
+html:root[data-mobile-dock="true"] :is(#app,#netgraph-app) :is(.node-inspector-sheet,.follow-card) { max-height:min(60dvh,calc(var(--available-height,100dvh) - var(--dock-height) - 88px)); }
+html:root[data-mobile-dock="true"] .node-inspector { max-height:none; }
+html:root[data-mobile-dock="true"] .node-inspector :is(dd,header strong) { white-space:normal; overflow-wrap:anywhere; }
+html:root[data-mobile-dock="true"] .node-inspector :is(dd,.neighbor-row span) { font-size:12px; }
+html:root[data-mobile-dock="true"] .node-inspector dt { font-size:11px; }
+html:root[data-mobile-dock="true"]:has(#view-panel:not([hidden])) :is(.node-inspector-sheet,.follow-card) { visibility:hidden; }
+@media(min-width:560px) and (max-height:520px) and (orientation:landscape) {
+ html:root[data-cinematic] .graph-summary { top:max(12px,env(safe-area-inset-top)); right:max(68px,env(safe-area-inset-right)); left:auto; }
+}
+
+@media(max-width:900px),(pointer:coarse) { html:root[data-cinematic][data-native-app] #app #legend-toggle { right:68px; } }

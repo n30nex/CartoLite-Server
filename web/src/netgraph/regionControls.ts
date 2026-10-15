@@ -4,7 +4,7 @@ import type { NetgraphRenderer } from './renderer';
 export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, changed: () => void, closePanels: () => void) {
   const stage = document.getElementById('netgraph-stage')!;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
-  const measure = () => document.documentElement.style.setProperty('--graph-controls-bottom', `${Math.ceil(host.getBoundingClientRect().bottom)}px`);
+  const measure = () => document.documentElement.style.setProperty('--graph-controls-bottom', `${Math.ceil((host.closest('#display-panel') ? document.getElementById('graph-summary')! : host).getBoundingClientRect().bottom)}px`);
   const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined; resize?.observe(host);
   window.addEventListener('resize', measure); measure();
   const menu = graphTemplate<HTMLDetailsElement>('graph-regions-ui');
@@ -41,6 +41,7 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   });
   function sync(): void {
     const prefs = graph.regionLayout(), areas = graph.regions();
+    document.getElementById('display-button')?.toggleAttribute('data-filtered', prefs.regions !== null || !prefs.routes || stage.dataset.focusMode !== 'all');
     spacing.value = String(prefs.spacing); output.value = `${Math.round(prefs.spacing * 100)}%`;
     routes.setAttribute('aria-pressed', String(prefs.routes)); routes.classList.toggle('selected', prefs.routes);
     summary.textContent = `Regions · ${prefs.regions === null ? 'All' : prefs.regions.length}`;

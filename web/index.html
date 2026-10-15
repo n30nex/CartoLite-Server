@@ -35,7 +35,7 @@
       </section>
       <section class="controls glass" aria-label="Map controls">
         <button id="follow-button" class="control-button" type="button" aria-label="Live Follow" aria-pressed="false" title="Follow live packets">
-          <span aria-hidden="true">◎</span><span>Live Follow</span>
+          <span aria-hidden="true">◎</span><span>Follow</span>
         </button>
             <div id="find-control" class="find-control">
               <button id="find-button" class="control-button" type="button" aria-label="Find a node" aria-expanded="false" aria-controls="find-panel" title="Find a node">
@@ -98,15 +98,15 @@
             </label>
               <p id="traffic-layer-help" class="layer-hint">Routes show previously heard links. Live packets control new motion and sound.</p>
             </section>
-            <section class="map-layer-group" aria-labelledby="detail-layer-title">
-              <h2 id="detail-layer-title">Map details</h2>
+            <details id="map-detail-options" class="map-layer-group">
+              <summary>Map details</summary>
               <div class="layer-toggles">
                 <button id="node-labels-button" class="control-button" type="button" aria-label="Node labels" aria-pressed="true"><span>Node labels</span></button>
                 <button id="map-labels-button" class="control-button" type="button" aria-label="Place labels" aria-pressed="true"><span>Place labels</span></button>
                 <button id="roads-button" class="control-button" type="button" aria-label="Roads" aria-pressed="true"><span>Roads</span></button>
 
               </div>
-            </section>
+            </details>
             <details id="terrain-options" class="map-layer-group">
               <summary>Terrain &amp; buildings <span id="terrain-summary">2D</span></summary>
               <div class="layer-group-body">
@@ -136,7 +136,6 @@
             </details>
               </div>
             </details>
-            <button id="reset-layers" class="control-button reset-appearance" type="button">Reset layers</button>
             <details id="map-appearance" class="map-appearance">
               <summary>Appearance <span id="appearance-summary">Night · Crisp</span></summary>
               <div id="map-appearance-content" class="map-appearance-content">
@@ -147,10 +146,11 @@
               <button id="reset-appearance" class="control-button reset-appearance" type="button">Reset all display settings</button>
               <p class="layer-hint">Resets layers and shared Map/Netgraph appearance. Sound settings stay unchanged.</p>
             </details>
+            <button id="reset-layers" class="control-button reset-appearance" type="button">Reset layers</button>
           </div>
         </div>
         <button id="terrain-shortcut" class="control-button" type="button" aria-label="Toggle 3D terrain" aria-pressed="false" title="Show 3D terrain">3D</button>
-        <div class="sound-control">
+        <div id="sound-control" class="sound-control">
           <button id="sound-button" class="control-button" type="button" aria-label="Sound" aria-pressed="false" aria-expanded="false" aria-controls="sound-panel" title="Sound off">
             <svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M5 10v4h3l4 3V7l-4 3z"></path>
