@@ -20,7 +20,10 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
     if (action?.getAttribute('aria-current') === 'page' && !(event instanceof MouseEvent && (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0))) {
       event.preventDefault(); button.focus();
     }
-    if (action && !action.closest('#labs-sound-options')) setOpen(false);
+    if (action && !action.closest('#labs-sound-options')) {
+      if (panel.contains(document.activeElement)) button.focus();
+      setOpen(false);
+    }
   });
   if (view === 'Labs') for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('close', () => {
     if (compact.matches) button.focus();
@@ -58,6 +61,7 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
     }
   };
   compact.addEventListener('change', () => { setOpen(false); sync(); });
+  // Follow is appended with the asynchronous graph focus controls, triggering their rehome together.
   const observer = new MutationObserver(sync); observer.observe(controls, { childList: true });
   sync();
   const measure = () => {
