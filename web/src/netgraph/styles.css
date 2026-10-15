@@ -132,7 +132,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .graph-summary div { display: grid; gap: 1px; }
 .graph-summary div + div { border-left: 1px solid rgba(151, 220, 224, 0.11); padding-left: 13px; }
 .graph-summary strong { color: #eaffff; font-size: 12px; font-variant-numeric: tabular-nums; }
-.graph-summary span { color: #708793; font-size: 8px; letter-spacing: 0.04em; text-transform: uppercase; }
+.graph-summary span { color: var(--muted); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; }
 
 .zoom-controls {
   position: absolute;
