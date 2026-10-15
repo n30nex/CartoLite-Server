@@ -116,8 +116,10 @@ test('Netgraph menus are exclusive for keyboard users and its camera supports ke
     expect(summary!.y + summary!.height <= controls!.y || summary!.x + summary!.width <= controls!.x || summary!.x >= controls!.x + controls!.width).toBe(true);
     expect(summary!.y + summary!.height).toBeLessThanOrEqual(size.height);
     if (size.width > size.height && size.height <= 520) {
-      const legend = await page.locator('#legend').boundingBox();
-      expect(summary!.y + summary!.height <= legend!.y || summary!.x + summary!.width <= legend!.x).toBe(true);
+      await expect(page.locator('#legend')).toBeHidden();
+      await page.locator('#view-button').click();
+      await expect(page.locator('#view-panel #legend')).toBeVisible();
+      await page.keyboard.press('Escape');
     }
   }
 });

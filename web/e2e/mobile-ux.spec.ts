@@ -44,7 +44,7 @@ test('phone search and sound have explicit close actions and fit above a keyboar
   await visualFixture(page); await page.goto('/');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual');
-  await expect(page.locator('.node-search-result')).toHaveCount(2);
+  await expect(page.locator('.node-search-result')).toHaveCount(3);
   await page.evaluate(()=>{
     Object.defineProperty(window.visualViewport!, 'height', {configurable:true,value:340});
     Object.defineProperty(window.visualViewport!, 'offsetTop', {configurable:true,value:0});

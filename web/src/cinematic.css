@@ -1,6 +1,6 @@
 /* Cinematic chrome is shared by Map and Netgraph; the scene keeps the space. */
 html:root[data-cinematic] { --dock-bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)); --dock-height: 42px; }
-html:root[data-cinematic] .glass { background: var(--panel-solid); border-color: var(--panel-border); box-shadow: 0 8px 28px #0003; }
+html:root .glass { color:var(--ink); background:var(--panel-solid); border:1px solid var(--panel-border); box-shadow:0 8px 28px #0003; backdrop-filter:none; -webkit-backdrop-filter:none; transition:border-color 180ms,background-color 180ms; }
 html:root[data-cinematic] .controls { position: fixed; top: auto; right: auto; bottom: var(--dock-bottom); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: nowrap; gap: 2px; max-width: calc(100vw - 24px); border-radius: 18px; padding: 4px; z-index: 20; }
 html:root[data-cinematic] .toolbar { position: static; }
 html:root[data-cinematic] .topbar { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; right: auto; width: auto; border-radius: 14px; z-index: 12; }
@@ -15,7 +15,6 @@ html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { top: max(72p
 html:root[data-cinematic] .follow-card { left: 12px; right: auto; }
 html:root[data-cinematic] :is(.legend,.route-legend,.graph-summary) { bottom: calc(var(--dock-bottom) + 64px); }
 html:root[data-cinematic] .graph-summary { top: 12px; right: 12px; bottom: auto; }
-html:root[data-cinematic] .zoom-controls { bottom: 22px; top: auto; }
 html:root[data-cinematic] .map-notice { bottom: calc(var(--dock-bottom) + 64px); }
 .layer-combinations { padding: 8px 0 14px; border-bottom: 1px solid var(--panel-border); font-size: 12px; }
 .layer-combinations > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -69,12 +68,11 @@ html:root[data-cinematic] .follow-card .follow-scope, html:root[data-cinematic] 
 
 html:root[data-cinematic][data-text-size="large"] .control-button { font-size:15px; }
 :root[data-text-size="large"] #layers-panel .control-button { font-size:15px; }
-html:root[data-cinematic] .controls #layers-panel { max-height:calc(var(--available-height,100dvh) - var(--dock-height) - 88px); }
-html:root[data-cinematic] .controls :is(.find-panel,.sound-panel,.display-panel) { max-height:calc(var(--available-height,100dvh) - var(--dock-height) - 88px); }
+html:root[data-cinematic] .controls #layers-panel { max-height:calc(var(--available-height,100dvh) - var(--dock-height) - var(--dock-bottom,12px) + var(--keyboard-offset,0px) - 80px); }
+html:root[data-cinematic] .controls :is(.find-panel,.sound-panel,.display-panel) { max-height:calc(var(--available-height,100dvh) - var(--dock-height) - var(--dock-bottom,12px) + var(--keyboard-offset,0px) - 80px); }
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card,.legend,.route-legend) { bottom:calc(var(--dock-height) + var(--dock-bottom) + 12px); } }
 
 /* Opaque panels need no backdrop readback over animated geography. */
-html:root[data-cinematic] .glass { backdrop-filter:none; -webkit-backdrop-filter:none; }
 html:root[data-cinematic] .controls .zoom-controls { position:static; display:flex; flex:none; width:88px; padding:0; border:0; background:transparent; box-shadow:none; border-radius:10px; }
 html:root[data-cinematic] .controls .zoom-controls .control-button { width:44px; min-width:44px; height:44px; padding:0; font-size:20px; }
 
@@ -104,7 +102,7 @@ html:root[data-cinematic] .director-enabled:not([data-follow-inspect="true"]) .n
 @media(max-width:900px),(pointer:coarse) {
  html:root[data-cinematic] .maplibregl-ctrl-bottom-right { top:max(68px,calc(env(safe-area-inset-top) + 64px)); bottom:auto; }
 }
-html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'Â©'; }
+html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'\00a9'; }
 
 /* Leave the map corners for the legend and credits, beside the desktop dock. */
 @media(min-width:901px) and (pointer:fine) {
@@ -130,7 +128,7 @@ html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'Â©
 .panel-close,#view-panel header button { min-width:44px; min-height:44px; border:0; border-radius:8px; background:transparent; color:var(--ink); font-size:22px; cursor:pointer; }
 .find-panel header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .sound-panel header .panel-close { margin-left:auto; }
-#view-panel { position:absolute; bottom:calc(100% + 8px); left:0; width:min(360px,100%); max-height:calc(var(--available-height,100dvh) - var(--dock-height) - 88px); padding:8px; overflow:auto; overscroll-behavior:contain; border-radius:14px; }
+#view-panel { position:absolute; bottom:calc(100% + 8px); left:0; width:min(360px,100%); max-height:calc(var(--available-height,100dvh) - var(--dock-height) - var(--dock-bottom,12px) + var(--keyboard-offset,0px) - 80px); padding:8px; overflow:auto; overscroll-behavior:contain; border-radius:14px; }
 #view-panel[hidden] { display:none; }
 #view-panel header { display:flex; justify-content:space-between; align-items:center; position:sticky; top:-8px; z-index:1; background:var(--panel-solid); padding-left:8px; }
 .controls #view-panel .dock-views,#view-panel .view-actions { display:grid; gap:4px; padding:4px 0; border:0; }
@@ -152,7 +150,7 @@ html:root[data-mobile-dock="true"] .controls :is(#terrain-shortcut,#graph-3d-but
 html:root[data-mobile-dock="true"] .controls #sound-control { order:5; }
 html:root[data-mobile-dock="true"] #display-button[data-filtered] { box-shadow:inset 0 -2px var(--focus-ring); }
 html:root[data-mobile-dock="true"] #sound-state { display:none; }
-html:root #app #view-panel #reset-button::after { content:'Reset view'; }
+html:root #app #view-panel #reset-button::after { content:'Reset map view'; }
 html:root[data-mobile-dock="true"] .controls :is(.find-panel,.sound-panel,.display-panel) { width:100%; }
 html:root[data-mobile-dock="true"] .find-panel { display:flex; flex-direction:column; }
 html:root[data-mobile-dock="true"] .find-panel[hidden] { display:none; }
@@ -169,8 +167,8 @@ html:root[data-mobile-dock="true"] .display-panel .region-options { position:sta
 html:root[data-mobile-dock="true"] .display-panel .region-checks { max-height:30dvh; overflow:auto; }
 html:root[data-mobile-dock="true"] .display-panel .region-filter[open] { flex-basis:100%; }
 html:root[data-mobile-dock="true"] .display-panel .zoom-controls { position:static; display:flex; width:auto; }
-html:root[data-mobile-dock="true"] :is(#app,#netgraph-app) :is(.node-inspector-sheet,.follow-card) { max-height:min(60dvh,calc(var(--available-height,100dvh) - var(--dock-height) - 88px)); }
-html:root[data-mobile-dock="true"] .node-inspector { max-height:none; }
+html:root[data-mobile-dock="true"] :is(#app,#netgraph-app) :is(.node-inspector-sheet,.follow-card) { max-height:min(60dvh,calc(var(--available-height,100dvh) - var(--dock-height) - var(--dock-bottom,12px) + var(--keyboard-offset,0px) - 80px)); }
+html:root[data-mobile-dock="true"] .node-inspector { min-width:0; max-height:none; }
 html:root[data-mobile-dock="true"] .node-inspector :is(dd,header strong) { white-space:normal; overflow-wrap:anywhere; }
 html:root[data-mobile-dock="true"] .node-inspector :is(dd,.neighbor-row span) { font-size:12px; }
 html:root[data-mobile-dock="true"] .node-inspector dt { font-size:11px; }

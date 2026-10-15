@@ -42,7 +42,6 @@
 .netgraph-app .role-legend i[data-role="companion"] { background: var(--ui-kind-ack); }
 .netgraph-app .role-legend i[data-role="room_server"] { background: var(--ui-kind-control); }
 .netgraph-app .role-legend i[data-role="sensor"] { background: var(--ui-kind-trace); }
-:root[data-theme="light"] .netgraph-app .glass { background: rgba(246, 249, 242, 0.97); border-color: var(--panel-border); box-shadow: 0 6px 24px rgba(25, 49, 51, 0.12); }
 :root[data-theme="light"] :is(.netgraph-app, #app) :is(.brand, .workspace-link, .view-title, .status, .control-button, .reset-button, .scene-control, .volume-control, .route-window, .sound-state, .sound-description, .node-search-results, .node-inspector, .neighbor-row, .graph-summary, .legend, .empty-state, .fatal) { color: var(--ink); }
 :root[data-theme="light"] .netgraph-app :is(button, a, label, strong, h2, h3, dt, dd, p, small, .node-search-name, .node-search-meta, .node-role, .neighbor-label, .neighbor-meta) { color: var(--ink); }
 :root[data-theme="light"] .netgraph-app :is(input, select, .sound-toggle, .neighbor-row, .node-search-result) { background: var(--field-bg); color: var(--ink-strong); border-color: var(--panel-border); }

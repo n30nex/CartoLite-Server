@@ -22,7 +22,7 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
     }
     if (action && !action.closest('#labs-sound-options')) setOpen(false);
   });
-  for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('close', () => {
+  if (view === 'Labs') for (const dialog of document.querySelectorAll('dialog')) dialog.addEventListener('close', () => {
     if (compact.matches) button.focus();
   });
   const anchors = new Map<HTMLElement, Comment>();
@@ -38,7 +38,6 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
   let traffic: HTMLElement | undefined;
   const sync = () => {
     root.dataset.mobileDock = String(compact.matches);
-    if (/CartoLiteAndroid\//.test(navigator.userAgent)) root.dataset.nativeApp = 'true';
     move(navigation, panel);
     // Navigation precedes secondary actions, even when controls arrive after the feed.
     if (compact.matches && navigation.nextSibling !== actions) panel.insertBefore(navigation, actions);
@@ -66,6 +65,7 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
     root.style.setProperty('--available-height', `${viewport?.height ?? innerHeight}px`);
     root.style.setProperty('--keyboard-offset', `${Math.max(0, innerHeight - (viewport ? viewport.height + viewport.offsetTop : innerHeight))}px`);
     root.style.setProperty('--dock-height', `${controls.offsetHeight}px`);
+    root.dataset.dockTight = String(innerWidth - controls.offsetWidth < 480);
   };
   const resize = new ResizeObserver(measure); resize.observe(controls);
   window.addEventListener('resize', measure);

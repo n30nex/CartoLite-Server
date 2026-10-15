@@ -41,7 +41,7 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   });
   function sync(): void {
     const prefs = graph.regionLayout(), areas = graph.regions();
-    document.getElementById('display-button')?.toggleAttribute('data-filtered', prefs.regions !== null || !prefs.routes || stage.dataset.focusMode !== 'all');
+    document.getElementById('display-button')?.toggleAttribute('data-filtered', prefs.regions !== null || !prefs.routes || (stage.dataset.focusMode ?? 'all') !== 'all');
     spacing.value = String(prefs.spacing); output.value = `${Math.round(prefs.spacing * 100)}%`;
     routes.setAttribute('aria-pressed', String(prefs.routes)); routes.classList.toggle('selected', prefs.routes);
     summary.textContent = `Regions · ${prefs.regions === null ? 'All' : prefs.regions.length}`;

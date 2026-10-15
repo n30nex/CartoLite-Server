@@ -71,16 +71,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   box-shadow: inset 0 0 110px rgba(0, 4, 8, 0.28);
 }
 
-.glass { border: 1px solid rgba(151, 220, 224, 0.16); background: linear-gradient(145deg, rgba(8, 20, 26, 0.9), rgba(2, 9, 14, 0.82)); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.34), inset 0 1px rgba(219, 255, 255, 0.04); }
-
 /* Live canvases need not be blurred again underneath every Android control. */
-@media (pointer: coarse), (max-width: 700px) {
-  .glass {
-    background: linear-gradient(145deg, #08141a, #02090e);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-}
 
 .topbar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); min-height: 46px; gap: 15px; border-radius: 13px; }
 .brand, .workspace-link, .view-title, .status { display: inline-flex; min-height: 44px; align-items: center; gap: 7px; }
@@ -197,48 +188,28 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 @keyframes traffic-brand { 45% { border-color: rgb(var(--traffic-rgb)); box-shadow: 0 0 15px rgba(var(--traffic-rgb), 0.9); transform: scale(1.25); } }
 @keyframes sound-hop { 45% { filter: drop-shadow(0 0 6px #6ce2c5); transform: scale(1.13); } }
 
-@media (min-width: 701px) and (max-width: 1160px) {
-  .controls .control-button > span:last-child { display: none; }
-  .route-window > span { display: none; }
-}
-
 @media (max-width: 700px), (pointer: coarse) and (max-width: 900px) {
   .topbar { top: max(8px, env(safe-area-inset-top)); right: 8px; left: 8px; max-width: none; gap: 12px; padding: 0 10px; }
   .brand, .view-title, .workspace-link, .status { min-width: 36px; }
   .brand > span:last-child, .workspace-link > span:last-child, #status-text { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .view-title > span:last-child { font-size: 9px; }
-  .controls { top: max(62px, calc(env(safe-area-inset-top) + 62px)); right: 8px; }
-  .zoom-controls { top: max(116px, calc(env(safe-area-inset-top) + 116px)); left: max(8px, env(safe-area-inset-left)); }
-  .controls .control-button > span:not([aria-hidden="true"]), .route-window > span { display: none; }
   .control-button { padding-inline: 9px; }
   .control-button small { display: none; }
   .route-window { padding: 0 5px; }
   .route-window select { width: 70px; min-height: 38px; padding-inline: 6px 18px; font-size: 10px; }
-  .find-panel { position: fixed; top: max(116px, calc(env(safe-area-inset-top) + 116px)); right: 8px; left: 8px; width: auto; }
-  .sound-panel { position: fixed; top: max(116px, calc(env(safe-area-inset-top) + 116px)); right: 8px; width: min(250px, calc(100vw - 16px)); }
   .graph-summary { top: max(62px, calc(env(safe-area-inset-top) + 62px)); left: 8px; gap: 9px; padding: 7px 8px; }
   .graph-summary div + div { padding-left: 9px; }
   .legend { right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); left: 8px; gap: 5px; padding: 7px 9px; }
   .role-legend, .packet-legend { gap: 5px 9px; }
-  .node-inspector-sheet { top: auto; right: 8px; bottom: max(62px, calc(env(safe-area-inset-bottom) + 62px)); left: 8px; width: auto; max-height: min(48vh, 430px); }
-  .node-inspector { max-height: min(48vh, 430px); }
 }
 
 @media (max-width: 480px) {
-  .view-title > span:last-child { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
   .graph-summary span { display: none; }
   .legend { font-size: 8px; }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
-  .graph-summary { display: none; }
   .legend { right: 8px; bottom: 8px; left: auto; max-width: 58vw; }
-  .node-inspector-sheet { top: max(116px, calc(env(safe-area-inset-top) + 116px)); right: 8px; bottom: 8px; left: auto; width: min(440px, 48vw); max-height: none; }
-  .node-inspector { grid-template-columns: minmax(190px, 0.8fr) minmax(0, 1.2fr); grid-template-rows: auto minmax(0, 1fr); max-height: calc(100vh - 124px - env(safe-area-inset-top)); }
-  .node-inspector > header { grid-column: 1; grid-row: 1; }
-  .node-inspector dl { grid-column: 1; grid-row: 2; }
-  .node-inspector h3 { grid-column: 2; grid-row: 1; align-self: end; }
-  .node-inspector .neighbor-list { grid-column: 2; grid-row: 2; min-height: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -267,15 +238,6 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 @media (orientation: landscape) and (max-height: 520px) and (max-width: 600px) {
   .graph-summary { display: grid; grid-template-columns: repeat(2, max-content); gap: 3px 12px; }
   .graph-summary div + div { border: 0; padding-left: 0; }
-}
-
-@media(max-width:480px) {
-  html:root[data-cinematic] #netgraph-app .dock-views a { padding-inline:2px; }
-  html:root[data-cinematic] #netgraph-app .controls { gap:1px; }
-  html:root[data-cinematic] #netgraph-app .route-window select { width:56px; }
-}
-@media(max-width:480px) and (orientation:portrait) {
-  html:root[data-cinematic] #netgraph-app :is(.node-inspector-sheet,.node-inspector) { max-height:min(50dvh,calc(100dvh - var(--dock-height) - var(--dock-bottom) - 260px)); }
 }
 
 /* Region controls use the existing focus row and Display sheet. */
