@@ -23,7 +23,7 @@
 :where(button, select, input, summary, a):focus-visible { outline: 2px solid var(--focus-ring, #69d1ca) !important; outline-offset: 2px; }
 @media (max-width: 900px), (max-height: 520px) { .display-panel { position: fixed; top: 122px; left: auto; right: 8px; max-height: calc(100dvh - 140px); } }
 
-:root[data-theme="dark"] { --ink: #d9e8ee; --ink-strong: #efffff; --muted: #a8bcc7; --field-bg: #07141a; --panel-solid: #08141a; --panel-border: #36545d; --focus-ring: #69d1ca; --selected: #193c3e; color-scheme: dark; }
+:root,:root[data-theme="dark"] { --ink: #d9e8ee; --ink-strong: #efffff; --muted: #a8bcc7; --field-bg: #07141a; --panel-solid: #08141a; --panel-border: #36545d; --focus-ring: #69d1ca; --selected: #193c3e; color-scheme: dark; }
 :root[data-theme="light"] { --ink: #28464c; --ink-strong: #15383f; --muted: #49656a; --field-bg: #f8faf4; --panel-solid: #f3f6ef; --panel-border: #9daeb0; --focus-ring: #006b60; --selected: #d5e7df; color-scheme: light; }
 :root[data-basemap] .netgraph-app, :root[data-basemap] .netgraph-stage { background: var(--scene-background); }
 :root[data-basemap="light"] .graph-grade, :root[data-basemap="streets"] .graph-grade { background: none; box-shadow: inset 0 0 80px rgba(72, 93, 85, 0.05); }

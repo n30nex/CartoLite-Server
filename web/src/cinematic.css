@@ -27,11 +27,7 @@ html:root[data-cinematic] .map-notice { bottom: calc(var(--dock-bottom) + 64px);
 :root[data-text-size="large"] :is(.display-note,.sound-description,.neighbor-meta,.follow-detail,.node-role) { font-size: 13px; }
 html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-allowed; }
 @media (max-width: 900px), (pointer: coarse) {
- html:root[data-cinematic] { --dock-bottom: max(8px, env(safe-area-inset-bottom)); --dock-height: 96px; }
- html:root[data-cinematic] .controls { width: calc(100vw - 16px); max-width: 650px; display: flex; flex-wrap: wrap; justify-content: center; border-radius: 16px; }
- html:root[data-cinematic] .controls > *, html:root[data-cinematic] .dock-views { flex: 0 1 auto; }
- html:root[data-cinematic] .controls .control-button { padding-inline: 9px; font-size: 11px; }
- html:root[data-cinematic] .dock-views { border: 0; }
+ html:root[data-cinematic] .controls { border-radius:16px; }
  html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { bottom: calc(100% + 8px); right: 0; width: min(100%, 650px); }
  html:root[data-cinematic] :is(.node-inspector-sheet,.follow-card) { position: fixed; top: auto; left: 8px; right: 8px; width: auto; }
  html:root[data-cinematic] .graph-summary { top: 65px; left: 8px; right: auto; font-size: 10px; }

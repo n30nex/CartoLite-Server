@@ -71,9 +71,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   box-shadow: inset 0 0 110px rgba(0, 4, 8, 0.28);
 }
 
-/* Live canvases need not be blurred again underneath every Android control. */
 
-.topbar { position: absolute; top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); min-height: 46px; gap: 15px; border-radius: 13px; }
+
+.topbar { min-height: 46px; gap: 15px; }
 .brand, .workspace-link, .view-title, .status { display: inline-flex; min-height: 44px; align-items: center; gap: 7px; }
 .brand, .workspace-link { color: #effdff; text-decoration: none; }
 .brand { font-weight: 760; }
@@ -89,7 +89,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .traffic-meter[data-level="4"] i:nth-child(-n+4),
 .traffic-meter[data-level="5"] i:nth-child(-n+5) { background: rgba(var(--traffic-rgb), 0.92); }
 .traffic-meter i:nth-child(2), .traffic-meter i:nth-child(4) { max-height: 7px; }
-.controls { z-index: 8; position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); min-height: 46px; border-radius: 13px; }
+
 .popover-control { position: relative; display: flex; }
 .control-button { min-width: 44px; justify-content: center; gap: 7px; color: #bacbd5; font-weight: 680; }
 .control-button:hover, .control-button:focus-visible, .control-button.selected { color: #efffff; outline-offset: -3px; }
