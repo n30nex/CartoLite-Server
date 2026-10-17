@@ -146,7 +146,10 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   // Deliberately restyle only basemap paint. Routes, terrain, regions and source
   // visibility continue to be owned by LiveMap and the user's layer controls.
   function style() {
-    if (disposed || failed || !map.isStyleLoaded()) return;
+    const ids = map.getLayersOrder();
+    // Paint settings are valid once the stylesheet exists. Waiting for every
+    // tile/source to load can leave the ordinary palette on a busy live map.
+    if (disposed || failed || !ids.includes('basemap-water')) return;
     const setPaint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
       const current = map.getPaintProperty(layer, property as Parameters<typeof map.getPaintProperty>[1]);
       if (current === value) return;
@@ -155,7 +158,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     };
     // Public layer ordering includes custom layers and avoids serializing all
     // retained GeoJSON just to inspect a few layer IDs and types.
-    const layers = map.getLayersOrder().map(id => map.getLayer(id)!);
+    const layers = ids.map(id => map.getLayer(id)!);
     labelLayers = layers.filter(layer => layer.type === 'symbol' || layer.id === 'nodes' || layer.id === 'clusters').map(layer => layer.id);
     for (const layer of layers) {
       if (layer.type === 'symbol') {
@@ -174,12 +177,19 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     return { columns: Math.max(1,Math.ceil(width/cw)), rows: Math.max(1,Math.ceil(height/ch)), ascii: preferences.glyphs === 'ascii', colors: TERMINAL_COLORS.map((_,i) => terminalColor(i,preferences.palette)) };
   }, paint, fail, () => !disposed && !failed && !document.hidden);
   const visibility = () => { if (document.hidden) capture.suspend(); else { style(); schedule(); } };
+  // Appearance/terrain can finish loading while the camera or feed keeps the
+  // map busy. Do not wait for idle to reapply the encoded cartographic colours.
+  const ensureStyle = () => {
+    if (map.getLayer('basemap-water') && (map.getPaintProperty('basemap-water','fill-color') !== '#08145a'
+      || (map.getLayer('node-labels') && map.getPaintProperty('node-labels','text-opacity') !== 0))) style();
+  };
   const restored = () => {
     failed = false; root.dataset.terminal = 'true'; delete root.dataset.terminalFallback; notice.hidden = true;
     applyDisplayChrome(); view.setAppearance(undefined, true); animator.refreshAppearance(); style(); schedule();
   };
   notice.querySelector('button')!.addEventListener('click', restored);
   map.on('load', style); map.on('idle', style);
+  map.on('render', ensureStyle);
   map.on('webglcontextrestored', restored);
   document.addEventListener('visibilitychange', visibility);
   animator.setFrameSink(source => {
@@ -194,6 +204,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     if (disposed) return;
     disposed = true; capture.destroy(); animator.setFrameSink(undefined);
     map.off('load', style); map.off('idle', style);
+    map.off('render', ensureStyle);
     map.off('webglcontextrestored', restored);
     map.off('remove', destroy);
     document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage);
