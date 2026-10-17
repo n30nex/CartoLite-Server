@@ -6,6 +6,7 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
   const measure = () => document.documentElement.style.setProperty('--graph-controls-bottom', `${Math.ceil((host.closest('#display-panel') ? document.getElementById('graph-summary')! : host).getBoundingClientRect().bottom)}px`);
   const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined; resize?.observe(host);
+  resize?.observe(document.getElementById('graph-summary')!);
   window.addEventListener('resize', measure); measure();
   const menu = graphTemplate<HTMLDetailsElement>('graph-regions-ui');
   const summary = menu.querySelector('summary')!, search = menu.querySelector('input')!, list = menu.querySelector<HTMLElement>('.region-checks')!;

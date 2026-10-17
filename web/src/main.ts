@@ -1,4 +1,5 @@
 import { required } from './dom';
+import { closeHelpBackdrop } from './viewHelp';
 import { requestScreenAwake, releaseScreenAwake } from './screenAwake';
 import { updateSoundChrome } from './soundControls';
 import './networkControls.css';
@@ -139,7 +140,7 @@ renderRouteLegend(routeLegend);
 aboutButton.addEventListener('click', () => { closeFindPanel(); closeSoundPanel(); setLayersOpen(false); aboutDialog.showModal(); });
 aboutClose.addEventListener('click', () => aboutDialog.close());
 aboutDialog.addEventListener('click', (event) => {
-  if (event.target === aboutDialog) aboutDialog.close();
+  closeHelpBackdrop(aboutDialog, event);
 });
 layersSummary.addEventListener('click', () => {
   const opening = !layersDisclosure.hasAttribute('open');

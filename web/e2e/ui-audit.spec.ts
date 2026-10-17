@@ -165,6 +165,7 @@ test.describe('UI audit controls', () => {
       await expect(dialog).toContainText('Observer-only');
       await page.screenshot({ path: info.outputPath(`help-${width}.png`) });
       expect(await dialog.evaluate(element => { const box = element.getBoundingClientRect(); return box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight; })).toBe(true);
+      await dialog.click({ position: { x: 4, y: 60 } }); await expect(dialog).toBeVisible();
       await dialog.evaluate(element => { element.scrollTop = element.scrollHeight; });
       const close = dialog.locator('header button');
       expect(await close.evaluate(element => { const r = element.getBoundingClientRect(), box = element.closest('dialog')!.getBoundingClientRect(); return r.top >= box.top && r.bottom <= box.bottom && element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); })).toBe(true);
@@ -176,6 +177,14 @@ test.describe('UI audit controls', () => {
       expect(new URL(page.url()).pathname).toBe(path);
       await expect(scene).toHaveAttribute('data-selected-node-id', 'visual-a');
     }
+    await viewTool(page, '#help-button');
+    await expect(page.locator('#about-dialog')).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const compact = await page.evaluate(() => matchMedia('(max-width: 900px), (pointer: coarse)').matches);
+    await expect(page.locator('html')).toHaveAttribute('data-mobile-dock', String(compact));
+    await page.keyboard.press('Escape'); await expect(page.locator('#about-dialog')).toBeHidden();
+    await expect(page.locator(compact ? '#view-button' : path === '/netgraph/' ? '#display-button' : '#display-shortcut')).toBeFocused();
+    await expect(scene).toHaveAttribute('data-selected-node-id', 'visual-a');
   });
 
   test('Terminal exposes its own palette while preserving the saved ordinary map style', async ({ page }, info) => {
@@ -198,6 +207,10 @@ test.describe('UI audit controls', () => {
   test('active graph filters remain visible and clear without resetting route visibility or layout', async ({ page }, info) => {
     await visualFixture(page); await page.goto('/netgraph/');
     await expect(page.locator('#connected-count')).toHaveText('2');
+    await openDisplay(page); await page.locator('.graph-layout > summary').click();
+    await page.getByLabel('Region spacing', { exact: true }).press('ArrowRight');
+    await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-region-spacing', '1.1');
+    await page.keyboard.press('Escape');
     await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
     await page.locator('.node-search-result').first().click();
     await graphFocus(page, 'component');
@@ -216,6 +229,18 @@ test.describe('UI audit controls', () => {
     await expect(page.getByLabel('Topology focus')).toHaveValue('all');
     await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-region-spacing', spacing!);
     await expect(page.locator('#graph-scope')).toHaveText('Routes hidden');
+    await page.keyboard.press('Escape');
+    if (await page.locator('#display-panel').isVisible()) await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 568, height: 320 });
+    await expect(page.locator('html')).toHaveAttribute('data-mobile-dock', 'true');
+    await openDisplay(page); await page.getByLabel('Text size', { exact: true }).selectOption('large'); await page.keyboard.press('Escape');
+    await page.locator('#follow-button').click(); await visualPacket(page, 1);
+    await expect(page.locator('#follow-card')).toContainText('Visual Alpha');
+    await expect.poll(() => page.evaluate(() => {
+      const summary = document.getElementById('graph-summary')!.getBoundingClientRect(), card = document.getElementById('follow-card')!.getBoundingClientRect();
+      return summary.bottom <= card.top || summary.right <= card.left || card.right <= summary.left;
+    })).toBe(true);
+    await page.screenshot({ path: info.outputPath('active-scope-follow.png') });
   });
 
   for (const path of ['/', '/netgraph/', '/terminal/']) test(`voice browsing stays silent and M mutes without interfering with Find ${path}`, async ({ page }, info) => {
@@ -229,7 +254,7 @@ test.describe('UI audit controls', () => {
     await page.screenshot({ path: info.outputPath('voice-browsing.png') });
     await page.locator('#sound-toggle').click(); await expect(page.locator('#sound-state')).toHaveText('On');
     await page.getByRole('button', { name: 'Close sound settings' }).click();
-    await page.locator('#find-button').click(); await page.locator('#node-search').fill('m');
+    await page.locator('#find-button').click(); await page.locator('#node-search').press('m');
     await expect(page.locator('#sound-state')).toHaveText('On');
     await page.keyboard.press('Escape'); await page.keyboard.press('m');
     await expect(page.locator('#sound-state')).toHaveText('Off');

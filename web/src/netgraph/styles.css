@@ -133,6 +133,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .graph-summary { display:grid; grid-template-columns:repeat(4,max-content); max-width:calc(100vw - 24px); }
 .graph-scope { flex-basis:100%; grid-column:1 / -1; min-height:36px; padding:6px; color:var(--ink); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:6px; font-size:11px; text-align:left; pointer-events:auto; cursor:pointer; }
 .graph-scope[hidden] { display:none; }
+:root[data-text-size="large"] .graph-scope { font-size:14px; }
 :root[data-mobile-dock="true"] .graph-scope { min-height:44px; }
 .graph-summary div + div { border-left: 1px solid rgba(151, 220, 224, 0.11); padding-left: 13px; }
 .graph-summary strong { color: #eaffff; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -275,7 +276,10 @@ html:root[data-cinematic]:has(#region-filter[open]) :is(.node-inspector-sheet,.f
 .empty-actions [hidden] { display:none; }
 
 @media(max-height:520px) and (orientation:landscape) {
- html:root[data-cinematic] #netgraph-app #follow-card { max-height:min(60dvh,calc(var(--available-height,100dvh) - var(--dock-height) - var(--dock-bottom,12px) + var(--keyboard-offset,0px) - 80px)); }
+ html:root[data-cinematic] #netgraph-app #follow-card { max-height:min(60dvh,calc(var(--available-height,100dvh) - var(--dock-height) - var(--dock-bottom,12px) + var(--keyboard-offset,0px) - max(80px,calc(var(--graph-controls-bottom,56px) + 24px)))); }
+ /* During Follow, keep the active scope and give the subject room over background counts. */
+ html:root[data-cinematic]:has(#follow-card:not([hidden])) .graph-summary:has(#graph-scope:not([hidden])) { padding:0; border:0; background:none; box-shadow:none; }
+ html:root[data-cinematic]:has(#follow-card:not([hidden])) .graph-summary:has(#graph-scope:not([hidden])) > div { display:none; }
 }
 @media(min-width:560px) and (max-height:520px) and (orientation:landscape) {
  html:root[data-cinematic] .graph-summary { grid-template-columns:repeat(4,minmax(0,1fr)); }

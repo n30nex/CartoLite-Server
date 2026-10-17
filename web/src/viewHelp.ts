@@ -1,5 +1,11 @@
 type View = 'Map' | 'Netgraph' | 'Terminal' | 'Labs';
 
+export function closeHelpBackdrop(dialog: HTMLDialogElement, event: MouseEvent): void {
+  if (event.target !== dialog) return;
+  const box = dialog.getBoundingClientRect();
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) dialog.close();
+}
+
 /** Keep help next to the controls and use the browser's modal focus handling. */
 export function addViewGuide(dialog: HTMLDialogElement, view: View): void {
   dialog.classList.add('view-help');
@@ -28,7 +34,7 @@ export function mountNetworkHelp(view: Exclude<View, 'Labs'>): void {
     document.querySelector('main')!.append(dialog);
     const created = dialog;
     created.querySelector('button')!.addEventListener('click', () => created.close());
-    created.addEventListener('click', event => { if (event.target === created) created.close(); });
+    created.addEventListener('click', event => closeHelpBackdrop(created, event));
   }
   if (!dialog.querySelector('header')) {
     const header = document.createElement('header');
@@ -45,11 +51,14 @@ export function mountNetworkHelp(view: Exclude<View, 'Labs'>): void {
   document.querySelector('.display-settings')!.prepend(button);
   const brand = document.getElementById('about-button');
   brand?.addEventListener('click', () => { dialog!.scrollTop = 0; });
-  let restore: HTMLElement | null = null;
+  let restore = false;
   button.addEventListener('click', () => {
-    restore = document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' ? 'display-button' : 'display-shortcut');
+    restore = true;
     for (const owner of document.querySelectorAll<HTMLButtonElement>('.controls button[aria-expanded="true"][aria-controls]')) owner.click();
     if (brand) brand.click(); else { dialog!.showModal(); dialog!.scrollTop = 0; }
   });
-  dialog.addEventListener('close', () => { restore?.focus({ preventScroll: true }); restore = null; });
+  dialog.addEventListener('close', () => {
+    if (restore) document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' ? 'display-button' : 'display-shortcut')?.focus({ preventScroll: true });
+    restore = false;
+  });
 }
