@@ -5,6 +5,7 @@ export type TerminalPixels = Pick<ImageData, 'data' | 'width' | 'height'>;
 /** Downsample inside MapLibre, then collect an asynchronous WebGL2 pixel buffer.
  * Copying the entire GPU canvas into Canvas2D stalls software/mobile renderers. */
 export function terminalCapture(map: LibreMap, size: () => [number, number], receive: (pixels: TerminalPixels) => void, failure: () => void, enabled: () => boolean) {
+  const metrics = map.getContainer().dataset;
   let gl: WebGL2RenderingContext | undefined, texture: WebGLTexture | null = null;
   let framebuffer: WebGLFramebuffer | null = null, buffer: WebGLBuffer | null = null, fence: WebGLSync | null = null;
   let width = 0, height = 0, timer: number | undefined, requested = false, last = 0, disposed = false;
@@ -15,9 +16,13 @@ export function terminalCapture(map: LibreMap, size: () => [number, number], rec
   }
   function poll() {
     timer = undefined;
-    if (!gl || !fence || disposed || gl.isContextLost()) { release(); return; }
+    if (!gl || !fence || disposed || !enabled() || gl.isContextLost()) { release(); return; }
     const result = gl.clientWaitSync(fence, 0, 0);
-    if (result === gl.TIMEOUT_EXPIRED) { timer = window.setTimeout(poll, 16); return; }
+    if (result === gl.TIMEOUT_EXPIRED) {
+      if (performance.now() - last > 2000) { release(); failure(); }
+      else timer = window.setTimeout(poll, 16);
+      return;
+    }
     if (result === gl.WAIT_FAILED) { release(); failure(); return; }
     const binding = gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING);
     try {
@@ -26,6 +31,7 @@ export function terminalCapture(map: LibreMap, size: () => [number, number], rec
       const data = new Uint8ClampedArray(bytes.length), stride = width * 4;
       for (let y = 0; y < height; y++) data.set(bytes.subarray((height - y - 1) * stride, (height - y) * stride), y * stride);
       gl.deleteSync(fence); fence = null;
+      metrics.terminalSamples = String(Number(metrics.terminalSamples ?? 0) + 1);
       if (enabled()) receive({ data, width, height });
     } catch { failure(); }
     finally { gl.bindBuffer(gl.PIXEL_PACK_BUFFER, binding); }
@@ -81,12 +87,15 @@ export function terminalCapture(map: LibreMap, size: () => [number, number], rec
   };
   map.on('webglcontextlost', release);
   return {
-    attach(lastLayer: string | undefined) {
+    attach() {
       if (disposed) return;
       if (!map.getLayer(layer.id)) map.addLayer(layer);
-      else if (lastLayer !== layer.id) map.moveLayer(layer.id);
+      // getStyle omits custom layers. Comparing it would endlessly move this
+      // already-last layer, invalidate the style and starve idle updates.
+      else if (map.getLayersOrder().at(-1) !== layer.id) map.moveLayer(layer.id);
     },
     request() { if (!disposed && enabled()) map.triggerRepaint(); },
-    destroy() { disposed = true; map.off('webglcontextlost', release); if (map.getLayer(layer.id)) map.removeLayer(layer.id); release(); },
+    suspend: release,
+    destroy() { disposed = true; map.off('webglcontextlost', release); if (map.getLayersOrder().includes(layer.id)) map.removeLayer(layer.id); release(); },
   };
 }

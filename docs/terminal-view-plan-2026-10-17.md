@@ -7,8 +7,10 @@ and a compact coordinate/status line. Amber and green phosphor are alternatives.
 
 ## Implementation
 
-Reuse the Map entry, public MapLibre canvas and existing controls. A lazy Canvas2D
-character renderer translates the geographic scene and the existing packet
+Reuse the Map entry, public MapLibre custom-layer lifecycle and existing controls.
+Downsample the scene into a small framebuffer and collect it asynchronously with
+a WebGL2 pixel buffer and fence; never synchronously copy the full GPU canvas.
+A page-specific Canvas2D character renderer translates that sample and the existing packet
 animation canvas into Braille or ASCII cells. It does not create another feed,
 packet clock, topology model or geographic dataset. Historical routes stay still;
 live motion and audio retain their existing scheduling. The original scene owns
@@ -21,7 +23,8 @@ Do not overwrite the user's Map/Netgraph style. Keep attribution visible. If
 canvas readback fails, restore the ordinary map and offer a compact retry notice.
 Pause background work when hidden and release all listeners on navigation.
 
-The built Terminal document reuses the Map HTML and assets; no copied control
+The built Terminal document reuses the Map HTML and loads its own entry before Map;
+explicit chunk boundaries keep Terminal dependencies out of other entries. No copied control
 markup or new renderer framework. Terminal assets load only on its own URL.
 Existing UI, worker, privacy and performance caps remain. Budget the optional
 Terminal JS/CSS separately at 8 KiB gzip, with a browser assertion that other

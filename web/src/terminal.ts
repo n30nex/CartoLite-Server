@@ -150,7 +150,9 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       originalPaint.set(`${layer}:${property}`, { layer, property, value: current });
       map.setPaintProperty(layer, property as Parameters<typeof map.setPaintProperty>[1], value);
     };
-    const layers = map.getStyle().layers;
+    // Public layer ordering includes custom layers and avoids serializing all
+    // retained GeoJSON just to inspect a few layer IDs and types.
+    const layers = map.getLayersOrder().map(id => map.getLayer(id)!);
     labelLayers = layers.filter(layer => layer.type === 'symbol' || layer.id === 'nodes' || layer.id === 'clusters').map(layer => layer.id);
     for (const layer of layers) {
       if (layer.type === 'symbol') {
@@ -161,13 +163,13 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         if (property) paint(layer.id, property, color);
       }
     }
-    capture.attach(layers[layers.length - 1]?.id);
+    capture.attach();
   }
   const capture = terminalCapture(map, () => {
     const { width, height, cw, ch } = dimensions();
     return [Math.max(2, Math.ceil(width / cw) * 2), Math.max(4, Math.ceil(height / ch) * 4)];
   }, paint, fail, () => !disposed && !failed && !document.hidden);
-  const visibility = () => { if (!document.hidden) { style(); schedule(); } };
+  const visibility = () => { if (document.hidden) capture.suspend(); else { style(); schedule(); } };
   const restored = () => {
     failed = false; root.dataset.terminal = 'true'; delete root.dataset.terminalFallback; notice.hidden = true;
     applyDisplayChrome(); view.setAppearance(undefined, true); animator.refreshAppearance(); style(); schedule();
