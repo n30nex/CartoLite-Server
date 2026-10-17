@@ -1,6 +1,6 @@
 import type { CustomLayerInterface, Map as LibreMap } from 'maplibre-gl';
 
-export interface TerminalPixels { data: Uint8ClampedArray; width: number; height: number }
+export type TerminalPixels = Pick<ImageData, 'data' | 'width' | 'height'>;
 
 /** Downsample inside MapLibre, then collect an asynchronous WebGL2 pixel buffer.
  * Copying the entire GPU canvas into Canvas2D stalls software/mobile renderers. */

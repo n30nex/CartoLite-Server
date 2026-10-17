@@ -1,6 +1,7 @@
 import type { LiveMap } from './map';
 import type { PacketAnimator } from './packetAnimator';
 import { browserStorage } from './browserStorage';
+import { applyDisplayChrome } from './displayPreferences';
 import { terminalCapture, type TerminalPixels } from './terminalCapture';
 import { characterCells, terminalColor, terminalPreferences, TERMINAL_DEFAULTS } from './terminalGrid';
 import './terminal.css';
@@ -119,8 +120,10 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
 
   function fail() {
     failed = true; root.dataset.terminalFallback = 'true'; notice.hidden = false;
+    delete root.dataset.terminal;
     for (const item of originalPaint.values()) if (map.getLayer(item.layer)) map.setPaintProperty(item.layer, item.property as Parameters<typeof map.setPaintProperty>[1], item.value);
     originalPaint.clear();
+    applyDisplayChrome(); view.setAppearance(undefined, true); animator.refreshAppearance();
     fx.clearRect(0, 0, effects.width, effects.height);
   }
 
@@ -165,7 +168,10 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     return [Math.max(2, Math.ceil(width / cw) * 2), Math.max(4, Math.ceil(height / ch) * 4)];
   }, paint, fail, () => !disposed && !failed && !document.hidden);
   const visibility = () => { if (!document.hidden) { style(); schedule(); } };
-  const restored = () => { failed = false; delete root.dataset.terminalFallback; notice.hidden = true; style(); map.triggerRepaint(); };
+  const restored = () => {
+    failed = false; root.dataset.terminal = 'true'; delete root.dataset.terminalFallback; notice.hidden = true;
+    applyDisplayChrome(); view.setAppearance(undefined, true); animator.refreshAppearance(); style(); schedule();
+  };
   notice.querySelector('button')!.addEventListener('click', restored);
   map.on('load', style); map.on('idle', style);
   map.on('webglcontextrestored', restored);
