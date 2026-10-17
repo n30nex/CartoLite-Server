@@ -1,6 +1,6 @@
 /** A fixed 2×4 dot cell. Sampling is bounded by the viewport, never by traffic. */
 const DOTS = [1, 8, 2, 16, 4, 32, 64, 128];
-export const TERMINAL_COLORS = ['#000000', '#3869df', '#e4d9ba', '#384d60', '#71f5c7', '#ffcf63', '#ff83bd', '#78cfff', '#b39aff'];
+export const TERMINAL_COLORS = ['#000000', '#3869df', '#e4d9ba', '#7293aa', '#71f5c7', '#ffcf63', '#ff83bd', '#78cfff', '#b39aff', '#355f49', '#35404c'];
 export type TerminalPalette = 'ansi' | 'amber' | 'green';
 export interface TerminalPreferences { palette: TerminalPalette; glyphs: 'braille' | 'ascii'; size: number }
 export const TERMINAL_DEFAULTS: TerminalPreferences = { palette: 'ansi', glyphs: 'braille', size: 12 };
@@ -18,8 +18,8 @@ export function terminalPreferences(raw: string | null): TerminalPreferences {
 
 export function terminalColor(index: number, palette: TerminalPalette): string {
   if (palette === 'ansi') return TERMINAL_COLORS[index] ?? TERMINAL_COLORS[2]!;
-  return palette === 'amber' ? (index === 1 || index === 3 ? '#765025' : '#ffd18a')
-    : (index === 1 || index === 3 ? '#215d40' : '#8dffb0');
+  return palette === 'amber' ? (index === 1 || index > 8 ? '#765025' : '#ffd18a')
+    : (index === 1 || index > 8 ? '#215d40' : '#8dffb0');
 }
 
 export function terminalInk(r: number, g: number, b: number, alpha = 255): number {

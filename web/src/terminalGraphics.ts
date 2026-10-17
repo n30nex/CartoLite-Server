@@ -10,6 +10,8 @@ out vec4 result;
 int ink(vec3 c){
  if(max(c.r,max(c.g,c.b))<26./255.)return 0;
  if(c.b>c.r*1.8&&c.b>c.g*1.6)return 1;
+ if(max(c.r,max(c.g,c.b))<100./255.&&c.g>c.r*1.5&&c.g>c.b*1.2)return 9;
+ if(max(c.r,max(c.g,c.b))<65./255.&&max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b))<5./255.)return 10;
  if(max(c.r,max(c.g,c.b))<100./255.)return 3;
  if(c.r>c.g*1.25&&c.b>c.g*1.12)return 6;
  if(c.r>c.b*1.3&&c.g>c.b*1.15)return 5;
@@ -18,24 +20,33 @@ int ink(vec3 c){
  if(c.b>c.r*1.1)return 7;return 2;
 }
 int at(vec2 p){return ink(texture(terminal_scene,clamp(p,vec2(0),vec2(1))).rgb);}
+int rank(int k){return k==0?-1:k==1||k>8?0:k==3?1:k==2?2:3;}
 void main(){
  vec2 cell=floor(gl_FragCoord.xy),stepSize=1./(grid*vec2(2,4));
  int mask=0,color=0,priority=-1,count=0;
  int bits[8]=int[8](1,8,2,16,4,32,64,128);
  for(int y=0;y<4;y++)for(int x=0;x<2;x++){
   vec2 p=(cell+vec2((float(x)+.5)/2.,(3.5-float(y))/4.))/grid;
-  int k=at(p);
+  // Conservative coverage: thin roads/routes must not fall between dot centres.
+  int k=0;
+  for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
+   int sampleInk=at(p+vec2(i,j)*stepSize/3.);
+   if(rank(sampleInk)>rank(k))k=sampleInk;
+  }
   if(k==0&&(at(p+vec2(stepSize.x,0))==1||at(p-vec2(stepSize.x,0))==1||at(p+vec2(0,stepSize.y))==1||at(p-vec2(0,stepSize.y))==1))k=2;
-  if(k==0)continue;mask|=bits[y*2+x];count++;
-  int rank=k==1?0:k==3?1:k==2?2:3;
-  if(rank>priority){color=k;priority=rank;}
+  int priorityNow=rank(k);
+  if(k==0||priorityNow<priority)continue;
+  // Do not recolour every water/land dot when a bright route crosses one dot.
+  if(priorityNow>priority){mask=0;count=0;color=k;priority=priorityNow;}
+  if(k>8&&(x+y)%2==0)continue;
+  mask|=bits[y*2+x];count++;
  }
  int glyph=ascii==1&&mask!=0?(color==1?260:count<3?257:count<6?258:259):mask;
  result=vec4(float(glyph%16)/255.,float(glyph/16)/255.,float(color)/255.,1);
 }`;
 const GLYPHS = `#version 300 es
 precision highp float;precision highp int;
-uniform sampler2D cells;uniform sampler2D glyphs;uniform vec2 grid;uniform vec2 viewport;uniform vec3 colors[9];
+uniform sampler2D cells;uniform sampler2D glyphs;uniform vec2 grid;uniform vec2 viewport;uniform vec3 colors[11];
 out vec4 result;
 void main(){
  vec2 p=gl_FragCoord.xy/viewport*grid;
@@ -84,7 +95,10 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
     const atlas = document.createElement('canvas'); atlas.width = 384; atlas.height = 680;
     const ctx = atlas.getContext('2d'); if (!ctx) throw new Error('Terminal font unavailable');
     ctx.font = '32px ui-monospace, "DejaVu Sans Mono", monospace'; ctx.textBaseline = 'top'; ctx.fillStyle = '#fff';
-    for (let i = 1; i <= 260; i++) ctx.fillText(i < 256 ? String.fromCharCode(0x2800+i) : [' ','.','+','#',':'][i-256]!, (i%16)*24, Math.floor(i/16)*40);
+    for (let i = 1; i < 256; i++) for (let dot=0;dot<8;dot++) {
+      if (i & [1,8,2,16,4,32,64,128][dot]!) ctx.fillRect((i%16)*24+(dot%2)*12+3,Math.floor(i/16)*40+Math.floor(dot/2)*10+2,6,6);
+    }
+    for (let i=257;i<=260;i++) ctx.fillText(['.','+','#',':'][i-257]!, (i%16)*24,Math.floor(i/16)*40);
     g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,atlas);
   }
   const layer: CustomLayerInterface = {
