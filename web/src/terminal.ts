@@ -143,7 +143,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   // visibility continue to be owned by LiveMap and the user's layer controls.
   function style() {
     if (disposed || failed || !map.isStyleLoaded()) return;
-    const paint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
+    const setPaint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
       const current = map.getPaintProperty(layer, property as Parameters<typeof map.getPaintProperty>[1]);
       if (current === value) return;
       originalPaint.set(`${layer}:${property}`, { layer, property, value: current });
@@ -155,11 +155,11 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     labelLayers = layers.filter(layer => layer.type === 'symbol' || layer.id === 'nodes' || layer.id === 'clusters').map(layer => layer.id);
     for (const layer of layers) {
       if (layer.type === 'symbol') {
-        paint(layer.id, 'text-opacity', 0);
+        setPaint(layer.id, 'text-opacity', 0);
       } else if (layer.id.startsWith('basemap-')) {
         const property = layer.type === 'background' ? 'background-color' : layer.type === 'fill' ? 'fill-color' : layer.type === 'line' ? 'line-color' : undefined;
         const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#e4d9ba' : layer.type === 'line' ? '#233343' : '#030609';
-        if (property) paint(layer.id, property, color);
+        if (property) setPaint(layer.id, property, color);
       }
     }
     capture.attach();
