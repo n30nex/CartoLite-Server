@@ -46,6 +46,7 @@ jobs:
           test "$sha" = "$(git rev-parse HEAD)"
           version="${RELEASE_TAG#v}"
           test "$version" = "$(tr -d '\r\n' < VERSION)"
+          bash scripts/check-release-defaults.sh
           git fetch origin main --depth=200
           git merge-base --is-ancestor "$sha" origin/main
 
