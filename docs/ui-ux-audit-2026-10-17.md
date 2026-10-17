@@ -59,13 +59,13 @@ The unchanged-runtime baseline runs reproduced the targeted failures:
 The initial run uses desktop plus explicit 568x320 cases; the fixed candidate
 expands the same assertions to Chromium desktop/phone/landscape and phone WebKit.
 
-UI01–UI06 and UI15 are implemented in this candidate. Dialog state participates in Back
+UI01–UI06 and UI15 were delivered in Canada 0.17.3 / Worldwide 0.8.4. Dialog state participates in Back
 history; a modal Escape cannot clear underlying selection. Notices remember a
 dismissed problem category for the page visit and expose Netgraph. Empty graphs
 provide scoped recovery actions. Follow pins its header/actions during scrolling.
 Labs holds user feedback for four seconds and separates announcements from live
 packet captions. Existing route/packet clocks, sound scheduling, feeds and native
-APK identity are unchanged. Merge/release/runtime evidence remains the delivery gate.
+APK identity are unchanged. The delivery evidence is linked below.
 
 ## Findings and acceptance
 
@@ -112,15 +112,29 @@ crossings, steep pitch, context loss, background tabs and missing resources.
 Capture progress at fixed synthetic times and compare audio scheduling across
 GPU/Canvas and quality modes. Browser emulation is not GPU/thermal certification.
 
-## Delivery plan
+## Delivery evidence
 
-See [the current roadmap](roadmap.md). First-package targets are Canada 0.17.3
-and Worldwide 0.8.4; the Canada Android APK stays 1.1.2 because its hosted pages
-receive the fixes. Ship only after unchanged full Actions gates, reviewed paired
-PRs, exact-main artifacts, provenance/checksums and native Worldwide installs.
-Canada requires exact-target verification, fresh encrypted backup, isolated
-restore, public-view checks and at least five healthy minutes. Update product
-links and private operational records after qualification.
+See [the current roadmap](roadmap.md) for remaining phases.
+
+Phase 1 was delivered on 17 October 2026:
+[Canada 0.17.3](https://github.com/n30nex/CartoLite/releases/tag/v0.17.3) and
+[Worldwide 0.8.4](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.8.4).
+Canada's [exact-main CI](https://github.com/n30nex/CartoLite/actions/runs/39064393830)
+passed 224 frontend and 321 browser cases; its
+[161 deployed browser checks](https://github.com/n30nex/CartoLite/actions/runs/39066754097)
+passed without retries. Three live observations over 369.4 seconds confirmed
+advancing traffic/checkpoints and zero drops/restarts after an encrypted backup
+and isolated restore. The exact tested image remains deployed.
+
+Worldwide's [exact-main CI](https://github.com/n30nex/CartoLite-Server/actions/runs/39064086634)
+passed 198 frontend and 273 browser cases, including native anonymous AMD64/ARM64
+installs and checkpoint-preserving upgrades. One existing basemap startup wait
+retried; all 64 new UI cases passed without retries. Published checksums,
+provenance and screenshot hashes were verified for both editions.
+[Product pages](https://github.com/n30nex/Canadaverse-Site/pull/91) were updated
+and [checked live](https://github.com/n30nex/Canadaverse-Site/actions/runs/39067598801).
+The existing Android 1.1.2 APK is unchanged; physical-device acceptance is not
+claimed. Phases 2-5 remain planned, not shipped.
 
 ## Platform reference
 
