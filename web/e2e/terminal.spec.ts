@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import { openViewMenu } from './dockControls';
@@ -9,7 +9,8 @@ test('Terminal keeps geographic controls, live packets and device display choice
   await visualFixture(page); await page.goto('/terminal/');
   const map = page.locator('#map'), grid = page.locator('#terminal-map');
   await expect(map).toHaveAttribute('data-render-state', 'idle', { timeout: 10000 });
-  await expect.poll(async () => Number(await grid.getAttribute('data-cells'))).toBeGreaterThan(100);
+  await expect(map).toHaveAttribute('data-terminal-renderer','webgl2');
+  await expect.poll(() => blueGlyphPixels(page)).toBeGreaterThan(100);
   await expect.poll(async () => Number(await grid.getAttribute('data-labels'))).toBeGreaterThan(0);
   await expect(page.locator('.dock-views [aria-current="page"]')).toHaveText('Terminal');
   await expect(page.locator('#fatal')).toBeHidden();
@@ -68,13 +69,13 @@ test('Terminal stays compact and keeps selection when switching views', async ({
   await expect(page.locator('#terminal-map')).toHaveCount(0);
 });
 
-test('unavailable character readback falls back without stopping the feed', async ({page}) => {
+test('unavailable Terminal graphics falls back without stopping the feed', async ({page}) => {
   await visualFixture(page);
   await page.addInitScript(() => {
-    const original = WebGL2RenderingContext.prototype.clientWaitSync;
-    WebGL2RenderingContext.prototype.clientWaitSync = function (...args: Parameters<typeof original>) {
-      if (document.documentElement.dataset.terminal && !document.documentElement.dataset.readbackFailedOnce) {
-        document.documentElement.dataset.readbackFailedOnce = 'true'; return this.WAIT_FAILED;
+    const original = WebGL2RenderingContext.prototype.getShaderParameter;
+    WebGL2RenderingContext.prototype.getShaderParameter = function (...args: Parameters<typeof original>) {
+      if (args[1] === this.COMPILE_STATUS && this.getShaderSource(args[0])?.includes('terminal_scene') && !document.documentElement.dataset.shaderFailedOnce) {
+        document.documentElement.dataset.shaderFailedOnce = 'true'; return false;
       }
       return original.apply(this,args);
     };
@@ -85,7 +86,7 @@ test('unavailable character readback falls back without stopping the feed', asyn
   expect(await page.locator('.maplibregl-canvas').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
   await page.getByRole('button',{name:'Retry Terminal',exact:true}).click();
   await expect(page.locator('.terminal-notice')).toBeHidden();
-  await expect.poll(async () => Number(await page.locator('#terminal-map').getAttribute('data-cells'))).toBeGreaterThan(100);
+  await expect.poll(() => blueGlyphPixels(page)).toBeGreaterThan(100);
 });
 
 test('Map and Netgraph never download the optional Terminal renderer', async ({page}) => {
@@ -98,3 +99,18 @@ test('Map and Netgraph never download the optional Terminal renderer', async ({p
   }
   expect(terminalAssets).toEqual([]);
 });
+
+// Inspect actual pixels, not a renderer's own readiness flag. Only the ANSI
+// character water has this bright blue in the synthetic scene's centre.
+async function blueGlyphPixels(page: Page): Promise<number> {
+  const png = await page.screenshot();
+  return page.evaluate(async base64 => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + base64; await img.decode();
+    const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+    const ctx = canvas.getContext('2d', {willReadFrequently:true})!; ctx.drawImage(img,0,0);
+    const data = ctx.getImageData(0,Math.floor(img.height*.2),img.width,Math.floor(img.height*.6)).data;
+    let count=0;
+    for(let i=0;i<data.length;i+=4) if(data[i+2]!>80 && data[i+2]!>data[i]!*1.8 && data[i+2]!>data[i+1]!*1.3) count++;
+    return count;
+  }, png.toString('base64'));
+}

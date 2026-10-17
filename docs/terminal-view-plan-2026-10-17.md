@@ -8,10 +8,10 @@ and a compact coordinate/status line. Amber and green phosphor are alternatives.
 ## Implementation
 
 Reuse the Map entry, public MapLibre custom-layer lifecycle and existing controls.
-Downsample the scene into a small framebuffer and collect it asynchronously with
-a WebGL2 pixel buffer and fence; never synchronously copy the full GPU canvas.
-A page-specific Canvas2D character renderer translates that sample and the existing packet
-animation canvas into Braille or ASCII cells. It does not create another feed,
+Use a two-pass WebGL2 character effect: one metadata pixel per cell, then a local
+font atlas. Geographic pixels stay on the GPU; there is no readback or preserved
+drawing buffer. A page-specific Canvas2D character renderer translates the existing packet
+animation canvas into Braille or ASCII cells and places readable labels. It does not create another feed,
 packet clock, topology model or geographic dataset. Historical routes stay still;
 live motion and audio retain their existing scheduling. The original scene owns
 hit testing, terrain, buildings, region assignments, pan, zoom and Follow.

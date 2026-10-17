@@ -2,8 +2,8 @@ import type { LiveMap } from './map';
 import type { PacketAnimator } from './packetAnimator';
 import { browserStorage } from './browserStorage';
 import { applyDisplayChrome } from './displayPreferences';
-import { terminalCapture, type TerminalPixels } from './terminalCapture';
-import { characterCells, terminalColor, terminalPreferences, TERMINAL_DEFAULTS } from './terminalGrid';
+import { terminalGraphics } from './terminalGraphics';
+import { characterCells, terminalColor, terminalPreferences, TERMINAL_DEFAULTS, TERMINAL_COLORS } from './terminalGrid';
 import './terminal.css';
 
 const KEY = 'cartolite-terminal-v1';
@@ -61,21 +61,16 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     return { width, height, size, cw: context.measureText('M').width, ch: size * 1.15 };
   }
 
-  function draw(source: HTMLCanvasElement | TerminalPixels, target: HTMLCanvasElement, ctx: CanvasRenderingContext2D, geography: boolean) {
+  function draw(source: HTMLCanvasElement, target: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
     const { width, height, size, cw, ch } = dimensions(), dpr = Math.min(devicePixelRatio || 1, 2);
     if (!width || !height || !source.width || !source.height) return;
     if (target.width !== Math.ceil(width * dpr) || target.height !== Math.ceil(height * dpr)) { target.width = Math.ceil(width * dpr); target.height = Math.ceil(height * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    if (geography) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, width, height); }
-    let pixels: TerminalPixels;
-    if (source instanceof HTMLCanvasElement) {
-      sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
-      read.imageSmoothingEnabled = false;
-      read.drawImage(source, 0, 0, sample.width, sample.height);
-      pixels = read.getImageData(0, 0, sample.width, sample.height);
-    } else pixels = source;
-    const cells = characterCells(pixels, preferences.glyphs === 'ascii', geography);
+    sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
+    read.imageSmoothingEnabled = false;
+    read.drawImage(source, 0, 0, sample.width, sample.height);
+    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii', false);
     ctx.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
     ctx.textBaseline = 'top';
     // Batch same-colour runs. A full ocean is a few row draws, not 16,000 calls.
@@ -92,7 +87,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
 
   function labels() {
     const { cw, ch, size, width, height } = dimensions();
-    const occupied: { x: number; y: number; w: number }[] = [];
+    const occupied = new Set<string>();
     const features = map.queryRenderedFeatures(undefined, { layers: labelLayers.filter(id => map.getLayer(id)) });
     const selected = view.getSelectedNodeID();
     features.sort((a, b) => Number(b.properties.id === selected) - Number(a.properties.id === selected) || Number(b.layer.id === 'nodes' || b.layer.id === 'clusters') - Number(a.layer.id === 'nodes' || a.layer.id === 'clusters'));
@@ -105,12 +100,13 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       if (!text) continue;
       const coordinate = feature.geometry.coordinates;
       const point = map.project([coordinate[0]!, coordinate[1]!]);
-      const x = Math.round(point.x / cw) * cw, y = Math.round(point.y / ch) * ch, w = text.length * cw;
+      const x = Math.round(point.x / cw) * cw + (feature.layer.id === 'node-labels' ? cw * 2 : 0), y = Math.round(point.y / ch) * ch, w = text.length * cw;
       const key = `${text}:${Math.round(x)}:${Math.round(y)}`;
       if (seen.has(key) || x < 0 || y < 48 || x + w > width || y + ch > height - 60) continue;
       seen.add(key);
-      if (!node && occupied.some(other => Math.abs(y - other.y) < ch && x < other.x + other.w + cw && x + w + cw > other.x)) continue;
-      occupied.push({ x, y, w });
+      const cells = [...text].map((_, i) => `${Math.round(x / cw) + i}:${Math.round(y / ch)}`);
+      if (cells.some(cell => occupied.has(cell))) continue;
+      cells.forEach(cell => occupied.add(cell));
       context.fillStyle = '#000'; context.fillRect(x - 1, y, w + 2, ch);
       context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : 5, preferences.palette);
       context.fillText(text.slice(0, 60), x, y);
@@ -127,11 +123,14 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     fx.clearRect(0, 0, effects.width, effects.height);
   }
 
-  function paint(pixels: TerminalPixels) {
+  function paint() {
     if (disposed || failed || document.hidden) return;
     try {
       const started = performance.now();
-      draw(pixels, canvas, context, true); labels();
+      const { width, height } = dimensions(), dpr = Math.min(devicePixelRatio || 1, 2);
+      if (canvas.width !== Math.ceil(width*dpr) || canvas.height !== Math.ceil(height*dpr)) { canvas.width=Math.ceil(width*dpr); canvas.height=Math.ceil(height*dpr); }
+      context.setTransform(dpr,0,0,dpr,0,0); context.clearRect(0,0,width,height); context.textBaseline='top'; labels();
+      canvas.dataset.glyphs = preferences.glyphs;
       canvas.dataset.workMs = String(Math.round(performance.now() - started));
       const center = map.getCenter();
       status.querySelector('.terminal-coordinates')!.textContent = `${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}  Z:${map.getZoom().toFixed(1)}`;
@@ -164,10 +163,11 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       }
     }
     capture.attach();
+    paint();
   }
-  const capture = terminalCapture(map, () => {
+  const capture = terminalGraphics(map, () => {
     const { width, height, cw, ch } = dimensions();
-    return [Math.max(2, Math.ceil(width / cw) * 2), Math.max(4, Math.ceil(height / ch) * 4)];
+    return { columns: Math.max(1,Math.ceil(width/cw)), rows: Math.max(1,Math.ceil(height/ch)), ascii: preferences.glyphs === 'ascii', colors: TERMINAL_COLORS.map((_,i) => terminalColor(i,preferences.palette)) };
   }, paint, fail, () => !disposed && !failed && !document.hidden);
   const visibility = () => { if (document.hidden) capture.suspend(); else { style(); schedule(); } };
   const restored = () => {
@@ -183,7 +183,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     if (failed || document.hidden) return;
     const now = performance.now();
     if (now - lastPacket < 40 && (source.dataset.activeCount !== '0' || source.dataset.residueCount !== '0')) return;
-    try { draw(source, effects, fx, false); lastPacket = now; } catch { fail(); }
+    try { draw(source, effects, fx); lastPacket = now; } catch { fail(); }
   });
   sync(); style();
   const destroy = () => {
