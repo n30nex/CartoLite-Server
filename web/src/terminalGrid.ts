@@ -47,10 +47,10 @@ export function characterCells(image: Pick<ImageData, 'data' | 'width' | 'height
       let k = ink[p]!;
       // A pale coast on the land side of the provider's actual water geometry.
       if (coast && k === 0 && ((px > 0 && ink[p - 1] === 1) || (px + 1 < width && ink[p + 1] === 1) || (py > 0 && ink[p - width] === 1) || (py + 1 < height && ink[p + width] === 1))) k = 2;
-      if (!k) continue;
-      mask |= DOTS[dy * 2 + dx]!; count++;
       const rank = k === 1 ? 0 : k === 3 ? 1 : k === 2 ? 2 : 3;
-      if (rank > priority) { color = k; priority = rank; }
+      if (!k || rank < priority) continue;
+      if (rank > priority) { mask = 0; count = 0; color = k; priority = rank; }
+      mask |= DOTS[dy * 2 + dx]!; count++;
     }
     const cell = y * columns + x;
     colors[cell] = color;

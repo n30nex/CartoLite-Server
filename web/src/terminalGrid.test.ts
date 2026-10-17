@@ -23,4 +23,11 @@ describe('Terminal presentation', () => {
     for(let y=0;y<4;y++) for(let x=0;x<4;x++) data.set(x<2 ? [8,20,90,255] : [3,6,9,255],(y*4+x)*4);
     expect([...characterCells({data,width:4,height:4},false,true).colors]).toEqual([1,2]);
   });
+  it('keeps bright packet cores separate from faint trails in the same cell', () => {
+    const data = new Uint8ClampedArray(2*4*4);
+    for(let i=0;i<8;i++) data.set([40,50,60,255],i*4);
+    data.set([255,117,181,255],0);
+    const cell=characterCells({data,width:2,height:4},false,false);
+    expect(cell.glyphs).toEqual(['⠁']); expect([...cell.colors]).toEqual([6]);
+  });
 });
