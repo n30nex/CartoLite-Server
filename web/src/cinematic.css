@@ -51,7 +51,9 @@ html:root[data-cinematic] .maplibregl-ctrl-bottom-right { opacity:1; }
 .sound-preview-actions { display:flex; gap:8px; }
 .sound-preview-actions { flex-wrap:wrap; }
 .sound-preview-actions > button { flex:1 1 90px; min-height:44px; }
-.sound-panel > header { position:sticky; top:0; z-index:2; background:var(--panel-solid); }
+.sound-panel > header { position:sticky; top:0; z-index:2; gap:8px; background:var(--panel-solid); }
+.sound-panel > header strong { min-width:0; }
+:root .sound-panel > header .panel-close { margin-left:0; }
 .sound-panel .quick-mute { min-height:44px; margin-left:auto; }
 html:root[data-cinematic] .director-enabled[data-follow-inspect="true"] .node-inspector-sheet { visibility:visible; pointer-events:auto; }
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic] .controls #layers-panel { width:100%; } }

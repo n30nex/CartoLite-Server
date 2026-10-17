@@ -159,12 +159,13 @@ test.describe('UI audit controls', () => {
       await page.setViewportSize({ width: width!, height: height! });
       await viewTool(page, '#help-button');
       const dialog = page.locator('#about-dialog'); await expect(dialog).toBeVisible();
+      await expect(dialog).toHaveJSProperty('scrollTop', 0);
       await expect(dialog).toContainText('Observer-only');
       await page.screenshot({ path: info.outputPath(`help-${width}.png`) });
       expect(await dialog.evaluate(element => { const box = element.getBoundingClientRect(); return box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight; })).toBe(true);
       await dialog.evaluate(element => { element.scrollTop = element.scrollHeight; });
       const close = dialog.locator('header button');
-      expect(await close.evaluate(element => { const r = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); })).toBe(true);
+      expect(await close.evaluate(element => { const r = element.getBoundingClientRect(), box = element.closest('dialog')!.getBoundingClientRect(); return r.top >= box.top && r.bottom <= box.bottom && element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); })).toBe(true);
       await page.keyboard.press('Escape'); await expect(dialog).toBeHidden();
       await expect(scene).toHaveAttribute('data-selected-node-id', 'visual-a');
       await expect(page.locator('#view-button')).toBeFocused();

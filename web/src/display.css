@@ -103,5 +103,5 @@ button,select,input { font:inherit; }
 :root[data-terminal] .terminal-basemap-note { display:block; }
 :root .view-help { color:var(--ink); background:var(--panel-solid); }
 :root .view-help :is(p,dd,dt,h1,h2) { color:var(--ink); }
-:root .view-help > header { position:sticky; top:-16px; z-index:2; background:var(--panel-solid); padding:8px 0; }
+:root .view-help > header { position:sticky; top:0; z-index:2; background:var(--panel-solid); padding:8px 0; }
 :root .view-help .about-close { position:static; flex:none; }

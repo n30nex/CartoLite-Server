@@ -43,12 +43,13 @@ export function mountNetworkHelp(view: Exclude<View, 'Labs'>): void {
   button.className = 'control-button view-help-button'; button.textContent = '? Help & controls';
   button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-controls', dialog.id);
   document.querySelector('.display-settings')!.prepend(button);
+  const brand = document.getElementById('about-button');
+  brand?.addEventListener('click', () => { dialog!.scrollTop = 0; });
   let restore: HTMLElement | null = null;
   button.addEventListener('click', () => {
     restore = document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' ? 'display-button' : 'display-shortcut');
     for (const owner of document.querySelectorAll<HTMLButtonElement>('.controls button[aria-expanded="true"][aria-controls]')) owner.click();
-    const brand = document.getElementById('about-button');
-    if (brand) brand.click(); else dialog!.showModal();
+    if (brand) brand.click(); else { dialog!.showModal(); dialog!.scrollTop = 0; }
   });
   dialog.addEventListener('close', () => { restore?.focus({ preventScroll: true }); restore = null; });
 }
