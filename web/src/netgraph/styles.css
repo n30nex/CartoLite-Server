@@ -130,6 +130,10 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   pointer-events: none;
 }
 .graph-summary div { display: grid; gap: 1px; }
+.graph-summary { flex-wrap:wrap; max-width:min(360px,calc(100vw - 24px)); }
+.graph-scope { flex-basis:100%; grid-column:1 / -1; min-height:36px; padding:6px; color:var(--ink); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:6px; font-size:11px; text-align:left; pointer-events:auto; cursor:pointer; }
+.graph-scope[hidden] { display:none; }
+:root[data-mobile-dock="true"] .graph-scope { min-height:44px; }
 .graph-summary div + div { border-left: 1px solid rgba(151, 220, 224, 0.11); padding-left: 13px; }
 .graph-summary strong { color: #eaffff; font-size: 12px; font-variant-numeric: tabular-nums; }
 .graph-summary span { color: var(--muted); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; }

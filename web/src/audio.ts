@@ -211,6 +211,7 @@ export class RouteSonifier {
   #volume: number;
   #scene: SoundScene;
   #paused = false;
+  #activationRevision = 0;
   readonly #active = new Set<OscillatorNode>();
   readonly #waves = new Map<string, PeriodicWave>();
   #statusListener?: (status: SoundStatus) => void;
@@ -273,6 +274,7 @@ export class RouteSonifier {
   }
 
   async setEnabled(enabled: boolean): Promise<boolean> {
+    const revision = ++this.#activationRevision;
     if (!enabled) {
       this.#enabled = false;
       this.#preferredEnabled = false;
@@ -295,10 +297,10 @@ export class RouteSonifier {
       this.#unlockMobileOutput(context);
       if (context.state !== 'running') await context.resume();
     } catch {
-      this.#enabled = false;
-      this.#notify();
+      if (revision === this.#activationRevision) { this.#enabled = false; this.#notify(); }
       return false;
     }
+    if (revision !== this.#activationRevision) return false;
     this.#enabled = context.state === 'running';
     this.#setMasterLevel(this.#enabled && !this.#paused ? MASTER_LEVEL * this.#volume : MIN_GAIN);
     this.#notify();
@@ -307,7 +309,7 @@ export class RouteSonifier {
 
   setPaused(paused: boolean): void {
     this.#paused = paused;
-    if (paused) this.#stopActive();
+    if (paused) { this.#activationRevision++; this.#stopActive(); }
     this.#setMasterLevel(this.#enabled && !paused ? MASTER_LEVEL * this.#volume : MIN_GAIN);
     this.#notify();
   }
@@ -332,16 +334,18 @@ export class RouteSonifier {
   /** Explicit preview gesture; does not enable or save live sound. */
   async preview(): Promise<void> {
     if (!this.supported() || this.#paused) return;
+    const revision = this.#activationRevision, voice = this.#scene;
     const context = !this.#context || this.#context.state === 'closed' ? this.#createContext() : this.#context;
     this.#unlockMobileOutput(context);
     if (context.state !== 'running') await context.resume();
-    if (context.state !== 'running' || this.#paused || document.hidden) return;
+    if (revision !== this.#activationRevision || context.state !== 'running' || this.#paused || document.hidden) return;
     this.#setMasterLevel(MASTER_LEVEL * this.#volume);
-    const scene = SCENES[this.#scene];
-    this.#schedule({ frequency: 440, startMS: 0, durationMS: Math.min(420,scene.maxDurationMS), brightness: Math.max(scene.minBrightness,1800*scene.brightnessScale), pan: 0, variation: 0, scene: this.#scene, character: 'map' }, .8);
+    const scene = SCENES[voice];
+    this.#schedule({ frequency: 440, startMS: 0, durationMS: Math.min(420,scene.maxDurationMS), brightness: Math.max(scene.minBrightness,1800*scene.brightnessScale), pan: 0, variation: 0, scene: voice, character: 'map' }, .8);
   }
 
   destroy(): void {
+    this.#activationRevision++;
     this.#enabled = false;
     this.#stopActive();
     void this.#context?.close();

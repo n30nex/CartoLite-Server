@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
-import { graphFilters, graphFocus, viewTool } from './dockControls';
+import { graphFilters, graphFocus, graphRoutes, openDisplay, viewTool } from './dockControls';
 import type { StateV2 } from '../src/types';
 
 test.describe('UI audit', () => {
@@ -141,5 +141,95 @@ test.describe('UI audit', () => {
       });
       expect(visible).toBe(true);
     }
+  });
+});
+
+
+test.describe('UI audit controls', () => {
+  for (const path of ['/', '/netgraph/', '/terminal/']) test(`help preserves selection, closes with Back/Escape and fits enlarged phone layouts ${path}`, async ({ page }, info) => {
+    await visualFixture(page);
+    await page.addInitScript(() => {
+      for (const key of ['cartolite:display:v1', 'cartolite-server:display:v1']) localStorage.setItem(key, JSON.stringify({ textSize: 'large', theme: 'light', basemap: 'light', motion: 'reduced' }));
+    });
+    await page.goto(path);
+    await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
+    await page.locator('.node-search-result').first().click();
+    const scene = page.locator(path === '/netgraph/' ? '#netgraph-stage' : '#map');
+    for (const [width, height] of [[320, 568], [568, 320]]) {
+      await page.setViewportSize({ width: width!, height: height! });
+      await viewTool(page, '#help-button');
+      const dialog = page.locator('#about-dialog'); await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText('Observer-only');
+      await page.screenshot({ path: info.outputPath(`help-${width}.png`) });
+      expect(await dialog.evaluate(element => { const box = element.getBoundingClientRect(); return box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight; })).toBe(true);
+      await dialog.evaluate(element => { element.scrollTop = element.scrollHeight; });
+      const close = dialog.locator('header button');
+      expect(await close.evaluate(element => { const r = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); })).toBe(true);
+      await page.keyboard.press('Escape'); await expect(dialog).toBeHidden();
+      await expect(scene).toHaveAttribute('data-selected-node-id', 'visual-a');
+      await expect(page.locator('#view-button')).toBeFocused();
+      await viewTool(page, '#help-button'); await expect(dialog).toBeVisible();
+      await page.evaluate(() => history.back()); await expect(dialog).toBeHidden();
+      expect(new URL(page.url()).pathname).toBe(path);
+      await expect(scene).toHaveAttribute('data-selected-node-id', 'visual-a');
+    }
+  });
+
+  test('Terminal exposes its own palette while preserving the saved ordinary map style', async ({ page }, info) => {
+    await visualFixture(page);
+    await page.addInitScript(() => {
+      for (const key of ['cartolite:display:v1', 'cartolite-server:display:v1']) if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ theme: 'light', basemap: 'streets', preset: 'dashed' }));
+    });
+    await page.goto('/terminal/'); await expect(page.locator('#terminal-map')).toBeVisible();
+    await openDisplay(page);
+    await expect(page.locator('#basemap-style')).toBeHidden(); await expect(page.locator('#interface-theme')).toBeHidden();
+    await page.getByLabel('Terminal palette').selectOption('amber');
+    await expect(page.locator('.terminal-basemap-note')).toBeVisible();
+    await page.screenshot({ path: info.outputPath('terminal-display.png') });
+    await page.goto('/'); await openDisplay(page);
+    await expect(page.locator('#basemap-style')).toHaveValue('streets');
+    await expect(page.locator('#interface-theme')).toHaveValue('light');
+    await expect(page.getByLabel('Route style', { exact: true })).toHaveValue('dashed');
+  });
+
+  test('active graph filters remain visible and clear without resetting route visibility or layout', async ({ page }, info) => {
+    await visualFixture(page); await page.goto('/netgraph/');
+    await expect(page.locator('#connected-count')).toHaveText('2');
+    await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
+    await page.locator('.node-search-result').first().click();
+    await graphFocus(page, 'component');
+    await expect(page.locator('#graph-scope')).toContainText('Component focus');
+    await graphRoutes(page);
+    const spacing = await page.locator('#netgraph-stage').getAttribute('data-region-spacing');
+    await graphFilters(page); await page.locator('#region-filter > summary').click();
+    await page.locator('[data-none]').click(); await page.keyboard.press('Escape');
+    if (await page.locator('html').getAttribute('data-mobile-dock') === 'true') await page.keyboard.press('Escape');
+    await expect(page.locator('#graph-scope')).toContainText('0 regions');
+    await expect(page.locator('#graph-scope')).toContainText('Routes hidden');
+    await page.screenshot({ path: info.outputPath('active-view-filters.png') });
+    await page.locator('#graph-scope').click(); await page.locator('[data-clear-view]').click();
+    await expect(page.locator('#connected-count')).toHaveText('2');
+    await expect(page.locator('#graph-routes-button')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByLabel('Topology focus')).toHaveValue('all');
+    await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-region-spacing', spacing!);
+    await expect(page.locator('#graph-scope')).toHaveText('Routes hidden');
+  });
+
+  for (const path of ['/', '/netgraph/', '/terminal/']) test(`voice browsing stays silent and M mutes without interfering with Find ${path}`, async ({ page }, info) => {
+    await visualFixture(page); await page.goto(path); await expect(page.locator('#status-text')).toHaveText('Live');
+    await page.locator('#sound-button').click();
+    const scene = page.locator('#sound-scene'), original = await scene.inputValue();
+    await page.getByRole('button', { name: 'Next voice', exact: true }).click();
+    await expect(scene).not.toHaveValue(original); await expect(page.locator('#sound-state')).toHaveText('Off');
+    await page.getByRole('button', { name: 'Previous voice', exact: true }).click(); await expect(scene).toHaveValue(original);
+    await page.getByRole('button', { name: 'Preview voice', exact: true }).click(); await expect(page.locator('#sound-state')).toHaveText('Off');
+    await page.screenshot({ path: info.outputPath('voice-browsing.png') });
+    await page.locator('#sound-toggle').click(); await expect(page.locator('#sound-state')).toHaveText('On');
+    await page.getByRole('button', { name: 'Close sound settings' }).click();
+    await page.locator('#find-button').click(); await page.locator('#node-search').fill('m');
+    await expect(page.locator('#sound-state')).toHaveText('On');
+    await page.keyboard.press('Escape'); await page.keyboard.press('m');
+    await expect(page.locator('#sound-state')).toHaveText('Off');
+    await expect(page.locator('#status-text')).toHaveText('Live');
   });
 });

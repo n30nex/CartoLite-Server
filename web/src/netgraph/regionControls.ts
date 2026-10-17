@@ -12,6 +12,23 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   const routes = document.createElement('button'); routes.type = 'button'; routes.id = 'graph-routes-button'; routes.textContent = 'Routes';
   routes.setAttribute('aria-label', 'Show historical routes'); routes.title = 'Hide standing lines; live packets still light their routes briefly';
   host.append(menu, routes);
+  const scope = document.createElement('button'); scope.type = 'button'; scope.id = 'graph-scope'; scope.className = 'graph-scope'; scope.hidden = true;
+  scope.setAttribute('aria-label', 'Review active view filters'); document.getElementById('graph-summary')!.append(scope);
+  scope.addEventListener('click', () => {
+    const display = document.getElementById('display-button') as HTMLButtonElement;
+    if (document.documentElement.dataset.mobileDock === 'true' && display.getAttribute('aria-expanded') !== 'true') display.click();
+    if (graph.regionLayout().regions !== null) { menu.open = true; menu.querySelector<HTMLElement>('.region-options')!.hidden = false; search.focus(); }
+    else if ((stage.dataset.focusMode ?? 'all') !== 'all') host.querySelector<HTMLSelectElement>('[aria-label="Topology focus"]')!.focus();
+    else routes.focus();
+  });
+  const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'Clear filters'; clear.dataset.clearView = '';
+  clear.title = 'Show all regions and components; keep route visibility and saved layout';
+  menu.querySelector('.region-actions')!.append(clear);
+  clear.addEventListener('click', () => {
+    navigate(); graph.setRegions(null); graph.setFocus('all');
+    host.querySelector<HTMLSelectElement>('[aria-label="Topology focus"]')!.value = 'all';
+    sync(); changed();
+  });
   const layout = graphTemplate<HTMLDetailsElement>('graph-layout-ui');
   document.getElementById('display-panel')!.append(layout);
   const spacing = layout.querySelector('input')!, output = layout.querySelector('output')!, move = layout.querySelector('select')!;
@@ -45,6 +62,14 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     spacing.value = String(prefs.spacing); output.value = `${Math.round(prefs.spacing * 100)}%`;
     routes.setAttribute('aria-pressed', String(prefs.routes)); routes.classList.toggle('selected', prefs.routes);
     summary.textContent = `Regions · ${prefs.regions === null ? 'All' : prefs.regions.length}`;
+    const focused = stage.dataset.focusMode ?? 'all';
+    const description = [prefs.regions === null ? '' : `${prefs.regions.length} regions`, focused === 'all' ? '' : `${focused === 'area' ? 'Area' : 'Component'} focus`, prefs.routes ? '' : 'Routes hidden'].filter(Boolean).join(' · ');
+    if (scope.hidden !== !description) scope.hidden = !description;
+    if (scope.textContent !== description) {
+      scope.textContent = description;
+      scope.setAttribute('aria-label', `Review active view filters: ${description}`);
+    }
+    clear.disabled = prefs.regions === null && focused === 'all';
     layout.querySelector('[data-save-state]')!.textContent = stage.dataset.layoutSaved === 'false'
       ? 'Kept for this visit; storage unavailable.' : 'Saved on this device.';
     if (areas !== lastAreas || prefs.regions !== lastRegions) {
@@ -71,5 +96,5 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     }
   }
   sync();
-  return { sync, destroy() { resize?.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); layout.remove(); } };
+  return { sync, destroy() { resize?.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); scope.remove(); layout.remove(); } };
 }

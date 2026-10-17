@@ -1,4 +1,5 @@
 import { mountMobileDock } from './mobileDock';
+import { mountNetworkHelp } from './viewHelp';
 
 /** A single dock, with existing control handlers and accessible names preserved. */
 export function mountCinematicDock(): void {
@@ -42,6 +43,7 @@ export function mountCinematicDock(): void {
     close.setAttribute('aria-label', id === 'find' ? 'Close node search' : 'Close sound settings');
     close.addEventListener('click', () => { if (!panel.hidden) owner.click(); owner.focus(); }); header.append(close);
   }
+  mountNetworkHelp(graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
   mountMobileDock(controls, navigation, graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
   trackPanelHistory(controls, ['about-dialog', 'view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
   // One menu at a time, including the independently mounted display control.

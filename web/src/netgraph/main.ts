@@ -362,7 +362,7 @@ async function start(): Promise<void> {
       void liveFeed.resume();
     });
     document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return;
       const activeMenu = !soundPanel.hidden ? soundButton : !findPanel.hidden ? findButton : undefined;
       closeSoundPanel();
       closeFindPanel();

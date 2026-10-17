@@ -215,6 +215,27 @@ describe('sound preference and autoplay state', () => {
   });
   beforeEach(() => localStorage.clear());
 
+  it.each(['preview', 'enable'] as const)('mute cancels a pending %s even when the browser resumes audio later', async action => {
+    const original = window.AudioContext;
+    let finishResume!: () => void;
+    class DelayedAudioContext extends FakeAudioContext {
+      override resume = () => new Promise<void>(resolve => { finishResume = () => { this.state = 'running'; this.onstatechange?.(); resolve(); }; });
+    }
+    FakeAudioContext.initialState = 'suspended'; FakeAudioContext.oscillators = 0;
+    Object.defineProperty(window, 'AudioContext', { configurable: true, value: DelayedAudioContext });
+    const sonifier = new RouteSonifier(projector, document.createElement('div'));
+    try {
+      const pending = action === 'preview' ? sonifier.preview() : sonifier.setEnabled(true);
+      await sonifier.setEnabled(false); finishResume(); await pending;
+      expect(sonifier.isEnabled()).toBe(false);
+      expect(FakeAudioContext.oscillators).toBe(0);
+      expect(loadSoundPreference(localStorage).enabled).toBe(false);
+    } finally {
+      sonifier.destroy(); FakeAudioContext.initialState = 'running';
+      Object.defineProperty(window, 'AudioContext', { configurable: true, value: original });
+    }
+  });
+
   it('defaults to Aurora at 80 percent and stores only enabled, volume, and scene', () => {
     expect(loadSoundPreference(localStorage)).toEqual({
       enabled: false, volume: DEFAULT_SOUND_VOLUME, scene: DEFAULT_SOUND_SCENE,

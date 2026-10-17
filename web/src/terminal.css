@@ -1,4 +1,5 @@
-:root[data-terminal] {
+:root[data-terminal][data-theme] {
+  --scene-background: #000;
   --panel-solid: #050b10; --panel-border: #527885; --ink-strong: #e9e9bf;
   --ink: #d5e6df; --muted: #a5bdbb; --field-bg: #08121a; --selected: #193c3e;
   --focus-ring: #79f8c4; --terminal-accent: #79f8c4; color-scheme: dark;
