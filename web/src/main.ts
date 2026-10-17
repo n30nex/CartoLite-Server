@@ -133,7 +133,7 @@ legendToggle.setAttribute('aria-expanded', String(legendExpanded));
 legendToggle.setAttribute('aria-label', legendExpanded ? 'Hide map legend' : 'Show map legend');
 
 renderRouteLegend(routeLegend);
-aboutButton.addEventListener('click', () => aboutDialog.showModal());
+aboutButton.addEventListener('click', () => { closeFindPanel(); closeSoundPanel(); setLayersOpen(false); aboutDialog.showModal(); });
 aboutClose.addEventListener('click', () => aboutDialog.close());
 aboutDialog.addEventListener('click', (event) => {
   if (event.target === aboutDialog) aboutDialog.close();
@@ -152,7 +152,7 @@ document.addEventListener('pointerdown', (event) => {
   if (!layersDisclosure.contains(target)) setLayersOpen(false);
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
+  if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return;
   const activeMenu = layersDisclosure.hasAttribute('open') ? layersSummary : !soundPanel.hidden ? soundButton : !findPanel.hidden ? findButton : undefined;
   closeSoundPanel();
   closeFindPanel();
@@ -346,6 +346,8 @@ async function start(): Promise<void> {
         findButton.focus();
       },
     });
+    const refreshSearch = () => { if (!findPanel.hidden) renderNodeSearch(); };
+    liveMap.map.on('load', refreshSearch);
     findButton.addEventListener('click', () => {
       const opening = findPanel.hidden;
       findPanel.hidden = !opening;
@@ -533,6 +535,7 @@ async function start(): Promise<void> {
 
     liveStore.subscribe((state, changes) => {
       if (changes) liveMap.render(state, changes);
+      if (changes?.reset || changes?.nodes?.length) refreshSearch();
       updateStatus();
     });
     const savedView = loadSavedView(browserStorage(), activeViewClass);

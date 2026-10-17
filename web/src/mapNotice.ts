@@ -6,23 +6,32 @@ export function attachMapNotice(map: MapLibreMap, container: HTMLElement): (mess
   notice.className = 'map-notice glass';
   notice.setAttribute('role', 'status');
   notice.hidden = true;
+  const dismissed = new Set<string>();
+  let currentProblem = '';
   const text = document.createElement('span');
+  const actions = document.createElement('div'); actions.className = 'map-notice-actions';
+  const graph = document.createElement('a'); graph.href = '/netgraph/'; graph.textContent = 'Open Netgraph';
   const retry = document.createElement('button');
   retry.type = 'button'; retry.textContent = 'Retry';
   retry.addEventListener('click', () => location.reload());
   const close = document.createElement('button');
   close.type = 'button'; close.textContent = '×'; close.setAttribute('aria-label', 'Dismiss map notice');
-  close.addEventListener('click', () => { notice.hidden = true; });
-  notice.append(text, retry, close);
+  close.addEventListener('click', () => { dismissed.add(currentProblem); notice.hidden = true; });
+  actions.append(graph, retry, close); notice.append(text, actions);
   container.parentElement?.append(notice);
-  const show = (message: string): void => { text.textContent = message; notice.hidden = false; };
+  const show = (message: string, problem = message): void => {
+    if (dismissed.has(problem) || (!notice.hidden && currentProblem === problem)) return;
+    currentProblem = problem; text.textContent = message; notice.hidden = false;
+  };
   // Never forward provider error text: tile URLs can include browser credentials.
-  map.on('error', (event) => {
+  const onError = (event: { error?: { message?: string } }): void => {
     const detail = safeMapError(event.error?.message);
     if (container.dataset.mapErrorDetail !== detail) console.warn('Map detail could not load:', detail);
     container.dataset.mapErrorDetail = detail;
-    show('Some map details could not load. Refresh to retry.');
-  });
+    show(`Some map details could not load. ${detail}`, detail);
+  };
+  map.on('error', onError);
+  map.once('remove', () => { map.off('error', onError); notice.remove(); });
   return show;
 }
 

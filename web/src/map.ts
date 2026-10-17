@@ -1843,7 +1843,7 @@ export class LiveMap {
   };
 
   #handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && this.#selectedNodeID) this.#clearNodeSelection();
+    if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('dialog[open]') && this.#selectedNodeID) this.#clearNodeSelection();
   };
 }
 

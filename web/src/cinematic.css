@@ -176,3 +176,31 @@ html:root[data-mobile-dock="true"]:has(#view-panel:not([hidden])) :is(.node-insp
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic][data-native-app] #app #legend-toggle { right:68px; } }
 
 @media(max-width:359px) { html:root[data-mobile-dock="true"][data-text-size="large"] .controls { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+/* Keep dismissal and activity actions in reach while the card body scrolls. */
+html:root[data-cinematic] .follow-card > header { position:sticky; top:0; z-index:2; background:var(--panel-solid); }
+html:root[data-cinematic] .follow-card .follow-actions { position:sticky; bottom:0; z-index:1; margin:0; padding:8px 12px; background:var(--panel-solid); border-top:1px solid var(--panel-border); }
+html:root[data-cinematic] .map-notice { bottom:calc(var(--dock-bottom,12px) + var(--dock-height,44px) + 12px); }
+.map-notice { display:grid; gap:6px; }
+.map-notice-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.map-notice-actions a { display:inline-flex; align-items:center; min-height:44px; padding:6px 10px; color:var(--ink-strong); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:7px; text-decoration:none; }
+
+/* A short screen needs the subject and countdown, not just sticky buttons. */
+@media(max-height:520px) and (orientation:landscape) {
+ html:root[data-cinematic] .follow-card { display:grid; grid-template-columns:minmax(0,1fr) 44px 44px; }
+ html:root[data-cinematic] .follow-card > header { display:contents; }
+ html:root[data-cinematic] .follow-card > header :is(strong,.follow-badge) { display:none; }
+ html:root[data-cinematic] .follow-card > header button { grid-row:1; margin:0; padding:0; }
+ html:root[data-cinematic] .follow-card > header button:first-of-type { grid-column:2; }
+ html:root[data-cinematic] .follow-card > header button:last-of-type { grid-column:3; }
+ html:root[data-cinematic] .follow-card .follow-scope { grid-area:1 / 1; display:block; margin:0; padding:0 8px; font-size:0; }
+ html:root[data-cinematic] .follow-card .follow-scope select { width:100%; min-width:0; max-width:100%; font-size:12px; }
+ html:root[data-cinematic] .follow-copy { grid-area:2 / 1 / auto / -1; gap:2px; padding:2px 8px; }
+ html:root[data-cinematic] .follow-copy strong { font-size:12px; line-height:1.2; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+ html:root[data-cinematic] .follow-card footer { grid-area:3 / 1 / auto / -1; padding:2px 8px; }
+ html:root[data-cinematic] .follow-card :is(footer,.follow-copy span) { font-size:11px; line-height:1.3; }
+ html:root[data-cinematic] .follow-card progress { grid-area:4 / 1 / auto / -1; }
+ html:root[data-cinematic] .follow-card .follow-actions { grid-area:5 / 1 / auto / -1; position:static; margin:0; padding:2px 8px; }
+ html:root[data-cinematic][data-text-size="large"] .follow-copy strong { font-size:15px; }
+ html:root[data-cinematic][data-text-size="large"] .follow-card :is(footer,.follow-copy span,.follow-scope select) { font-size:13px; }
+}

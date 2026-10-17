@@ -32,13 +32,14 @@ export async function visualFixture(page: Page, zoom = 10.2, detail = false): Pr
       static CLOSED = 2;
       readyState = 1;
       onopen: ((event: Event) => void) | null = null;
+      private node = (event: Event) => this.dispatchEvent(new MessageEvent('node', { data: JSON.stringify((event as CustomEvent).detail) }));
       private receive = (event: Event) => this.dispatchEvent(new MessageEvent('packet', { data: JSON.stringify((event as CustomEvent).detail) }));
       private hello = (event: Event) => this.dispatchEvent(new MessageEvent('hello', { data: JSON.stringify((event as CustomEvent).detail) }));
       constructor() {
-        super(); window.addEventListener('visual-packet', this.receive); window.addEventListener('visual-hello', this.hello);
+        super(); window.addEventListener('visual-packet', this.receive); window.addEventListener('visual-node', this.node); window.addEventListener('visual-hello', this.hello);
         setTimeout(() => { this.onopen?.(new Event('open')); document.documentElement.dataset.fixtureStream = 'ready'; }, 0);
       }
-      close(): void { this.readyState = 2; window.removeEventListener('visual-packet', this.receive); window.removeEventListener('visual-hello', this.hello); }
+      close(): void { this.readyState = 2; window.removeEventListener('visual-packet', this.receive); window.removeEventListener('visual-node', this.node); window.removeEventListener('visual-hello', this.hello); }
     }
     Object.defineProperty(window, 'EventSource', { value: FixtureStream });
   }, { center: visualCenter, zoom, detail });

@@ -353,6 +353,12 @@ export class NetgraphRenderer implements ViewportProjector {
     return changed;
   }
 
+  // The window still retains every route; focus only changes what can be seen.
+  hasFocusedConnections(): boolean {
+    const focus = this.#focusIDs;
+    return focus ? this.#visibleRoutes.some(route => focus.has(route.fromId) && focus.has(route.toId)) : this.#visibleRoutes.length > 0;
+  }
+
   getRouteWindowMS(): number {
     return netgraphWindowMS(this.#routeWindow);
   }

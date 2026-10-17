@@ -1,99 +1,58 @@
-# Audit roadmap
+# CartoLite delivery roadmap
 
-Latest reliability review: [2 October 2026 end-to-end audit](audit-2026-10-02.md). The paired 0.15.3 / 0.6.3 patch addresses ingest indexing, region aliases, replay, redraws, shutdown and installation identity. Exact-commit Actions and release receipts determine delivery status; older rows below are historical.
+Updated 17 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
+The [older roadmap](roadmap-archive-2026-09.md) is preserved as a dated record;
+its Planned labels and build-size caps are not current instructions.
 
-Latest UI review: [2026-09-13 audit and refinement](ui-ux-audit-2026-09-13.md). The paired refinement implements A07, A08, A10 and part of A09, with layer organization and scoped reset; release evidence is separate.
+## Shipped baseline
 
-Updated: 12 September 2026. This roadmap turns the end-to-end audit into tracked delivery work. Audit IDs A01–A12 are retained; F IDs track features and R IDs track validation risks.
+Canada **0.17.2**, Worldwide **0.8.3**, Canada Android **1.1.2**. Already shipped:
+shared appearance and six route presets; cinematic effects and quality/motion
+controls; optional Map and Netgraph 3D; buildings/topography; scoped ten-second
+Follow; region layout/dragging/filtering and live-only routes; compact phone
+navigation; Terminal with improved geographic detail and bright packet glyphs;
+Canada Labs and native Android navigation/recovery. Worldwide has key-free maps,
+AMD64/ARM64 images and version-matched installer files. Hard build-size caps are
+removed; runtime/performance/privacy/security gates remain.
 
-This is the worldwide source-release roadmap. Shared work is paired with [CartoLite Canada](https://github.com/n30nex/CartoLite); A04/O1 is tracked upstream and is not an operator rollout for this repository.
+The separate unfinished reliability work is not part of this shipped baseline.
+It must be reviewed against current main before integration, preserving the new UI.
 
-## Status and completion rules
+## Phases
 
-- **Planned:** accepted direction, implementation has not started.
-- **Active:** current work package.
-- **Implemented:** code and regression coverage are present; merge, release and runtime evidence are tracked separately below.
-- **Review:** implementation and regression checks are in a pull request; consult its exact-commit Actions checks.
-- **Done:** merged with passing checks. Release/deployment is recorded separately.
-- **Needs setup:** an external configuration, provider choice, or physical test is required.
+| Phase | Status | Deliverable | Exit condition |
+| --- | --- | --- | --- |
+| 1. Everyday navigation and recovery | Implemented — candidate | UI01–UI06/UI15: live search refresh, dialog Back/Escape, quiet dismissible map notices, actionable empty Netgraph, reachable Follow actions, stable Labs feedback and this reconciled roadmap. Targets Canada 0.17.3 / Worldwide 0.8.4. | Baseline reproduction; focused tests pass without weakening assertions; full Actions gates; reviewed paired PRs; exact images, qualified Canada deployment and Worldwide installs. |
+| 2. Controls, discovery and explanations | Planned | UI07/UI08 and discovery part of UI14: relevant per-view controls (including a true High-quality override in Labs), consistent visible help, clearer active filters and route/live/observer-only explanations. Refine voice browsing/quick mute without autoplay. | Keyboard/Back/focus, 320px/short landscape, enlarged text, sound opt-in and no duplicate feed/layout reset. |
+| 3. Animation and visual clarity | Planned | UI09/UI10: semantic Terminal network ink, dense-label priority, purposeful live emphasis, consistent ground/perspective behavior and measured sustained quality. Review each Labs scene independently. | Fixed-time synthetic GPU/Canvas/audio comparisons; all themes/presets; terrain/buildings/date-line/context loss; unchanged 4k-node/7k-route and responsiveness gates. |
+| 4. Recovery and release hardening | Planned integration | UI11/UI12: reconcile the separate retained/freshness/clock/region-loading work; clear development-tool advisories through existing dependency PRs; extend browser/accessibility coverage. | Conservative topology/privacy; real reconnect/failure scenarios; exact native images and checkpoint-preserving anonymous installs. No unrelated branch resets or local builds. |
+| 5. Optional additions | Planned | UI13 and locale part of UI14: named local views, public-only share links, EN/FR Canada chrome and worldwide locale/units. Approved extra tile providers remain a separate configuration decision. | Demonstrate a useful task, reversible saved settings and explicit data/coverage limitations before broadening the UI. |
 
-Each item needs its acceptance check, edition parity, and an exact CI result before it becomes Done. Code completion does not imply a production rollout. All build/test execution for roadmap work uses GitHub Actions. Fixtures must be synthetic.
+## Scope and validation
 
-## Milestones
+- Both editions: Map, Netgraph, Terminal; layers, themes/presets, Find, inspectors,
+  Follow, sound, status/error/empty states, keyboard/touch, suspension and recovery.
+- Canada only: region registry, Packet Pond, Firefly Meadow, Mesh Loom, Little
+  Mesh Villages and Android. Do not import these product features into Worldwide.
+- First package changes hosted UI only; the existing signed Android app receives
+  it without a new APK. Keep original identity/certificate for any future native
+  release. Physical-device testing remains optional by owner instruction, and
+  must never be claimed from emulator evidence.
+- All builds/tests/browser artifacts run in Actions with synthetic fixtures.
+  Keep the scratch, non-root, read-only container and public API v2 unchanged.
+- Runtime performance and privacy are release gates. Artifact sizes are reports.
+  Historical links remain still; actual live packets retain timing and meaning.
 
-| Milestone | Status | Deliverable / exit condition |
-|---|---|---|
-| M1 — Security and data correctness | Implemented | A01, A02, A03, A05 and A06 are implemented in the paired corrective release. Merge/release requires the existing full CI plus focused regressions in both editions. |
-| O1 — Canada recovery operations | Needs setup | A04 and R09; independently verifiable backup, isolated restore, monitoring, and current deployment identity. This is a separate Canada operations package. |
-| M2 — Usability and portable operation | Planned | A07–A12; honest count/window labels, optional storage, keyboard continuity, readable mobile counters, dependency/release policy, and identifiable worldwide installs. |
-| M3 — Follow and display refinement | Planned | F01–F08; area-constrained follow, readable cards, shared display/motion controls, layer strengths, camera controls, cross-view selection and bounded discovery/focus. |
-| M4 — Optional additions | Planned | F09–F12; bookmarks, ground elevation context, configured tile types and localization/exhibition polish. Provider-dependent work follows A01 and R08. |
-| V1 — Resilience and scale evidence | Planned | R01–R09 exercised where their related code changes; improve measured bottlenecks and preserve privacy, rendering and runtime budgets. |
+## Status rules and delivery
 
-## Corrective backlog
+Planned means not implemented. Active means work underway. Implemented means
+source and tests exist; it is not deployment proof. Delivered requires reviewed
+merged code, exact passing main artifacts, release checks and the applicable
+runtime/installation evidence. Record the paired PRs and release manifests for
+each phase; private operational records hold target/backup/restore observations.
 
-| ID | Priority | Scope | Status | Work and acceptance |
-|---|---|---|---|---|
-| A01 | P1 | Both | Implemented | Upgrade MapLibre 5.19.0 to patched 6.4.1, adapt ESM imports and bundled worker setup, and scan runtime dependencies from the lockfile. Exact-revision type/build, map, terrain, route-layer, recovery and browser gates pass. Track WebGL2 as the map minimum. |
-| A02 | P1 | Both | Implemented | Check source-prefix uniqueness before checking coordinates. A positioned/unpositioned collision never creates a guessed origin leg; independently resolved downstream hops remain visible. |
-| A03 | P1 | Both | Implemented | Coalesce capacity-eviction resets after an authoritative snapshot. Crossing node/route caps leaves the browser consistent and bounded, with no dangling endpoint references or reset per packet. |
-| A04 | P1 | Canada | Needs setup | Configure the documented encrypted off-host backup and restore path. Prove a checksummed isolated restore with the matching image/version and independent monitoring; preserve production throughout validation. |
-| A05 | P2 | Both | Implemented | Reject non-finite RF/coordinate values and impose a bounded MQTT envelope before normalization. Synthetic invalid numbers and over-limit JSON/hex are rejected; valid RSSI-only and SNR-only packets still work. |
-| A06 | P2 | Both | Implemented | Run retention maintenance during quiet periods and avoid unnecessary checkpoint writes. With no new messages, expired routes/nodes leave the API, checkpoint and connected client; quiet connected feeds remain ready. |
-| A07 | P2 | Both | Implemented | Label cumulative observation totals honestly and describe windows as “links heard within this period.” Never imply current totals are unique packets counted within the chosen interval. |
-| A08 | P2 | Both map pages | Implemented | Guard access to browser storage itself and fall back to in-memory preferences. A throwing storage getter cannot prevent startup or control use. |
-| A09 | P2 | Both | Planned | Transfer keyboard selection focus to details, restore it on close, add Netgraph keyboard pan/zoom/reset, and bounded node/area browsing. Find → details → neighbour → close works without a pointer. |
-| A10 | P2 | Both Netgraphs | Implemented | Give every phone counter a visible or accessible name; prefer a concise nodes/links summary with optional area/component detail. Validate at 320–480 px without overlap. |
-| A11 | P2 | Both delivery processes | Planned | Make dependency contributions testable without production credentials, retain trusted provider verification, enforce worldwide exact-revision merge/release checks and enable dependency alerting. M1 covers the runtime lockfile scan and automatic publication of the verified manual-run status on the exact commit; repository enforcement and alerts remain planned. |
-| A12 | P2 | Worldwide | Planned | Improve setup identity, require an instance-specific MQTT client ID, and refresh upgrade/rollback instructions. A documented install reports its actual revision/version; independent instances have distinct identities. |
+Phase 1 review: [Canada PR 102](https://github.com/n30nex/CartoLite/pull/102) and
+[Worldwide PR 33](https://github.com/n30nex/CartoLite-Server/pull/33). The initial
+commit is a deliberate failing baseline before fixes, not a release candidate.
 
-P1 means next corrective work; P2 means the next refinement cycle. [MapLibre advisory GHSA-jrc7-96c5-q579](https://github.com/maplibre/maplibre-gl-js/security/advisories/GHSA-jrc7-96c5-q579) affects the audited dependency. The audit established the vulnerable version, not exploitation of this application.
-
-## Feature backlog
-
-| ID | Milestone | Status | Feature and acceptance |
-|---|---|---|---|
-| F01 | M3 | Planned | **Follow scope:** Everywhere / This area / Selected node, plus confirmed-routes-only. Keep ten seconds as the default; a locked area never expands just because the camera moves. Expose existing selected-node filtering clearly. |
-| F02 | M3 | Planned | **Follow card:** Hold, Next and Inspect, observation age, and a distinct observer-only state. Hold/pause stop an active camera ease; Inspect opens existing details and pauses the director. |
-| F03 | M3 | Planned | **Shared Display menu:** interface theme, motion, text size and contrast across Map/Netgraph; Calm / Standard / Showcase presets and recoverable custom settings. Preserve OS reduced-motion preferences. |
-| F04 | M3 | Planned | **Independent effect strength:** historical lines, packet glow, residue duration and heat strength. Reducing decoration keeps confirmed links available and sharp at distant zooms. |
-| F05 | M3 | Planned | **Terrain/camera controls:** compass/reset north, scale, optional pitch, clearer shading vs 3D-height terminology, and zoom-aware terrain contrast. Labels and packet cores remain readable. |
-| F06 | M3 | Planned | **Map ↔ Netgraph continuity:** open the selected public node in the other view; preserve useful context and explain nodes absent from that route window. |
-| F07 | M3 | Planned | **Local discovery:** role, recently-seen and current-view filters with bounded empty-query browsing; worldwide grid filtering. Filters use downloaded public data and have an obvious reset. |
-| F08 | M3 | Planned | **Netgraph focus:** isolate an area/component, mute unrelated decoration, and reduce competing traffic badges. Keep an obvious all-areas reset and preserve all underlying links. |
-| F09 | M4 | Planned | **Local bookmarks / shareable views:** named centre/zoom/bearing/pitch/display presets. Shared URLs contain public view settings only, never private configuration or transient packet identifiers. |
-| F10 | M4 | Planned | **Ground elevation context:** on-demand approximate ground height and endpoint height difference, optionally a selected-route profile. Remove visual exaggeration from numeric values and handle missing DEM data. Never present it as antenna height or RF coverage. |
-| F11 | M4 | Needs setup | **Actual tile types:** operator-configured satellite/hybrid or another approved provider, after A01. Require explicit attribution, credential handling, allowed hosts, contrast and failure fallback. No provider entitlement is assumed. |
-| F12 | M4 | Planned | **Locale / exhibition polish:** English/French Canada chrome, extensible worldwide translations, native locale formatting and selectable units; exhibition and explicit keep-awake preferences using existing patterns. |
-
-M3 uses existing public data and browser-local settings. M4 terrain features use the existing DEM on demand; additional tile providers require configuration. Route coverage, antenna height, raw RF details and historical interval totals cannot be inferred from the present public state.
-
-## Evidence and engineering backlog
-
-| ID | Status | Validation / improvement |
-|---|---|---|
-| R01 — Date-line follow | Planned | Test both directions across 179°/−179° in pitched/rotated Follow at detail zoom, desktop and phone. Existing overview seam coverage does not prove this combination. |
-| R02 — Time and replay | Planned | Separate receipt freshness from RF observation age; test out-of-order/future timestamps, retained MQTT messages and browser clock skew. Old/replayed observations must not masquerade as new activity. |
-| R03 — Backend hot path | Planned | Profile sustained ingest at 10k nodes / 20k routes. Reduce whole-node scans in public-ID refresh only with measured evidence and unchanged identity semantics. |
-| R04 — Recovery pressure | Planned | Test concurrent resync, stream capacity refusal and slow state readers; add bounded response work and retry jitter where justified. |
-| R05 — Live event validation | Planned | Validate event shape and sequence before store mutation, reuse existing validators, and recover once on a malformed stream. |
-| R06 — Budget / parity | Planned | Track page-entry and lazy assets alongside total bytes; extract cohesive helpers as touched. Record intentional Canada/worldwide differences and check shared fixes for drift. |
-| R07 — Browser / device coverage | Planned | Add focused Firefox/WebKit evidence where feasible and physical Android GPU, sleep, audio and thermal checks for Canada. Browser emulation is not hardware validation. |
-| R08 — Degraded services | Planned | Exercise basemap-key failure, DEM timeout, region-asset failure and missing WebGL2 independently. Retain useful status/data and explain unavailable features concisely. |
-| R09 — Operational policy | Needs setup | Verify independent monitoring and off-host restore; document the response to lifetime drop alarms and distinguish present pressure from past drops without silently clearing the alarm. |
-
-## Delivery and parity record
-
-The audited baselines were Canada 0.12.0 (`2e827a4`) and Worldwide 0.3.1 (`6a446ee`). M1 is delivered through [Canada PR #70](https://github.com/n30nex/CartoLite/pull/70) and [Worldwide PR #9](https://github.com/n30nex/CartoLite-Server/pull/9), targeting releases [0.12.1](https://github.com/n30nex/CartoLite/releases/tag/v0.12.1) and [0.3.2](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.3.2). Use those PR checks and release manifests for exact revisions and validation results.
-
-The migration measured 474,482 compressed JS/CSS bytes for Canada and 446,084 for Worldwide in Actions, including the new 129,701-byte map worker. M1 now enforces total, non-map-worker, and map-worker caps separately. R06 still tracks entry-page/lazy-load measurement. Rendering timing and topology-count gates are unchanged.
-
-For each work package, record its PR, exact checked commit, CI result, counterpart PR or scope exception, and any release/runtime proof. A green candidate PR remains Review until merged; a merged change remains undeployed until an exact release is rolled out and verified.
-
-Preserve public schema v2, conservative route resolution, the single-service/atomic-checkpoint architecture and hardened runtime. Canada keeps its published-image promotion path, geographic scope, Labs and Android. Worldwide adds a prebuilt amd64/arm64 image distribution with coordinate-derived areas, optional exact region filtering, and no Canada-only data, Labs or Android.
-
-## Current visual and Docker release package
-
-Active work: Canada 0.14.0 ([PR77](https://github.com/n30nex/CartoLite/pull/77)) and Worldwide 0.5.0 ([PR12](https://github.com/n30nex/CartoLite-Server/pull/12)). This package delivers shared scene/interface themes, six route presets with advanced controls, readable light/dark palettes, adaptive terrain strokes, desktop buildings/camera controls, and Canada region fills/legend. Worldwide additionally gains key-free default maps, runtime provider configuration and tested native Docker image publication.
-
-This covers the theme/preset/contrast parts of F03, line/glow/residue controls in F04, and the camera/shading parts of F05. Their remaining text-size/motion/heat-strength work and the other follow/discovery features remain on the roadmap. R08 gains missing-tile recovery coverage; broader degraded-service scenarios remain tracked. A passing candidate remains unreleased until exact-commit main validation, release verification and applicable live deployment checks complete.
+Phase 1 release evidence, when published: [Canada 0.17.3](https://github.com/n30nex/CartoLite/releases/tag/v0.17.3) and [Worldwide 0.8.4](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.8.4). Remaining phases are planned, not shipped.

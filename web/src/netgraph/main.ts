@@ -61,7 +61,10 @@ const componentCount = required<HTMLElement>('component-count');
 const tooltip = required<HTMLElement>('tooltip');
 const inspectorSheet = required<HTMLElement>('node-inspector-sheet');
 const emptyState = required<HTMLElement>('empty-state');
-const emptyMessage = emptyState.textContent;
+const emptyMessage = required<HTMLElement>('empty-message');
+const emptyRegions = required<HTMLButtonElement>('empty-regions');
+const emptyFocus = required<HTMLButtonElement>('empty-focus');
+const emptyWindow = required<HTMLButtonElement>('empty-window');
 const fatal = required<HTMLElement>('fatal');
 
 let soundPulseTimer: number | undefined;
@@ -96,6 +99,7 @@ async function start(): Promise<void> {
   let selectRoutes: (ids: string[], focus?: boolean) => void = () => undefined;
   let syncCamera = (): void => undefined;
   let syncRegions = (): void => undefined;
+  let refreshSearch = (): void => undefined;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
 
   try {
@@ -214,12 +218,24 @@ async function start(): Promise<void> {
       for (const [element, value] of [[connectedCount, stage.dataset.connectedNodes], [routeCount, stage.dataset.visibleRoutes], [areaCount, stage.dataset.areas], [componentCount, stage.dataset.components]] as const) {
         const text = Number(value ?? 0).toLocaleString(); if (element.textContent !== text) element.textContent = text;
       }
-      emptyState.hidden = Number(stage.dataset.visibleRoutes ?? 0) > 0;
-      emptyState.textContent = graph.regionLayout().regions?.length === 0 ? 'No regions selected. Choose Regions to show your mesh.' : emptyMessage;
+      const hasRoutes = graph.hasFocusedConnections();
+      if (emptyState.hidden !== hasRoutes) emptyState.hidden = hasRoutes;
+      const regions = graph.regionLayout().regions, focused = (stage.dataset.focusMode ?? 'all') !== 'all';
+      if (emptyRegions.hidden !== (regions === null)) emptyRegions.hidden = regions === null;
+      if (emptyFocus.hidden !== !focused) emptyFocus.hidden = !focused;
+      const widest = routeWindow.value === '24h' || liveStore.snapshot.routes.length === 0;
+      if (emptyWindow.hidden !== widest) emptyWindow.hidden = widest;
+      const message = regions !== null
+        ? regions.length === 0 ? 'No regions selected. Show all regions to see your mesh.' : 'No confirmed connections match these regions in this time window.'
+        : focused ? 'No confirmed connections remain in this focus.'
+        : liveStore.snapshot.routes.length ? 'No confirmed connections in this time window. Try a longer window or view nodes on the map.'
+        : 'No confirmed connections received yet. Observed nodes can still appear on the map.';
+      if (emptyMessage.textContent !== message) emptyMessage.textContent = message;
     };
 
     liveStore.subscribe((state, changes) => {
       graph.render(state, changes);
+      if (changes?.reset || changes?.nodes?.length || changes?.routes?.length) refreshSearch();
       if (changes?.reset || changes?.routes?.length || changes?.nodes?.length) updateSummary();
       updateStatus();
       if (!changes) return;
@@ -239,10 +255,14 @@ async function start(): Promise<void> {
       const applied = graph.setFocus(select.value as 'all' | 'area' | 'component');
       focusControl.querySelector('small')!.textContent = applied ? '' : 'Select a node first';
       if (!applied) select.value = stage.dataset.focusMode ?? 'all';
+      syncRegions(); updateSummary();
     });
 
     const regions = mountRegionControls(graph, focusControl, () => { updateSummary(); renderInspector(); }, () => { closeFindPanel(); closeSoundPanel(); if (!focusControl.closest('#display-panel')) closeDisplay(); });
     syncRegions = regions.sync;
+    emptyRegions.addEventListener('click', () => { navigate(); graph.setRegions(null); regions.sync(); updateSummary(); renderInspector(); stage.focus(); });
+    emptyFocus.addEventListener('click', () => { navigate(); graph.setFocus('all'); focusControl.querySelector('select')!.value = 'all'; regions.sync(); updateSummary(); renderInspector(); stage.focus(); });
+    emptyWindow.addEventListener('click', () => { navigate(); routeWindow.value = '24h'; routeWindow.dispatchEvent(new Event('change', { bubbles:true })); stage.focus(); });
     window.addEventListener('pagehide', event => { if (!event.persisted) regions.destroy(); });
 
     const director = mountGraphFollow(graph, id => selectNode(id, true));
@@ -310,7 +330,7 @@ async function start(): Promise<void> {
       }
       event.preventDefault();
     });
-    wireSearch(graph, (nodeID) => selectNode(nodeID, true));
+    refreshSearch = wireSearch(graph, (nodeID) => selectNode(nodeID, true));
     for (const control of graphControls) control.disabled = false;
     app.dataset.loading = 'false';
 
@@ -379,7 +399,7 @@ async function start(): Promise<void> {
   }
 }
 
-function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void): void {
+function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void): () => void {
   const renderResults = wireNodeSearch({
     input: nodeSearch,
     results: nodeSearchResults,
@@ -406,6 +426,7 @@ function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void
     renderResults();
     nodeSearch.focus();
   });
+  return () => { if (!findPanel.hidden) renderResults(); };
 }
 
 function configureSound(sonifier: RouteSonifier): void {
