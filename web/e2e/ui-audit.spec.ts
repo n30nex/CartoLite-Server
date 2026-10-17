@@ -195,7 +195,12 @@ test.describe('UI audit controls', () => {
     await page.goto('/terminal/'); await expect(page.locator('#terminal-map')).toBeVisible();
     await openDisplay(page);
     await expect(page.locator('#basemap-style')).toBeHidden(); await expect(page.locator('#interface-theme')).toBeHidden();
-    await page.getByLabel('Terminal palette').selectOption('amber');
+    for (const [palette, colour] of [['ansi', 'rgb(121, 248, 196)'], ['green', 'rgb(141, 255, 176)'], ['amber', 'rgb(255, 209, 138)']]) {
+      await page.getByLabel('Terminal palette').selectOption(palette!);
+      await expect(page.locator('.terminal-settings legend')).toHaveCSS('color', colour!);
+      await expect(page.locator('.route-preview')).toHaveCSS('color', colour!);
+      await expect(page.locator('.route-preview')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+    }
     await expect(page.locator('.terminal-basemap-note')).toBeVisible();
     await page.screenshot({ path: info.outputPath('terminal-display.png') });
     await page.goto('/'); await openDisplay(page);
