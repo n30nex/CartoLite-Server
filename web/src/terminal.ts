@@ -43,7 +43,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   notice.innerHTML = '<span>Terminal graphics paused. The map and live traffic are still available.</span><button type="button">Retry Terminal</button>';
   host.after(notice);
   const settings = document.createElement('fieldset'); settings.className = 'terminal-settings';
-  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>R repeater · C companion · H room · S sensor · @ selected. ANSI keeps packet colours; amber and green use one phosphor. Character shading follows the map and terrain. Live timing stays the same.</p>';
+  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>R repeater · C companion · H room · S sensor · @ selected. ANSI textures: green vegetation, grey built-up land. Live timing stays the same.</p>';
   document.querySelector('#map-appearance > summary')!.after(settings);
   const selects = settings.querySelectorAll('select');
   const sync = () => {
@@ -79,7 +79,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
     read.imageSmoothingEnabled = false;
     read.drawImage(source, 0, 0, sample.width, sample.height);
-    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii', false);
+    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii');
     ctx.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
     ctx.textBaseline = 'top';
     // Batch same-colour runs. A full ocean is a few row draws, not 16,000 calls.
@@ -115,17 +115,21 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       // Keep markers on the true hit target. Labels use measured Unicode widths,
       // independent of geographic grid size, so emoji and large screens fit.
       const w = context.measureText(text).width;
-      const x = point.x + (feature.layer.id === 'node-labels' ? cw * 2.25 : -w/2), y = point.y-ch/2;
-      const key = `${text}:${Math.round(x)}:${Math.round(y)}`;
-      if (seen.has(key) || x < 0 || y < 48 || x + w > width || y + ch > height - 60) continue;
+      const key = `${feature.layer.id}:${text}:${Math.round(point.x)}:${Math.round(point.y)}`;
+      if (seen.has(key)) continue;
       seen.add(key);
-      const cells: string[] = [];
-      for (let row=Math.floor((y-2)/ch);row<=Math.floor((y+ch+2)/ch);row++) for (let col=Math.floor((x-2)/cw);col<=Math.floor((x+w+2)/cw);col++) cells.push(`${col}:${row}`);
-      if (cells.some(cell => occupied.has(cell))) continue;
-      cells.forEach(cell => occupied.add(cell));
-      context.fillStyle = '#000'; context.fillRect(x - 1, y, w + 2, ch);
-      context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : feature.layer.id === 'node-labels' ? 2 : 5, preferences.palette);
-      context.fillText(text, x, y); drawn++;
+      const nodeLabel = feature.layer.id === 'node-labels', centered = Math.max(2,Math.min(width-w-2,point.x-w/2));
+      const positions = nodeLabel ? [[point.x+cw*2.25,point.y-ch/2],[centered,point.y+ch*1.5],[centered,point.y-ch*2.5]] : [[point.x-w/2,point.y-ch/2]];
+      for (const [x=0,y=0] of positions) {
+        if (x < 0 || y < 48 || x+w > width || y+ch > height-60) continue;
+        const cells: string[] = [];
+        for (let row=Math.floor((y-2)/ch);row<=Math.floor((y+ch+2)/ch);row++) for (let col=Math.floor((x-2)/cw);col<=Math.floor((x+w+2)/cw);col++) cells.push(`${col}:${row}`);
+        if (cells.some(cell => occupied.has(cell))) continue;
+        cells.forEach(cell => occupied.add(cell));
+        context.fillStyle = '#000'; context.fillRect(x-1,y,w+2,ch);
+        context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : nodeLabel ? 2 : 5, preferences.palette);
+        context.fillText(text,x,y); drawn++; break;
+      }
     }
     canvas.dataset.labels = String(drawn);
   }

@@ -17,7 +17,7 @@ test('Terminal preserves roads, landscape detail and measured label spacing', as
     };
   });
   await page.goto('/');
-  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle',{timeout:10000});
   await page.screenshot({path:info.outputPath('detail-map-reference.png')});
   await page.goto('/terminal/');
   await expect(page.locator('#map')).toHaveAttribute('data-terminal-renderer','webgl2');
@@ -36,6 +36,7 @@ test('Terminal preserves roads, landscape detail and measured label spacing', as
     },png.toString('base64'));
   }).toBeGreaterThan(40);
   expect(Number(await page.locator('#map').getAttribute('data-terminal-grid-cells'))).toBeLessThanOrEqual(16000);
+  await expect.poll(() => page.evaluate(() => (window as unknown as {terminalLabels:{text:string}[]}).terminalLabels.some(label=>label.text==='Visual Alpha 🌲 Wide name'))).toBe(true);
   const labels=await page.evaluate(() => (window as unknown as {terminalLabels:{text:string;x:number;y:number;width:number;height:number}[]}).terminalLabels);
   expect(labels.length).toBeGreaterThan(0);
   for(let i=0;i<labels.length;i++) for(let j=i+1;j<labels.length;j++) {

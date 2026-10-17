@@ -28,12 +28,12 @@ void main(){
  for(int y=0;y<4;y++)for(int x=0;x<2;x++){
   vec2 p=(cell+vec2((float(x)+.5)/2.,(3.5-float(y))/4.))/grid;
   // Conservative coverage: thin roads/routes must not fall between dot centres.
-  int k=0;
+  int k=at(p);
   for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
    int sampleInk=at(p+vec2(i,j)*stepSize/3.);
    if(rank(sampleInk)>rank(k))k=sampleInk;
   }
-  if(k==0&&(at(p+vec2(stepSize.x,0))==1||at(p-vec2(stepSize.x,0))==1||at(p+vec2(0,stepSize.y))==1||at(p-vec2(0,stepSize.y))==1))k=2;
+  if((k==0||k>8)&&(at(p+vec2(stepSize.x,0))==1||at(p-vec2(stepSize.x,0))==1||at(p+vec2(0,stepSize.y))==1||at(p-vec2(0,stepSize.y))==1))k=2;
   int priorityNow=rank(k);
   if(k==0||priorityNow<priority)continue;
   // Do not recolour every water/land dot when a bright route crosses one dot.
