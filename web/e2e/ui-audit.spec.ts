@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
-import { graphFilters, graphFocus } from './dockControls';
+import { graphFilters, graphFocus, viewTool } from './dockControls';
 import type { StateV2 } from '../src/types';
 
 test.describe('UI audit', () => {
@@ -123,15 +123,23 @@ test.describe('UI audit', () => {
     await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
     await page.locator('#follow-button').click(); await visualPacket(page, 1);
     const card = page.locator('#follow-card'); await expect(card).toContainText('Visual Alpha');
-    await page.screenshot({ path: info.outputPath('follow-short-landscape.png') });
-    const visible = await card.evaluate(card => {
-      const box = card.getBoundingClientRect();
-      return [...card.querySelectorAll<HTMLElement>('header button,.follow-actions button,.follow-copy strong,.follow-copy span,footer')].every(button => {
-        const rect = button.getBoundingClientRect();
-        return rect.top >= box.top && rect.bottom <= box.bottom && rect.left >= box.left && rect.right <= box.right
-          && button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+    for (const large of [false, true]) {
+      if (large) {
+        await viewTool(page, '#display-button,#display-shortcut');
+        await page.getByLabel('Text size', { exact: true }).selectOption('large');
+        await page.keyboard.press('Escape');
+        await expect(card).toBeVisible();
+      }
+      await page.screenshot({ path: info.outputPath(large ? 'follow-short-landscape-large.png' : 'follow-short-landscape.png') });
+      const visible = await card.evaluate(card => {
+        const box = card.getBoundingClientRect();
+        return [...card.querySelectorAll<HTMLElement>('header button,.follow-actions button,.follow-copy strong,.follow-copy span,footer')].every(element => {
+          const rect = element.getBoundingClientRect();
+          return rect.top >= box.top && rect.bottom <= box.bottom && rect.left >= box.left && rect.right <= box.right
+            && element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+        });
       });
-    });
-    expect(visible).toBe(true);
+      expect(visible).toBe(true);
+    }
   });
 });
