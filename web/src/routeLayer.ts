@@ -347,6 +347,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (!this.#vertexCount) return;
     const { program, uniforms, attributes } = this.#resources;
     const settings = displayPreferences();
+    const terminal = document.documentElement.hasAttribute('data-terminal');
     // Preserve every core stroke and pattern; omit decorative passes when a
     // dense close view carries as much geometry as a regional overview.
     const denseOverview = this.#routes.length > 2000 && (this.#map.getZoom() < 11 || this.#vertexCount > 12000);
@@ -366,11 +367,11 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.#hitMatrix = new Float32Array(matrix);
     gl.uniformMatrix4fv(uniforms.matrix!, false, this.#hitMatrix);
     gl.uniform2f(uniforms.viewport!, Math.max(1, this.#map.getCanvas().clientWidth), Math.max(1, this.#map.getCanvas().clientHeight));
-    gl.uniform1f(uniforms.width!, settings.width);
+    gl.uniform1f(uniforms.width!, settings.width * (terminal ? 1.2 : 1));
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.#map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
     gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
-    gl.uniform1f(uniforms.opacity!, this.#opacity * (settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.#routes.length / 150) * .1, .38, .9) : 1));
+    gl.uniform1f(uniforms.opacity!, Math.min(1,this.#opacity * (terminal ? 1.35 : settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.#routes.length / 150) * .1, .38, .9) : 1)));
     gl.uniform1f(uniforms.maximum_band!, this.#maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
     if (this.#lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);

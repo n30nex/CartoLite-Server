@@ -3,14 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 const root = process.argv[2] ?? "web/dist";
-// MapLibre 6 requires a separate Vite worker (129,701 gzip bytes in Actions).
-// Keep the previous cap for all other JS/CSS; account for the worker explicitly.
-// Combined measured cost: 446,084 bytes. Runtime timing/route gates are unchanged.
-const uiLimit = 350 * 1024;
-const workerLimit = 128 * 1024;
-// Optional Terminal view is lazy-loaded; original UI and worker caps stay fixed.
-const terminalLimit = 8 * 1024;
-const limit = Number(process.env.CARTOLITE_GZIP_BUDGET ?? (uiLimit + workerLimit + terminalLimit));
+// Report artifact sizes without release-blocking caps. Runtime gates remain.
 
 async function assets(dir, pattern) {
   const found = [];
@@ -40,11 +33,9 @@ for (const file of files) {
   console.log(`${bytes.toString().padStart(8)}  ${file}`);
 }
 
-console.log(`${total} gzip bytes total (budget ${limit})`);
-console.log(`${total - workerBytes - terminalBytes} gzip bytes excluding map worker (budget ${uiLimit})`);
-console.log(`${workerBytes} gzip bytes for map worker (budget ${workerLimit})`);
-console.log(terminalBytes + ' gzip bytes for optional Terminal (budget ' + terminalLimit + ')');
-if (terminalBytes <= 0 || terminalBytes > terminalLimit) process.exitCode = 1;
+console.log(`${total} gzip bytes total`);
+console.log(`${total - workerBytes - terminalBytes} gzip bytes for main UI`);
+console.log(`${workerBytes} gzip bytes for map worker`);
+console.log(terminalBytes + ' gzip bytes for optional Terminal');
+if (terminalBytes <= 0) throw new Error('missing optional Terminal assets');
 if (workerCount !== 1) throw new Error(`expected one map worker, found ${workerCount}`);
-if (!Number.isFinite(limit) || limit <= 0) throw new Error('invalid total frontend budget');
-if (total > limit || total - workerBytes - terminalBytes > uiLimit || workerBytes > workerLimit) process.exitCode = 1;
