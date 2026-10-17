@@ -242,12 +242,14 @@ test.describe('UI audit controls', () => {
     if (await page.locator('#display-panel').isVisible()) await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 568, height: 320 });
     await expect(page.locator('html')).toHaveAttribute('data-mobile-dock', 'true');
-    await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
-    await page.locator('.node-search-result').first().click();
-    await graphFocus(page, 'component'); await graphFilters(page); await page.locator('#region-filter > summary').click();
+    await graphFilters(page); await page.locator('#region-filter > summary').click();
     const firstRegion = page.locator('.region-checks input').first();
     await firstRegion.uncheck(); await firstRegion.check();
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+    await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
+    await page.locator('.node-search-result').first().click(); await graphFocus(page, 'component');
+    await expect(page.locator('#graph-scope')).toContainText('Component focus');
+    await expect(page.locator('#graph-scope')).toContainText('regions');
     await openDisplay(page); await page.getByLabel('Text size', { exact: true }).selectOption('large'); await page.keyboard.press('Escape');
     await page.locator('#follow-button').click(); await visualPacket(page, 1);
     await expect(page.locator('#follow-card')).toContainText('Visual Alpha');
