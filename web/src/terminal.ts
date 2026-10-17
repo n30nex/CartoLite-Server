@@ -12,7 +12,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   const map = view.map, host = map.getContainer(), root = document.documentElement;
   let preferences = { ...TERMINAL_DEFAULTS };
   try { preferences = terminalPreferences(browserStorage().getItem(KEY)); } catch { /* Storage may be disabled. */ }
-  const originalPaint = new Map<string, { layer: string; property: string; value: unknown }>();
+  const originalPaint = new Map<string, { layer: string; property: string; value: Parameters<typeof map.setPaintProperty>[2] }>();
   let labelLayers: string[] = [];
   let disposed = false, failed = false, timer: number | undefined, lastMap = 0, lastPacket = 0;
   const canvas = document.createElement('canvas'), effects = document.createElement('canvas');
@@ -105,7 +105,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
 
   function fail() {
     failed = true; root.dataset.terminalFallback = 'true'; notice.hidden = false;
-    for (const item of originalPaint.values()) if (map.getLayer(item.layer)) map.setPaintProperty(item.layer, item.property as Parameters<typeof map.setPaintProperty>[1], item.value ?? null);
+    for (const item of originalPaint.values()) if (map.getLayer(item.layer)) map.setPaintProperty(item.layer, item.property as Parameters<typeof map.setPaintProperty>[1], item.value);
     originalPaint.clear();
     fx.clearRect(0, 0, effects.width, effects.height);
   }
@@ -126,7 +126,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   // visibility continue to be owned by LiveMap and the user's layer controls.
   function style() {
     if (disposed || failed || !map.isStyleLoaded()) return;
-    const paint = (layer: string, property: string, value: unknown) => {
+    const paint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
       const current = map.getPaintProperty(layer, property as Parameters<typeof map.getPaintProperty>[1]);
       if (current === value) return;
       originalPaint.set(`${layer}:${property}`, { layer, property, value: current });
