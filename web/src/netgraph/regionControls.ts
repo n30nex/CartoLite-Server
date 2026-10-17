@@ -13,15 +13,9 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   const routes = document.createElement('button'); routes.type = 'button'; routes.id = 'graph-routes-button'; routes.textContent = 'Routes';
   routes.setAttribute('aria-label', 'Show historical routes'); routes.title = 'Hide standing lines; live packets still light their routes briefly';
   host.append(menu, routes);
-  const scope = document.createElement('button'); scope.type = 'button'; scope.id = 'graph-scope'; scope.className = 'graph-scope'; scope.hidden = true;
-  scope.setAttribute('aria-label', 'Review active view filters'); document.getElementById('graph-summary')!.append(scope);
-  scope.addEventListener('click', () => {
-    const display = document.getElementById('display-button') as HTMLButtonElement;
-    if (document.documentElement.dataset.mobileDock === 'true' && display.getAttribute('aria-expanded') !== 'true') display.click();
-    if (graph.regionLayout().regions !== null) { menu.open = true; menu.querySelector<HTMLElement>('.region-options')!.hidden = false; search.focus(); }
-    else if ((stage.dataset.focusMode ?? 'all') !== 'all') host.querySelector<HTMLSelectElement>('[aria-label="Topology focus"]')!.focus();
-    else routes.focus();
-  });
+  const scope = document.createElement('p'); scope.id = 'graph-scope'; scope.className = 'graph-scope'; scope.hidden = true;
+  scope.setAttribute('role', 'status'); scope.setAttribute('aria-label', 'Active view filters');
+  document.getElementById('graph-summary')!.append(scope);
   const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'Clear filters'; clear.dataset.clearView = '';
   clear.title = 'Show all regions and components; keep route visibility and saved layout';
   menu.querySelector('.region-actions')!.append(clear);
@@ -68,7 +62,6 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     if (scope.hidden !== !description) scope.hidden = !description;
     if (scope.textContent !== description) {
       scope.textContent = description;
-      scope.setAttribute('aria-label', `Review active view filters: ${description}`);
     }
     clear.disabled = prefs.regions === null && focused === 'all';
     layout.querySelector('[data-save-state]')!.textContent = stage.dataset.layoutSaved === 'false'

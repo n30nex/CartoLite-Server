@@ -228,7 +228,11 @@ test.describe('UI audit controls', () => {
     await expect(page.locator('#graph-scope')).toContainText('0 regions');
     await expect(page.locator('#graph-scope')).toContainText('Routes hidden');
     await page.screenshot({ path: info.outputPath('active-view-filters.png') });
-    await page.locator('#graph-scope').click(); await page.locator('[data-clear-view]').click();
+    expect(await page.locator('#graph-scope').evaluate(element => {
+      const box = element.getBoundingClientRect();
+      return document.getElementById('netgraph-stage')!.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+    })).toBe(true);
+    await graphFilters(page); await page.locator('#region-filter > summary').click(); await page.locator('[data-clear-view]').click();
     await expect(page.locator('#connected-count')).toHaveText('2');
     await expect(page.locator('#graph-routes-button')).toHaveAttribute('aria-pressed', 'false');
     await expect(page.getByLabel('Topology focus')).toHaveValue('all');
