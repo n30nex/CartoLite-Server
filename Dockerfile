@@ -5,6 +5,7 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/ ./
+COPY scripts/write-terminal-page.mjs /src/scripts/write-terminal-page.mjs
 # Published images contain no operator or CI browser credentials.
 RUN npm run build
 

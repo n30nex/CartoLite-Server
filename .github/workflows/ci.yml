@@ -148,6 +148,12 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
+      - name: Terminal presentation and isolation
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: terminal-playwright-report
+        run: npm run test:e2e -- terminal.spec.ts --output terminal-test-results
       - name: Worldwide and terrain regressions
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -170,7 +176,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          npm run test:e2e -- --grep-invert '@terrain|@world|@regions'
+          npm run test:e2e -- --grep-invert '@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -235,6 +241,8 @@ jobs:
             web/playwright-report/
             web/focused-test-results/
             web/focused-playwright-report/
+            web/terminal-test-results/
+            web/terminal-playwright-report/
       - if: always()
         run: |
           docker rm -f cartolite cartolite-server-mqtt >/dev/null 2>&1 || true

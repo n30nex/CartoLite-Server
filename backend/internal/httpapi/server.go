@@ -189,6 +189,14 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 		return
 	}
+	if r.URL.Path == "/terminal" {
+		target := "/terminal/"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+		return
+	}
 	name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 	if name == "." || name == "" {
 		name = "index.html"

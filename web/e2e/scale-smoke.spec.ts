@@ -7,7 +7,7 @@ import type { NodeV2, RouteV2, StateV2 } from '../src/types';
 // after every timing assertion has completed.
 test.use({ screenshot: 'off', trace: 'off' });
 
-test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testInfo) => {
+for (const viewPath of ['/', '/terminal/']) test('keeps a 4k-node / 7k-route first view responsive ' + viewPath, async ({ page }, testInfo) => {
   // Allow the complete interaction journey to finish; the explicit startup,
   // frame, long-task, and application-work budgets below still gate performance.
   test.slow();
@@ -32,7 +32,7 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   }));
 
   const started = Date.now();
-  await page.goto('/');
+  await page.goto(viewPath);
   await expect(page.locator('#status')).toHaveAttribute('title', '4000 nodes · 7000 routes', { timeout: 10_000 });
   await expect(page.locator('#map .maplibregl-canvas')).toBeVisible();
   await expect(page.locator('#packet-canvas')).toHaveAttribute('data-power-mode', testInfo.project.name.startsWith('mobile') ? 'low' : 'full');
@@ -153,7 +153,7 @@ test('keeps a 4k-node / 7k-route first view responsive', async ({ page }, testIn
   await page.screenshot({ path: testInfo.outputPath('cartolite-scale.png') });
 });
 
-test('coalesces a busy live burst into one historical-route refresh', async ({ page }) => {
+for (const viewPath of ['/', '/terminal/']) test('coalesces a busy live burst into one historical-route refresh ' + viewPath, async ({ page }) => {
   const now = Date.now();
   const state: StateV2 = {
     schemaVersion: 2,
@@ -186,7 +186,7 @@ test('coalesces a busy live burst into one historical-route refresh', async ({ p
     contentType: 'text/event-stream',
     body: `retry: 60000\n\nevent: hello\ndata: ${JSON.stringify({ seq: 0, bootId: state.bootId })}\n\n${events}`
   }));
-  await page.goto('/');
+  await page.goto(viewPath);
   const map = page.locator('#map');
   await expect(map).toHaveAttribute('data-render-state', 'idle', { timeout: 15_000 });
   await page.waitForTimeout(8_800);

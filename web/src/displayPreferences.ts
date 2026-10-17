@@ -52,7 +52,7 @@ const LIGHT_COLORS: Record<string, string> = {
 let current: DisplayPreferences = { ...DEFAULT_DISPLAY };
 let initialized = false;
 export function displayPreferences(): Readonly<DisplayPreferences> { return current; }
-export function lightScene(): boolean { return current.basemap !== 'dark'; }
+export function lightScene(): boolean { return !document.documentElement.hasAttribute('data-terminal') && current.basemap !== 'dark'; }
 export function displayColor(color: string, light = lightScene()): string {
   if (!light) return color;
   const direct = LIGHT_COLORS[color.toLowerCase()];

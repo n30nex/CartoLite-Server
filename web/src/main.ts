@@ -197,6 +197,7 @@ async function start(): Promise<void> {
     const packetCanvas = required<HTMLCanvasElement>('packet-canvas');
     const liveAnimator = new PacketAnimator(liveMap.map, packetCanvas);
     animator = liveAnimator;
+    window.dispatchEvent(new CustomEvent('cartolite-map-ready', { detail: { view: liveMap, animator: liveAnimator } }));
     const routeSonifier = new RouteSonifier(liveAnimator.projection, packetCanvas);
     sonifier = routeSonifier;
     mountSoundPreview(routeSonifier, soundPanel);

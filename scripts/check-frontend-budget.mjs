@@ -8,7 +8,9 @@ const root = process.argv[2] ?? "web/dist";
 // Combined measured cost: 446,084 bytes. Runtime timing/route gates are unchanged.
 const uiLimit = 350 * 1024;
 const workerLimit = 128 * 1024;
-const limit = Number(process.env.CARTOLITE_GZIP_BUDGET ?? (uiLimit + workerLimit));
+// Optional Terminal view is lazy-loaded; original UI and worker caps stay fixed.
+const terminalLimit = 8 * 1024;
+const limit = Number(process.env.CARTOLITE_GZIP_BUDGET ?? (uiLimit + workerLimit + terminalLimit));
 
 async function assets(dir, pattern) {
   const found = [];
@@ -24,11 +26,13 @@ const files = await assets(root, /\.(?:css|m?js)$/);
 if (files.length === 0) throw new Error(`no JavaScript or CSS assets found in ${root}`);
 
 let total = 0;
+let terminalBytes = 0;
 let workerBytes = 0;
 let workerCount = 0;
 for (const file of files) {
   const bytes = gzipSync(await readFile(file), { level: 9 }).byteLength;
   total += bytes;
+  if (/^terminal-.*\.(?:m?js|css)$/.test(basename(file))) terminalBytes += bytes;
   if (/^maplibre-gl-worker-.*\.m?js$/.test(basename(file))) {
     workerBytes += bytes;
     workerCount += 1;
@@ -37,8 +41,10 @@ for (const file of files) {
 }
 
 console.log(`${total} gzip bytes total (budget ${limit})`);
-console.log(`${total - workerBytes} gzip bytes excluding map worker (budget ${uiLimit})`);
+console.log(`${total - workerBytes - terminalBytes} gzip bytes excluding map worker (budget ${uiLimit})`);
 console.log(`${workerBytes} gzip bytes for map worker (budget ${workerLimit})`);
+console.log(terminalBytes + ' gzip bytes for optional Terminal (budget ' + terminalLimit + ')');
+if (terminalBytes <= 0 || terminalBytes > terminalLimit) process.exitCode = 1;
 if (workerCount !== 1) throw new Error(`expected one map worker, found ${workerCount}`);
 if (!Number.isFinite(limit) || limit <= 0) throw new Error('invalid total frontend budget');
-if (total > limit || total - workerBytes > uiLimit || workerBytes > workerLimit) process.exitCode = 1;
+if (total > limit || total - workerBytes - terminalBytes > uiLimit || workerBytes > workerLimit) process.exitCode = 1;

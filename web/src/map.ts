@@ -713,7 +713,7 @@ export class LiveMap {
     source.setData({ type: 'FeatureCollection', features });
   }
 
-  setAppearance(preferences: UiPreferences, force = false): void {
+  setAppearance(preferences: UiPreferences = this.#appearance, force = false): void {
     this.#reducedMotion = displayReducedMotion();
     const previous = this.#appearance;
     this.#appearance = { ...preferences };
@@ -730,7 +730,7 @@ export class LiveMap {
           this.map.setPaintProperty(layer.id, property as Parameters<maplibregl.Map['setPaintProperty']>[1], value);
         }
       }
-      const light = preferences.basemap !== 'dark';
+      const light = this.#lightScene();
       this.#historicalRouteLayer.setLightBackground(light);
       applyOverlayPalette(this.map, this.#originalOverlayColors, light);
       if (this.#terrain3D) this.#updateSky();
@@ -755,12 +755,14 @@ export class LiveMap {
     this.#updateBuildingLayer();
     if (this.map.getLayer(HILLSHADE_LAYER_ID)) {
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-exaggeration', this.#hillshadeStrength());
-      const light = preferences.basemap !== 'dark';
+      const light = this.#lightScene();
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', light ? 'rgba(47, 64, 61, 0.55)' : 'rgba(2, 9, 18, 0.86)');
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', light ? 'rgba(255, 255, 244, 0.6)' : 'rgba(177, 211, 175, 0.64)');
     }
     this.markRendering();
   }
+
+  #lightScene(): boolean { return this.#appearance.basemap !== 'dark' && !document.documentElement.hasAttribute('data-terminal'); }
 
   getSelectedNodeID(): string | null { return this.#selectedNodeID; }
 
@@ -887,11 +889,11 @@ export class LiveMap {
     this.container.dataset.buildingsVisible = String(this.#appearance.buildings);
     this.container.dataset.buildingExtrusions = String(this.#appearance.buildings && this.#terrain3D && viewClass() === 'desktop');
     if (!this.#layersReady) return;
-    this.#buildingSourceID = updateBuildings(this.map, this.#appearance.buildings, this.#terrain3D, viewClass() === 'desktop', this.#appearance.basemap !== 'dark', basemapProvider() === 'openfreemap' ? 'carto' : undefined);
+    this.#buildingSourceID = updateBuildings(this.map, this.#appearance.buildings, this.#terrain3D, viewClass() === 'desktop', this.#lightScene(), basemapProvider() === 'openfreemap' ? 'carto' : undefined);
   }
 
   #updateSky(): void {
-    const light = this.#appearance.basemap !== 'dark';
+    const light = this.#lightScene();
     this.map.setSky(this.#terrain3D ? { 'sky-color': light ? '#cfe1e8' : '#14242e', 'horizon-color': light ? '#eef1ee' : '#29424a', 'fog-color': light ? '#dce7e5' : '#14242e', 'horizon-fog-blend': 0.15 } : {});
   }
 
@@ -966,8 +968,8 @@ export class LiveMap {
           'hillshade-illumination-direction': [270, 315, 0, 45],
           'hillshade-illumination-altitude': [35, 35, 35, 35],
           'hillshade-exaggeration': this.#hillshadeStrength(),
-          'hillshade-shadow-color': this.#appearance.basemap === 'dark' ? 'rgba(2, 9, 18, 0.86)' : 'rgba(47, 64, 61, 0.55)',
-          'hillshade-highlight-color': this.#appearance.basemap === 'dark' ? 'rgba(177, 211, 175, 0.64)' : 'rgba(255, 255, 244, 0.6)',
+          'hillshade-shadow-color': !this.#lightScene() ? 'rgba(2, 9, 18, 0.86)' : 'rgba(47, 64, 61, 0.55)',
+          'hillshade-highlight-color': !this.#lightScene() ? 'rgba(177, 211, 175, 0.64)' : 'rgba(255, 255, 244, 0.6)',
           'hillshade-accent-color': 'rgba(47, 86, 75, 0.54)'
         }
       }, before);
@@ -1828,7 +1830,7 @@ export class LiveMap {
       if (this.map.getLayer(ROUTE_WEBGL_LAYER_ID)) this.map.removeLayer(ROUTE_WEBGL_LAYER_ID);
       const layer = new HistoricalRouteLayer();
       layer.setOpacity(this.#appearance.routeOpacity);
-      layer.setLightBackground(this.#appearance.basemap !== 'dark');
+      layer.setLightBackground(this.#lightScene());
       layer.setRoutes([...this.#routeDetailFeatures.values()]);
       layer.setVisible(this.routesVisible);
       layer.setMaximumBand(routeWindowBand(this.#effectiveRouteAgeMS()));
