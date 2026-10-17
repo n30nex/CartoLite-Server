@@ -43,7 +43,7 @@ export function mountCinematicDock(): void {
     close.addEventListener('click', () => { if (!panel.hidden) owner.click(); owner.focus(); }); header.append(close);
   }
   mountMobileDock(controls, navigation, graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
-  trackPanelHistory(controls, ['view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
+  trackPanelHistory(controls, ['about-dialog', 'view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
   // One menu at a time, including the independently mounted display control.
   let closing = false;
   controls.addEventListener('click', event => {

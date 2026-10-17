@@ -87,7 +87,10 @@
 
       <div id="tooltip" class="tooltip glass" role="tooltip" hidden></div>
       <aside id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected node details" hidden></aside>
-      <p id="empty-state" class="empty-state glass" hidden>No connected routes in this time window.</p>
+      <section id="empty-state" class="empty-state glass" aria-label="No visible connections" hidden>
+        <p id="empty-message" role="status">No connected routes in this time window.</p>
+        <div class="empty-actions"><button id="empty-regions" type="button" hidden>Show all regions</button><button id="empty-focus" type="button" hidden>Clear focus</button><button id="empty-window" type="button" hidden>Use 24h window</button><a href="/">Open map</a></div>
+      </section>
       <p id="fatal" class="fatal glass" role="alert" hidden>
         Unable to load Netgraph. Check your connection, then try again.<br />
         <a class="control-button" href="">Try again</a>

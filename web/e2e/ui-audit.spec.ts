@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
-import { graphFilters } from './dockControls';
+import { graphFilters, graphFocus } from './dockControls';
+import type { StateV2 } from '../src/types';
 
 test.describe('UI audit', () => {
   for (const path of ['/', '/terminal/']) {
@@ -62,6 +63,33 @@ test.describe('UI audit', () => {
     await expect(stage).toHaveAttribute('data-visible-routes', '1');
     await expect(empty).toBeHidden();
     await expect(stage).toHaveAttribute('data-region-spacing', spacing!);
+  });
+
+  for (const older of [false, true]) test(`empty Netgraph recovers ${older ? 'older connections' : 'a focus with no internal links'}`, async ({ page }) => {
+    await visualFixture(page);
+    const now = Date.now();
+    const state: StateV2 = {
+      schemaVersion: 2, bootId: 'empty-fixture', seq: 0, serverTime: now,
+      status: { feed: 'connected', activity: 'active', dropped: 0, version: 'test', gitSha: 'synthetic' },
+      map: { center: [-79.4, 43.65], zoom: 8 },
+      nodes: [
+        { id: 'visual-a', label: 'Visual Alpha', lng: -79.4, lat: 43.65, role: 'repeater', observer: false, lastSeen: now },
+        { id: 'visual-b', label: 'Visual Bravo', lng: -123.93, lat: 49.16, role: 'repeater', observer: false, lastSeen: now },
+      ],
+      routes: [{ id: 'visual-hop', fromId: 'visual-a', toId: 'visual-b', packetCount: 1, lastHeard: now - (older ? 7_200_000 : 0), intensity: 1, lastKind: 'Text', traffic: 1 }],
+    };
+    await page.route('**/api/state', route => route.fulfill({ json: state }));
+    await page.goto('/netgraph/'); await expect(page.locator('#netgraph-app')).toHaveAttribute('data-loading', 'false');
+    if (!older) {
+      await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
+      await page.locator('.node-search-result').first().click();
+      await graphFocus(page, 'area');
+    }
+    const empty = page.locator('#empty-state'); await expect(empty).toBeVisible();
+    await empty.getByRole('button', { name: older ? 'Use 24h window' : 'Clear focus', exact: true }).click();
+    await expect(empty).toBeHidden();
+    if (older) await expect(page.locator('#route-window')).toHaveValue('24h');
+    else await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-focus-mode', 'all');
   });
 
   for (const path of ['/', '/netgraph/', '/terminal/']) test(`Follow actions stay completely visible in short landscape ${path}`, async ({ page }, info) => {

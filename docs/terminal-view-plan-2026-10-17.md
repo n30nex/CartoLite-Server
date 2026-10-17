@@ -1,5 +1,8 @@
 # Terminal view — Canada and Worldwide
 
+Historical implementation plan. The later 17 October owner decision removes the
+artifact-size caps described below; current policy is in AGENTS.md and roadmap.md.
+
 Add `/terminal/` as the third view after Map and Netgraph. On phones it lives in
 the existing compact view picker. The visual reference is a 1990s BBS atlas:
 black land, dotted blue water, pale coastlines, yellow place names, ANSI traffic

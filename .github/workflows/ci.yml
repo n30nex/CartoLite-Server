@@ -150,12 +150,12 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
-      - name: UI audit baseline and recovery regressions
+      - name: UI audit and recovery regressions
         if: matrix.arch == 'amd64'
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
-        run: npm run test:e2e -- ui-audit.spec.ts --project=desktop --max-failures=0 --retries=0 --output ux-audit-test-results
+        run: npm run test:e2e -- ui-audit.spec.ts --output ux-audit-test-results
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web

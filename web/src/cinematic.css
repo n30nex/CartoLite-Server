@@ -176,3 +176,11 @@ html:root[data-mobile-dock="true"]:has(#view-panel:not([hidden])) :is(.node-insp
 @media(max-width:900px),(pointer:coarse) { html:root[data-cinematic][data-native-app] #app #legend-toggle { right:68px; } }
 
 @media(max-width:359px) { html:root[data-mobile-dock="true"][data-text-size="large"] .controls { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+/* Keep dismissal and activity actions in reach while the card body scrolls. */
+html:root[data-cinematic] .follow-card > header { position:sticky; top:0; z-index:2; background:var(--panel-solid); }
+html:root[data-cinematic] .follow-card .follow-actions { position:sticky; bottom:0; z-index:1; margin:0; padding:8px 12px; background:var(--panel-solid); border-top:1px solid var(--panel-border); }
+html:root[data-cinematic] .map-notice { bottom:calc(var(--dock-bottom,12px) + var(--dock-height,44px) + 12px); }
+.map-notice { display:grid; gap:6px; }
+.map-notice-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+.map-notice-actions a { display:inline-flex; align-items:center; min-height:44px; padding:6px 10px; color:var(--ink-strong); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:7px; text-decoration:none; }
