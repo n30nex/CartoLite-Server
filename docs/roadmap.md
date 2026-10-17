@@ -6,7 +6,7 @@ its Planned labels and build-size caps are not current instructions.
 
 ## Shipped baseline
 
-Canada **0.17.2**, Worldwide **0.8.3**, Canada Android **1.1.2**. Already shipped:
+Canada **0.17.3**, Worldwide **0.8.4**, Canada Android **1.1.2**. Already shipped:
 shared appearance and six route presets; cinematic effects and quality/motion
 controls; optional Map and Netgraph 3D; buildings/topography; scoped ten-second
 Follow; region layout/dragging/filtering and live-only routes; compact phone
@@ -22,7 +22,7 @@ It must be reviewed against current main before integration, preserving the new 
 
 | Phase | Status | Deliverable | Exit condition |
 | --- | --- | --- | --- |
-| 1. Everyday navigation and recovery | Implemented — candidate | UI01–UI06/UI15: live search refresh, dialog Back/Escape, quiet dismissible map notices, actionable empty Netgraph, reachable Follow actions, stable Labs feedback and this reconciled roadmap. Targets Canada 0.17.3 / Worldwide 0.8.4. | Baseline reproduction; focused tests pass without weakening assertions; full Actions gates; reviewed paired PRs; exact images, qualified Canada deployment and Worldwide installs. |
+| 1. Everyday navigation and recovery | Delivered | UI01–UI06/UI15: live search refresh, dialog Back/Escape, quiet dismissible map notices, actionable empty Netgraph, reachable Follow actions, stable Labs feedback and this reconciled roadmap. Released in Canada 0.17.3 / Worldwide 0.8.4. | Baseline reproduction; focused tests pass without weakening assertions; full Actions gates; reviewed paired PRs; exact images, qualified Canada deployment and Worldwide installs. |
 | 2. Controls, discovery and explanations | Planned | UI07/UI08 and discovery part of UI14: relevant per-view controls (including a true High-quality override in Labs), consistent visible help, clearer active filters and route/live/observer-only explanations. Refine voice browsing/quick mute without autoplay. | Keyboard/Back/focus, 320px/short landscape, enlarged text, sound opt-in and no duplicate feed/layout reset. |
 | 3. Animation and visual clarity | Planned | UI09/UI10: semantic Terminal network ink, dense-label priority, purposeful live emphasis, consistent ground/perspective behavior and measured sustained quality. Review each Labs scene independently. | Fixed-time synthetic GPU/Canvas/audio comparisons; all themes/presets; terrain/buildings/date-line/context loss; unchanged 4k-node/7k-route and responsiveness gates. |
 | 4. Recovery and release hardening | Planned integration | UI11/UI12: reconcile the separate retained/freshness/clock/region-loading work; clear development-tool advisories through existing dependency PRs; extend browser/accessibility coverage. | Conservative topology/privacy; real reconnect/failure scenarios; exact native images and checkpoint-preserving anonymous installs. No unrelated branch resets or local builds. |
@@ -55,4 +55,22 @@ Phase 1 review: [Canada PR 102](https://github.com/n30nex/CartoLite/pull/102) an
 [Worldwide PR 33](https://github.com/n30nex/CartoLite-Server/pull/33). The initial
 commit is a deliberate failing baseline before fixes, not a release candidate.
 
-Phase 1 release evidence, when published: [Canada 0.17.3](https://github.com/n30nex/CartoLite/releases/tag/v0.17.3) and [Worldwide 0.8.4](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.8.4). Remaining phases are planned, not shipped.
+Phase 1 was delivered on 17 October 2026:
+[Canada 0.17.3](https://github.com/n30nex/CartoLite/releases/tag/v0.17.3) and
+[Worldwide 0.8.4](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.8.4).
+Canada's [exact-main CI](https://github.com/n30nex/CartoLite/actions/runs/39064393830)
+passed 224 frontend and 321 browser cases; its
+[161 deployed browser checks](https://github.com/n30nex/CartoLite/actions/runs/39066754097)
+passed without retries. Three live observations over 369.4 seconds confirmed
+advancing traffic/checkpoints and zero drops/restarts after an encrypted backup
+and isolated restore. The exact tested image remains deployed.
+
+Worldwide's [exact-main CI](https://github.com/n30nex/CartoLite-Server/actions/runs/39064086634)
+passed 198 frontend and 273 browser cases, including native anonymous AMD64/ARM64
+installs and checkpoint-preserving upgrades. One existing basemap startup wait
+retried; all 64 new UI cases passed without retries. Published checksums,
+provenance and screenshot hashes were verified for both editions.
+[Product pages](https://github.com/n30nex/Canadaverse-Site/pull/91) were updated
+and [checked live](https://github.com/n30nex/Canadaverse-Site/actions/runs/39067598801).
+The existing Android 1.1.2 APK is unchanged; physical-device acceptance is not
+claimed. Phases 2-5 remain planned, not shipped.
