@@ -156,6 +156,15 @@ jobs:
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
         run: npm run test:e2e -- ui-audit.spec.ts --output ux-audit-test-results
+      - name: Preserve UI audit screenshots for early review
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-ui-audit
+          retention-days: 30
+          path: |
+            web/ux-audit-test-results/
+            web/ux-audit-playwright-report/
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web
