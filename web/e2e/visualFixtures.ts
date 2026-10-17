@@ -7,10 +7,10 @@ export const visualCenter: [number, number] = [-80.35, 43.45];
 const cors = { 'access-control-allow-origin': '*' };
 const layers = ['landcover', 'landuse', 'water', 'waterway', 'boundary', 'transportation', 'water_name', 'place', 'building'];
 
-export async function visualFixture(page: Page, zoom = 10.2): Promise<void> {
+export async function visualFixture(page: Page, zoom = 10.2, detail = false): Promise<void> {
   const now = Date.now();
   const nodes = [
-    { id: 'visual-a', label: 'Visual Alpha', lng: visualCenter[0], lat: visualCenter[1] },
+    { id: 'visual-a', label: detail ? 'Visual Alpha 🌲 Wide name' : 'Visual Alpha', lng: visualCenter[0], lat: visualCenter[1] },
     { id: 'visual-b', label: 'Visual Bravo', lng: -80.23, lat: 43.51 },
     { id: 'visual-c', label: 'Visual Charlie', lng: -80.40, lat: 43.58 },
   ].map((node) => ({ ...node, role: 'repeater' as const, observer: false, lastSeen: now }));
@@ -22,8 +22,8 @@ export async function visualFixture(page: Page, zoom = 10.2): Promise<void> {
   };
   await page.route('**/api/state', (route) => route.fulfill({ json: state }));
   await page.route('**/api/config', (route) => route.fulfill({ json: { schemaVersion: 1, basemap: { provider: 'openfreemap' } } }));
-  await page.addInitScript(({ center, zoom }) => {
-    const ui = { routes: true, heatmap: false, clusters: false, hillshade: false, terrain3D: false, buildings: false, mapLabels: false, nodeLabels: false, livePackets: true, routeWindow: '24h' };
+  await page.addInitScript(({ center, zoom, detail }) => {
+    const ui = { routes: true, heatmap: false, clusters: false, hillshade: false, terrain3D: false, buildings: false, mapLabels: detail, nodeLabels: detail, livePackets: true, routeWindow: '24h' };
     for (const key of ['cartolite:ui:v1', 'cartolite-server:ui:v1']) if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(ui));
     for (const prefix of ['cartolite:view:v3', 'cartolite-server:view:v1']) for (const kind of ['desktop', 'mobile']) {
       if (!localStorage.getItem(`${prefix}:${kind}`)) localStorage.setItem(`${prefix}:${kind}`, JSON.stringify({ center, zoom }));
@@ -41,14 +41,14 @@ export async function visualFixture(page: Page, zoom = 10.2): Promise<void> {
       close(): void { this.readyState = 2; window.removeEventListener('visual-packet', this.receive); window.removeEventListener('visual-hello', this.hello); }
     }
     Object.defineProperty(window, 'EventSource', { value: FixtureStream });
-  }, { center: visualCenter, zoom });
+  }, { center: visualCenter, zoom, detail });
 
   const tilejson = { tilejson: '3.0.0', minzoom: 0, maxzoom: 14, tiles: ['https://tiles.openfreemap.org/fixture/{z}/{x}/{y}.pbf'], vector_layers: layers.map((id) => ({ id, fields: {} })) };
   await page.route('https://tiles.openfreemap.org/planet', (route) => route.fulfill({ headers: cors, json: tilejson }));
   await page.route(/https:\/\/[^/]*basemaps\.cartocdn\.com\/vector\/carto\.streets\/v1\/tiles\.json/, (route) => route.fulfill({ headers: cors, json: tilejson }));
   await page.route(/https:\/\/tiles\.openfreemap\.org\/fixture\/\d+\/\d+\/\d+\.pbf/, (route) => {
     const parts = /fixture\/(\d+)\/(\d+)\/(\d+)/.exec(route.request().url())!;
-    return route.fulfill({ headers: cors, contentType: 'application/x-protobuf', body: buildingTile(Number(parts[1]), Number(parts[2]), Number(parts[3])) });
+    return route.fulfill({ headers: cors, contentType: 'application/x-protobuf', body: buildingTile(Number(parts[1]), Number(parts[2]), Number(parts[3]), detail) });
   });
   // The public Mapterhorn TileJSON omits zoom bounds; the application supplies them.
   await page.route('https://tiles.mapterhorn.com/tilejson.json', (route) => route.fulfill({ headers: cors, json: { tilejson: '3.0.0', tiles: ['https://tiles.mapterhorn.com/fixture/{z}/{x}/{y}.webp'], encoding: 'terrarium' } }));
@@ -63,13 +63,19 @@ export async function visualPacket(page: Page, seq: number, kind = 'Advert'): Pr
   } })), { seq, kind });
 }
 
-function buildingTile(z: number, x: number, y: number): Buffer {
+function buildingTile(z: number, x: number, y: number, detail: boolean): Buffer {
   const scale = 2 ** z;
   const px = (visualCenter[0] + 180) / 360 * scale;
   const py = (1 - Math.log(Math.tan(Math.PI / 4 + visualCenter[1] * Math.PI / 360)) / Math.PI) / 2 * scale;
   const tx = Math.round((px - x) * 4096); const ty = Math.round((py - y) * 4096);
   const tile = Object.fromEntries(layers.map((name) => [name, { features: [] as Array<{ id: number; type: number; tags: Record<string, string | number | boolean>; geometry: number[][][] }> }]));
   tile.water!.features.push({ id: 2, type: 3, tags: { class: 'ocean' }, geometry: [[[0, 0], [2048, 0], [2048, 4096], [0, 4096], [0, 0]]] });
+  if (detail) {
+    tile.landcover!.features.push({id:3,type:3,tags:{class:'wood'},geometry:[[[2200,100],[4000,100],[4000,1800],[2200,1800],[2200,100]]]});
+    tile.landuse!.features.push({id:4,type:3,tags:{class:'residential'},geometry:[[[2200,2200],[4000,2200],[4000,4000],[2200,4000],[2200,2200]]]});
+    tile.transportation!.features.push({id:5,type:2,tags:{class:'primary'},geometry:[[[0,500],[4096,3500]],[[0,3500],[4096,500]],[[3000,0],[3000,4096]]]});
+    tile.place!.features.push({id:6,type:1,tags:{class:'town',name:'Fixture town',rank:1},geometry:[[[2800,2000]]]});
+  }
   if (Math.floor(px) === x && Math.floor(py) === y) {
     tile.building!.features.push({ id: 1, type: 3, tags: { render_height: 100, render_min_height: 0, hide_3d: false }, geometry: [[[tx - 80, ty - 80], [tx + 80, ty - 80], [tx + 80, ty + 80], [tx - 80, ty + 80], [tx - 80, ty - 80]]] });
   }

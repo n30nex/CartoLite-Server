@@ -43,7 +43,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   notice.innerHTML = '<span>Terminal graphics paused. The map and live traffic are still available.</span><button type="button">Retry Terminal</button>';
   host.after(notice);
   const settings = document.createElement('fieldset'); settings.className = 'terminal-settings';
-  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>R repeater · C companion · H room · S sensor · @ selected. ANSI keeps packet colours; amber and green use one phosphor. Character shading follows the map and terrain. Live timing stays the same.</p>';
+  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>R repeater · C companion · H room · S sensor · @ selected. ANSI textures: green vegetation, grey built-up land. Live timing stays the same.</p>';
   document.querySelector('#map-appearance > summary')!.after(settings);
   const selects = settings.querySelectorAll('select');
   const sync = () => {
@@ -60,9 +60,14 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   function dimensions() {
     const width = host.clientWidth, height = host.clientHeight;
     // Bound raster work on very large screens without dropping any route data.
-    const size = Math.max(preferences.size, Math.ceil(Math.sqrt(width * height / 16000) / 0.7));
-    context.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
-    return { width, height, size, cw: context.measureText('M').width, ch: size * 1.15 };
+    let size = Math.max(preferences.size, Math.floor(Math.sqrt(width*height/16000)/.83)), cw = 0, ch = 0;
+    do {
+      context.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+      cw = context.measureText('M').width; ch = size * 1.15;
+      if (Math.ceil(width/cw)*Math.ceil(height/ch) <= 16000) break;
+      size++;
+    } while (size < 128);
+    return { width, height, size, cw, ch };
   }
 
   function draw(source: HTMLCanvasElement, target: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
@@ -74,7 +79,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
     read.imageSmoothingEnabled = false;
     read.drawImage(source, 0, 0, sample.width, sample.height);
-    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii', false);
+    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii');
     ctx.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
     ctx.textBaseline = 'top';
     // Batch same-colour runs. A full ocean is a few row draws, not 16,000 calls.
@@ -90,13 +95,16 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   }
 
   function labels() {
-    const { cw, ch, size, width, height } = dimensions();
+    const { width, height } = dimensions(), size = preferences.size;
+    context.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+    const cw = context.measureText('M').width, ch = size * 1.25;
     const occupied = new Set<string>();
     const features = map.queryRenderedFeatures(undefined, { layers: labelLayers.filter(id => map.getLayer(id)) });
     const selected = view.getSelectedNodeID();
-    features.sort((a, b) => Number(b.properties.id === selected) - Number(a.properties.id === selected) || Number(b.layer.id === 'nodes' || b.layer.id === 'clusters') - Number(a.layer.id === 'nodes' || a.layer.id === 'clusters'));
+    const priority = (f: typeof features[number]) => (f.properties.id === selected ? 8 : 0) + (f.layer.id === 'nodes' || f.layer.id === 'clusters' ? 4 : f.layer.id === 'node-labels' ? 2 : 0);
+    features.sort((a, b) => priority(b)-priority(a));
     const seen = new Set<string>();
-    context.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+    let drawn = 0;
     for (const feature of features) {
       if (feature.geometry.type !== 'Point') continue;
       const p = feature.properties, node = feature.layer.id === 'nodes', cluster = feature.layer.id === 'clusters';
@@ -104,18 +112,26 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       if (!text) continue;
       const coordinate = feature.geometry.coordinates;
       const point = map.project([coordinate[0]!, coordinate[1]!]);
-      const x = Math.round(point.x / cw) * cw + (feature.layer.id === 'node-labels' ? cw * 2 : 0), y = Math.round(point.y / ch) * ch, w = text.length * cw;
-      const key = `${text}:${Math.round(x)}:${Math.round(y)}`;
-      if (seen.has(key) || x < 0 || y < 48 || x + w > width || y + ch > height - 60) continue;
+      // Keep markers on the true hit target. Labels use measured Unicode widths,
+      // independent of geographic grid size, so emoji and large screens fit.
+      const w = context.measureText(text).width;
+      const key = `${feature.layer.id}:${text}:${Math.round(point.x)}:${Math.round(point.y)}`;
+      if (seen.has(key)) continue;
       seen.add(key);
-      const cells = [...text].map((_, i) => `${Math.round(x / cw) + i}:${Math.round(y / ch)}`);
-      if (cells.some(cell => occupied.has(cell))) continue;
-      cells.forEach(cell => occupied.add(cell));
-      context.fillStyle = '#000'; context.fillRect(x - 1, y, w + 2, ch);
-      context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : 5, preferences.palette);
-      context.fillText(text.slice(0, 60), x, y);
+      const nodeLabel = feature.layer.id === 'node-labels', centered = Math.max(2,Math.min(width-w-2,point.x-w/2));
+      const positions = nodeLabel ? [[point.x+cw*2.25,point.y-ch/2],[centered,point.y+ch*1.5],[centered,point.y-ch*2.5]] : [[point.x-w/2,point.y-ch/2]];
+      for (const [x=0,y=0] of positions) {
+        if (x < 0 || y < 48 || x+w > width || y+ch > height-60) continue;
+        const cells: string[] = [];
+        for (let row=Math.floor((y-2)/ch);row<=Math.floor((y+ch+2)/ch);row++) for (let col=Math.floor((x-2)/cw);col<=Math.floor((x+w+2)/cw);col++) cells.push(`${col}:${row}`);
+        if (cells.some(cell => occupied.has(cell))) continue;
+        cells.forEach(cell => occupied.add(cell));
+        context.fillStyle = '#000'; context.fillRect(x-1,y,w+2,ch);
+        context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : nodeLabel ? 2 : 5, preferences.palette);
+        context.fillText(text,x,y); drawn++; break;
+      }
     }
-    canvas.dataset.labels = String(seen.size);
+    canvas.dataset.labels = String(drawn);
   }
 
   function fail() {
@@ -152,7 +168,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     if (disposed || failed || !ids.includes('basemap-water')) return;
     const setPaint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
       const current = map.getPaintProperty(layer, property as Parameters<typeof map.getPaintProperty>[1]);
-      if (current === value) return;
+      if (JSON.stringify(current) === JSON.stringify(value)) return;
       originalPaint.set(`${layer}:${property}`, { layer, property, value: current });
       map.setPaintProperty(layer, property as Parameters<typeof map.setPaintProperty>[1], value);
     };
@@ -165,8 +181,8 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         setPaint(layer.id, 'text-opacity', 0);
       } else if (layer.id.startsWith('basemap-')) {
         const property = layer.type === 'background' ? 'background-color' : layer.type === 'fill' ? 'fill-color' : layer.type === 'line' ? 'line-color' : undefined;
-        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#e4d9ba' : layer.type === 'line' ? '#233343' : '#030609';
-        if (property) setPaint(layer.id, property, color);
+        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#e4d9ba' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#526270' : '#030609';
+        if (property) setPaint(layer.id, property, layer.id === 'basemap-landcover' ? ['match', ['get','class'], ['wood','grass'], '#124b24', '#383838'] : color);
       }
     }
     capture.attach();

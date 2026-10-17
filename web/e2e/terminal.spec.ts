@@ -3,6 +3,49 @@ import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import { openViewMenu } from './dockControls';
 
+test('Terminal preserves roads, landscape detail and measured label spacing', async ({page}, info) => {
+  test.slow();
+  await visualFixture(page,10.2,true);
+  await page.addInitScript(() => {
+    const canvas = CanvasRenderingContext2D.prototype, original = canvas.fillText, clear = canvas.clearRect;
+    const labels: {text:string;x:number;y:number;width:number;height:number}[] = [];
+    Object.assign(window,{terminalLabels:labels});
+    canvas.clearRect = function(...args:Parameters<typeof clear>) { if(this.canvas.id==='terminal-map') labels.length=0; return clear.apply(this,args); };
+    canvas.fillText = function(text,x,y,...rest) {
+      if(this.canvas.id==='terminal-map') labels.push({text,x,y,width:this.measureText(text).width,height:parseFloat(this.font)*1.25});
+      return original.call(this,text,x,y,...rest);
+    };
+  });
+  await page.goto('/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle',{timeout:10000});
+  await page.screenshot({path:info.outputPath('detail-map-reference.png')});
+  await page.goto('/terminal/');
+  await expect(page.locator('#map')).toHaveAttribute('data-terminal-renderer','webgl2');
+  // Read screenshot pixels; these muted, distinct colours must actually survive
+  // the character conversion. Roads cannot disappear into either land texture.
+  await expect.poll(async () => {
+    const png = await page.screenshot();
+    return page.evaluate(async base64 => {
+      const image=new Image(); image.src='data:image/png;base64,'+base64; await image.decode();
+      const canvas=document.createElement('canvas'); canvas.width=image.width; canvas.height=image.height;
+      const ctx=canvas.getContext('2d')!; ctx.drawImage(image,0,0);
+      const pixels=ctx.getImageData(0,Math.floor(image.height*.2),image.width,Math.floor(image.height*.6)).data;
+      const colors=[[53,95,73],[53,64,76],[114,147,170]], count=[0,0,0];
+      for(let i=0;i<pixels.length;i+=4) for(let k=0;k<3;k++) if(colors[k]!.every((v,c)=>Math.abs(pixels[i+c]!-v)<3)) count[k]!++;
+      return Math.min(...count);
+    },png.toString('base64'));
+  }).toBeGreaterThan(40);
+  expect(Number(await page.locator('#map').getAttribute('data-terminal-grid-cells'))).toBeLessThanOrEqual(16000);
+  await expect.poll(() => page.evaluate(() => (window as unknown as {terminalLabels:{text:string}[]}).terminalLabels.some(label=>label.text==='Visual Alpha 🌲 Wide name'))).toBe(true);
+  const labels=await page.evaluate(() => (window as unknown as {terminalLabels:{text:string;x:number;y:number;width:number;height:number}[]}).terminalLabels);
+  expect(labels.length).toBeGreaterThan(0);
+  for(let i=0;i<labels.length;i++) for(let j=i+1;j<labels.length;j++) {
+    const a=labels[i]!,b=labels[j]!;
+    expect(a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y,`${a.text} overlaps ${b.text}`).toBe(false);
+  }
+  await page.screenshot({path:info.outputPath('detail-terminal.png')});
+});
+
 test('Terminal keeps geographic controls, live packets and device display choices', async ({ page }, info) => {
   test.slow();
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
