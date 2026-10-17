@@ -21,6 +21,7 @@ export default defineConfig({
       },
       input: {
         main: inputPath('index.html'),
+        terminal: inputPath('src/terminal.ts'),
         netgraph: inputPath('netgraph/index.html')
       }
     }

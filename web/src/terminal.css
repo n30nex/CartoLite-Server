@@ -1,6 +1,7 @@
 :root[data-terminal] {
   --panel-solid: #050b10; --panel-border: #527885; --ink-strong: #e9e9bf;
-  --ink-muted: #a5bdbb; --terminal-accent: #79f8c4;
+  --ink: #d5e6df; --muted: #a5bdbb; --field-bg: #08121a; --selected: #193c3e;
+  --focus-ring: #79f8c4; --terminal-accent: #79f8c4; color-scheme: dark;
   font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
 }
 :root[data-terminal-palette="amber"] { --terminal-accent: #ffd18a; }

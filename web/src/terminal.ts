@@ -7,6 +7,14 @@ import './terminal.css';
 const KEY = 'cartolite-terminal-v1';
 const ROLES: Record<string, string> = { repeater: 'R', companion: 'C', room_server: 'H', sensor: 'S' };
 
+// This entry precedes Map in the Terminal document only. No renderer or CSS is
+// downloaded by the ordinary Map/Netgraph pages, and there is still one feed.
+window.addEventListener('cartolite-map-ready', event => {
+  const { view, animator } = (event as CustomEvent<{ view: LiveMap; animator: PacketAnimator }>).detail;
+  const destroy = mountTerminal(view, animator);
+  window.addEventListener('pagehide', event => { if (!event.persisted) destroy(); });
+}, { once: true });
+
 /** Presentation only: the existing Map and packet clock still own the scene. */
 export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => void {
   const map = view.map, host = map.getContainer(), root = document.documentElement;
