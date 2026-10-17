@@ -95,6 +95,7 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
       if (disposed || !enabled() || g.isContextLost()) return;
       const target = g.getParameter(g.FRAMEBUFFER_BINDING), readTarget = g.getParameter(g.READ_FRAMEBUFFER_BINDING), viewport = g.getParameter(g.VIEWPORT);
       const unpack = g.getParameter(g.PIXEL_UNPACK_BUFFER_BINDING), flip = g.getParameter(g.UNPACK_FLIP_Y_WEBGL);
+      const dither = g.isEnabled(g.DITHER);
       try {
         g.bindBuffer(g.PIXEL_UNPACK_BUFFER,null); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);
         g.activeTexture(g.TEXTURE0);
@@ -104,7 +105,7 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
         if (width !== w || height !== h) { width=w; height=h; g.texImage2D(g.TEXTURE_2D,0,g.RGBA8,w,h,0,g.RGBA,g.UNSIGNED_BYTE,null); }
         // No readPixels, preserved drawing buffer, or CPU geographic copy.
         g.bindFramebuffer(g.READ_FRAMEBUFFER,target); g.copyTexSubImage2D(g.TEXTURE_2D,0,0,0,0,0,w,h);
-        g.disable(g.BLEND); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.SCISSOR_TEST); g.colorMask(true,true,true,true);
+        g.disable(g.BLEND); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.SCISSOR_TEST); g.disable(g.CULL_FACE); g.disable(g.DITHER); g.colorMask(true,true,true,true);
         g.bindVertexArray(vao); g.bindFramebuffer(g.FRAMEBUFFER,framebuffer);
         g.activeTexture(g.TEXTURE1); g.bindTexture(g.TEXTURE_2D,textures[1]!);
         if (columns !== options.columns || rows !== options.rows) {
@@ -125,7 +126,7 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
         metrics.terminalSamples=String(Number(metrics.terminalSamples??0)+1);
         if (performance.now()-lastLabels>100) { frame(); lastLabels=performance.now(); }
       } catch { release(); failure(); }
-      finally { g.bindFramebuffer(g.FRAMEBUFFER,target); g.bindFramebuffer(g.READ_FRAMEBUFFER,readTarget); g.viewport(...viewport as [number,number,number,number]); g.bindBuffer(g.PIXEL_UNPACK_BUFFER,unpack); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,flip); }
+      finally { g.bindFramebuffer(g.FRAMEBUFFER,target); g.bindFramebuffer(g.READ_FRAMEBUFFER,readTarget); g.viewport(...viewport as [number,number,number,number]); g.bindBuffer(g.PIXEL_UNPACK_BUFFER,unpack); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,flip); if (dither) g.enable(g.DITHER); }
     },
   };
   map.on('webglcontextlost',release);

@@ -20,7 +20,7 @@ Draw readable geographic/node labels over the character grid. Preserve Find,
 inspection, route windows, layer combinations, region legend, Follow, sound and
 optional 3D. Keep palette, glyph mode and cell size in a separate device preference.
 Do not overwrite the user's Map/Netgraph style. Keep attribution visible. If
-canvas readback fails, restore the ordinary map and offer a compact retry notice.
+character graphics are unavailable, restore the ordinary map and offer a compact retry notice.
 Pause background work when hidden and release all listeners on navigation.
 
 The built Terminal document reuses the Map HTML and loads its own entry before Map;

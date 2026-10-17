@@ -9,6 +9,10 @@ import './terminal.css';
 const KEY = 'cartolite-terminal-v1';
 const ROLES: Record<string, string> = { repeater: 'R', companion: 'C', room_server: 'H', sensor: 'S' };
 
+// This page samples the existing 2D packet canvas. Choose CPU backing before
+// PacketAnimator obtains the same context, avoiding GPU readback for its glyphs.
+document.querySelector<HTMLCanvasElement>('#packet-canvas')?.getContext('2d', { willReadFrequently: true });
+
 // This entry precedes Map in the Terminal document only. No renderer or CSS is
 // downloaded by the ordinary Map/Netgraph pages, and there is still one feed.
 window.addEventListener('cartolite-map-ready', event => {
