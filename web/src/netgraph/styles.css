@@ -282,4 +282,6 @@ html:root[data-cinematic]:has(#region-filter[open]) :is(.node-inspector-sheet,.f
 }
 @media(min-width:560px) and (max-height:520px) and (orientation:landscape) {
  html:root[data-cinematic] .graph-summary { grid-template-columns:repeat(4,minmax(0,1fr)); }
+ html:root[data-cinematic]:has(#follow-card:not([hidden])) .graph-summary:has(#graph-scope:not([hidden])) { max-width:44vw; }
+ html:root[data-cinematic]:has(#follow-card:not([hidden])) .graph-scope { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 }
