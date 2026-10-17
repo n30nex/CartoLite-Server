@@ -157,6 +157,8 @@ test.describe('UI audit controls', () => {
     const scene = page.locator(path === '/netgraph/' ? '#netgraph-stage' : '#map');
     for (const [width, height] of [[320, 568], [568, 320]]) {
       await page.setViewportSize({ width: width!, height: height! });
+      await expect(page.locator('html')).toHaveAttribute('data-mobile-dock', 'true');
+      await expect(page.locator('#view-panel #help-button')).toHaveCount(1);
       await viewTool(page, '#help-button');
       const dialog = page.locator('#about-dialog'); await expect(dialog).toBeVisible();
       await expect(dialog).toHaveJSProperty('scrollTop', 0);
