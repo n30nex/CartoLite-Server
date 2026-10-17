@@ -1,7 +1,7 @@
 import type { LiveMap } from './map';
 import type { PacketAnimator } from './packetAnimator';
 import { browserStorage } from './browserStorage';
-import { applyDisplayChrome } from './displayPreferences';
+import { applyDisplayChrome, effectStrength, prefersReducedMotion } from './displayPreferences';
 import { terminalGraphics } from './terminalGraphics';
 import { characterCells, terminalColor, terminalPreferences, TERMINAL_DEFAULTS, TERMINAL_COLORS } from './terminalGrid';
 import './terminal.css';
@@ -80,16 +80,29 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     read.imageSmoothingEnabled = false;
     read.drawImage(source, 0, 0, sample.width, sample.height);
     const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii');
-    ctx.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+    ctx.font = `bold ${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
     ctx.textBaseline = 'top';
-    // Batch same-colour runs. A full ocean is a few row draws, not 16,000 calls.
-    let visible = 0;
+    const glow = prefersReducedMotion() ? 0 : effectStrength() * (source.dataset.qualityMode === 'low' ? 2 : source.dataset.qualityMode === 'balanced' ? 4 : 6);
+    ctx.lineWidth=.5;
+    // Batch colour/brightness runs. Bound decorative work before reducing cores.
+    let visible = 0, blooms=0;
     for (let y = 0; y < cells.rows; y++) for (let x = 0; x < cells.columns;) {
-      const start = x, color = cells.colors[y * cells.columns + x]!;
+      const start = x, color = cells.colors[y * cells.columns + x]!, energy=cells.energy[y*cells.columns+x]!;
       let text = '';
-      do { text += cells.glyphs[y * cells.columns + x]!; x++; } while (x < cells.columns && cells.colors[y * cells.columns + x] === color);
-      if (color) { ctx.fillStyle = terminalColor(color, preferences.palette); ctx.fillText(text, start * cw, y * ch); visible += x - start; }
+      do { text += cells.glyphs[y * cells.columns + x]!; x++; } while (x < cells.columns && cells.colors[y * cells.columns + x] === color && cells.energy[y*cells.columns+x] === energy);
+      if (!color) continue;
+      ctx.globalAlpha=Math.min(1,energy/255*1.35);
+      ctx.fillStyle=ctx.strokeStyle=ctx.shadowColor=terminalColor(color,preferences.palette);
+      ctx.shadowBlur=blooms++<120 ? glow : 0;
+      ctx.strokeText(text,start*cw,y*ch); ctx.fillText(text,start*cw,y*ch); visible+=x-start;
     }
+    ctx.shadowBlur=0; ctx.fillStyle=terminalColor(2,preferences.palette);
+    for(let i=0;i<cells.hot.length;i++) if(cells.hot[i]!==' ') {
+      ctx.globalAlpha=cells.energy[i]!/255;
+      ctx.fillText(cells.hot[i]!,i%cells.columns*cw,Math.floor(i/cells.columns)*ch);
+    }
+    ctx.globalAlpha=1;
+    target.dataset.glow=String(glow);
     target.dataset.cells = String(visible); target.dataset.columns = String(cells.columns);
     target.dataset.glyphs = preferences.glyphs;
   }
@@ -108,6 +121,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     for (const feature of features) {
       if (feature.geometry.type !== 'Point') continue;
       const p = feature.properties, node = feature.layer.id === 'nodes', cluster = feature.layer.id === 'clusters';
+      context.font = `${node || cluster ? 'bold ' : ''}${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
       const text = cluster ? `[${p.point_count_abbreviated ?? p.point_count}]` : node ? (p.id === selected ? '@' : (ROLES[String(p.role)] ?? '?')) : String(p.label ?? p.name_en ?? p['name:en'] ?? p.name ?? '');
       if (!text) continue;
       const coordinate = feature.geometry.coordinates;
@@ -128,7 +142,9 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         cells.forEach(cell => occupied.add(cell));
         context.fillStyle = '#000'; context.fillRect(x-1,y,w+2,ch);
         context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : nodeLabel ? 2 : 5, preferences.palette);
-        context.fillText(text,x,y); drawn++; break;
+        context.shadowColor=String(context.fillStyle); context.shadowBlur=node || cluster ? 3*effectStrength() : 0;
+        context.globalAlpha=node || cluster || nodeLabel ? 1 : .65;
+        context.fillText(text,x,y); context.shadowBlur=0; context.globalAlpha=1; drawn++; break;
       }
     }
     canvas.dataset.labels = String(drawn);
@@ -181,7 +197,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         setPaint(layer.id, 'text-opacity', 0);
       } else if (layer.id.startsWith('basemap-')) {
         const property = layer.type === 'background' ? 'background-color' : layer.type === 'fill' ? 'fill-color' : layer.type === 'line' ? 'line-color' : undefined;
-        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#e4d9ba' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#526270' : '#030609';
+        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#526270' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#526270' : '#030609';
         if (property) setPaint(layer.id, property, layer.id === 'basemap-landcover' ? ['match', ['get','class'], ['wood','grass'], '#124b24', '#383838'] : color);
       }
     }

@@ -21,3 +21,10 @@ CartoLite Server is a compact worldwide MeshCore map and Netgraph: a Go MQTT/HTT
 - Keep `REGION_ALLOWLIST` optional and exact when configured.
 - Run frontend tests/build, Go tests/vet/race, integration/privacy smoke tests, and `git diff --check` before release.
 - Preserve unrelated work and never force-push shared branches.
+
+## Build artifact sizes
+
+By owner request (17 October 2026), frontend, worker, geography and container
+artifact sizes are reported without hard release-blocking caps. Keep the runtime
+performance gates, privacy/security checks, lazy-view isolation, resource limits
+and exact tested-image promotion requirements.

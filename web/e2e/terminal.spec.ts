@@ -3,6 +3,56 @@ import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import { openViewMenu } from './dockControls';
 
+test('Terminal gives live packets a bounded glow while keeping labels and quiet modes clear', async ({page},info) => {
+  test.slow();
+  await visualFixture(page);
+  // Capture the presentation sink, not the packet clock. A known frame makes
+  // glow comparisons reproducible while the normal live-feed tests stay intact.
+  await page.addInitScript(() => {
+    window.addEventListener('cartolite-map-ready', event => {
+      const animator=(event as CustomEvent).detail.animator;
+      const original=animator.setFrameSink.bind(animator);
+      animator.setFrameSink=(sink: (source?:HTMLCanvasElement)=>void) => { Object.assign(window,{terminalFrame:sink}); original(sink); };
+    },{once:true});
+  });
+  await page.goto('/terminal/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle',{timeout:10000});
+  await expect(page.locator('#map')).toHaveAttribute('data-terminal-renderer','webgl2');
+  const render=async () => page.evaluate(() => {
+    const host=document.querySelector<HTMLElement>('#map')!, source=document.createElement('canvas');
+    source.width=host.clientWidth; source.height=host.clientHeight;
+    Object.assign(source.dataset,{qualityMode:'full',activeCount:'1',residueCount:'0'});
+    const ctx=source.getContext('2d')!, x=source.width*.5, y=source.height*.5;
+    ctx.strokeStyle='#ff75b5'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(x-60,y); ctx.lineTo(x,y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x-60,y,16,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.fillRect(x-4,y-4,9,9);
+    (window as unknown as {terminalFrame:(source:HTMLCanvasElement)=>void}).terminalFrame(source);
+    const canvas=document.querySelector<HTMLCanvasElement>('#terminal-packets')!;
+    const pixels=canvas.getContext('2d')!.getImageData(0,0,canvas.width,canvas.height).data;
+    let halo=0,core=0;
+    for(let i=0;i<pixels.length;i+=4) {
+      if(pixels[i+3]!>=8 && pixels[i+3]!<96) halo++;
+      if(pixels[i+3]!>192 && Math.max(pixels[i]!,pixels[i+1]!,pixels[i+2]!)>230) core++;
+    }
+    return {halo,core,glow:Number(canvas.dataset.glow)};
+  });
+  await page.waitForTimeout(60);
+  const spectacle=await render();
+  expect(spectacle.glow).toBeGreaterThan(0); expect(spectacle.core).toBeGreaterThan(10);
+  await page.screenshot({path:info.outputPath('terminal-live-spectacle.png')});
+  const z=await page.evaluate(() => ['terminal-map','terminal-packets'].map(id=>Number(getComputedStyle(document.getElementById(id)!).zIndex)));
+  expect(z[0]).toBeGreaterThan(z[1]!);
+  await openMapOptions(page); await page.getByLabel('Effects intensity').selectOption('minimal'); await page.keyboard.press('Escape');
+  await page.waitForTimeout(60);
+  const minimal=await render();
+  expect(minimal.glow).toBe(0); expect(minimal.core).toBeGreaterThan(10);
+  expect(spectacle.halo).toBeGreaterThan(minimal.halo*1.25);
+  await page.screenshot({path:info.outputPath('terminal-live-minimal.png')});
+  await openMapOptions(page); await page.getByLabel('Effects intensity').selectOption('spectacle'); await page.keyboard.press('Escape');
+  await page.emulateMedia({reducedMotion:'reduce'}); await page.waitForTimeout(60);
+  const reduced=await render(); expect(reduced.glow).toBe(0); expect(reduced.core).toBeGreaterThan(10);
+});
+
 test('Terminal preserves roads, landscape detail and measured label spacing', async ({page}, info) => {
   test.slow();
   await visualFixture(page,10.2,true);
@@ -12,7 +62,7 @@ test('Terminal preserves roads, landscape detail and measured label spacing', as
     Object.assign(window,{terminalLabels:labels});
     canvas.clearRect = function(...args:Parameters<typeof clear>) { if(this.canvas.id==='terminal-map') labels.length=0; return clear.apply(this,args); };
     canvas.fillText = function(text,x,y,...rest) {
-      if(this.canvas.id==='terminal-map') labels.push({text,x,y,width:this.measureText(text).width,height:parseFloat(this.font)*1.25});
+      if(this.canvas.id==='terminal-map') labels.push({text,x,y,width:this.measureText(text).width,height:parseFloat(this.font.match(/[\d.]+px/)![0])*1.25});
       return original.call(this,text,x,y,...rest);
     };
   });
@@ -30,7 +80,7 @@ test('Terminal preserves roads, landscape detail and measured label spacing', as
       const canvas=document.createElement('canvas'); canvas.width=image.width; canvas.height=image.height;
       const ctx=canvas.getContext('2d')!; ctx.drawImage(image,0,0);
       const pixels=ctx.getImageData(0,Math.floor(image.height*.2),image.width,Math.floor(image.height*.6)).data;
-      const colors=[[53,95,73],[53,64,76],[114,147,170]], count=[0,0,0];
+      const colors=[[37,62,49],[40,50,63],[83,107,128]], count=[0,0,0];
       for(let i=0;i<pixels.length;i+=4) for(let k=0;k<3;k++) if(colors[k]!.every((v,c)=>Math.abs(pixels[i+c]!-v)<3)) count[k]!++;
       return Math.min(...count);
     },png.toString('base64'));

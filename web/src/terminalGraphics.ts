@@ -13,6 +13,7 @@ int ink(vec3 c){
  if(max(c.r,max(c.g,c.b))<100./255.&&c.g>c.r*1.5&&c.g>c.b*1.2)return 9;
  if(max(c.r,max(c.g,c.b))<65./255.&&max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b))<5./255.)return 10;
  if(max(c.r,max(c.g,c.b))<100./255.)return 3;
+ if(min(c.r,min(c.g,c.b))>max(c.r,max(c.g,c.b))*.7)return 2;
  if(c.r>c.g*1.25&&c.b>c.g*1.12)return 6;
  if(c.r>c.b*1.3&&c.g>c.b*1.15)return 5;
  if(c.g>c.r*1.2&&c.g>c.b*.9)return 4;
@@ -20,7 +21,7 @@ int ink(vec3 c){
  if(c.b>c.r*1.1)return 7;return 2;
 }
 int at(vec2 p){return ink(texture(terminal_scene,clamp(p,vec2(0),vec2(1))).rgb);}
-int rank(int k){return k==0?-1:k==1||k>8?0:k==3?1:k==2?2:3;}
+int rank(int k){return k==0?-1:k==1||k==9||k==10?0:k==3?1:k==11?2:3;}
 void main(){
  vec2 cell=floor(gl_FragCoord.xy),stepSize=1./(grid*vec2(2,4));
  int mask=0,color=0,priority=-1,count=0;
@@ -33,12 +34,12 @@ void main(){
    int sampleInk=at(p+vec2(i,j)*stepSize/3.);
    if(rank(sampleInk)>rank(k))k=sampleInk;
   }
-  if((k==0||k>8)&&(at(p+vec2(stepSize.x,0))==1||at(p-vec2(stepSize.x,0))==1||at(p+vec2(0,stepSize.y))==1||at(p-vec2(0,stepSize.y))==1))k=2;
+  if((k==0||k==9||k==10)&&(at(p+vec2(stepSize.x,0))==1||at(p-vec2(stepSize.x,0))==1||at(p+vec2(0,stepSize.y))==1||at(p-vec2(0,stepSize.y))==1))k=11;
   int priorityNow=rank(k);
   if(k==0||priorityNow<priority)continue;
   // Do not recolour every water/land dot when a bright route crosses one dot.
   if(priorityNow>priority){mask=0;count=0;color=k;priority=priorityNow;}
-  if(k>8&&(x+y)%2==0)continue;
+  if((k==9||k==10)&&(x+y)%2==0)continue;
   mask|=bits[y*2+x];count++;
  }
  int glyph=ascii==1&&mask!=0?(color==1?260:count<3?257:count<6?258:259):mask;
@@ -46,7 +47,7 @@ void main(){
 }`;
 const GLYPHS = `#version 300 es
 precision highp float;precision highp int;
-uniform sampler2D cells;uniform sampler2D glyphs;uniform vec2 grid;uniform vec2 viewport;uniform vec3 colors[11];
+uniform sampler2D cells;uniform sampler2D glyphs;uniform vec2 grid;uniform vec2 viewport;uniform vec3 colors[12];
 out vec4 result;
 void main(){
  vec2 p=gl_FragCoord.xy/viewport*grid;

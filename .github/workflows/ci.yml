@@ -63,7 +63,7 @@ jobs:
         run: npm test
       - working-directory: web
         run: npm run build
-      - run: node scripts/check-frontend-budget.mjs web/dist
+      - run: node scripts/report-frontend-size.mjs web/dist
 
   container:
     name: Container integration, browser, privacy, and scan (${{ matrix.arch }})
@@ -122,7 +122,7 @@ jobs:
           cache-from: type=gha,scope=world-${{ matrix.arch }}
           cache-to: type=gha,scope=world-${{ matrix.arch }},mode=max
       - run: |
-          bash scripts/check-image-size.sh cartolite-server:ci
+          bash scripts/report-image-size.sh cartolite-server:ci
           test "$(docker image inspect cartolite-server:ci --format '{{.Config.User}}')" = "65532:65532"
           test "$(docker image inspect cartolite-server:ci --format '{{.Architecture}}')" = "${{ matrix.arch }}"
           test "$(docker image inspect cartolite-server:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
