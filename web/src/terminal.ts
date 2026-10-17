@@ -1,6 +1,7 @@
 import type { LiveMap } from './map';
 import type { PacketAnimator } from './packetAnimator';
 import { browserStorage } from './browserStorage';
+import { terminalCapture, type TerminalPixels } from './terminalCapture';
 import { characterCells, terminalColor, terminalPreferences, TERMINAL_DEFAULTS } from './terminalGrid';
 import './terminal.css';
 
@@ -10,6 +11,7 @@ const ROLES: Record<string, string> = { repeater: 'R', companion: 'C', room_serv
 // This entry precedes Map in the Terminal document only. No renderer or CSS is
 // downloaded by the ordinary Map/Netgraph pages, and there is still one feed.
 window.addEventListener('cartolite-map-ready', event => {
+  if (!document.documentElement.hasAttribute('data-terminal')) return;
   const { view, animator } = (event as CustomEvent<{ view: LiveMap; animator: PacketAnimator }>).detail;
   const destroy = mountTerminal(view, animator);
   window.addEventListener('pagehide', event => { if (!event.persisted) destroy(); });
@@ -22,7 +24,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   try { preferences = terminalPreferences(browserStorage().getItem(KEY)); } catch { /* Storage may be disabled. */ }
   const originalPaint = new Map<string, { layer: string; property: string; value: Parameters<typeof map.setPaintProperty>[2] }>();
   let labelLayers: string[] = [];
-  let disposed = false, failed = false, timer: number | undefined, lastMap = 0, lastPacket = 0;
+  let disposed = false, failed = false, lastPacket = 0;
   const canvas = document.createElement('canvas'), effects = document.createElement('canvas');
   canvas.id = 'terminal-map'; effects.id = 'terminal-packets';
   for (const element of [canvas, effects]) { element.className = 'terminal-canvas'; element.setAttribute('aria-hidden', 'true'); host.after(element); }
@@ -36,7 +38,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   notice.innerHTML = '<span>Terminal graphics paused. The map and live traffic are still available.</span><button type="button">Retry Terminal</button>';
   host.after(notice);
   const settings = document.createElement('fieldset'); settings.className = 'terminal-settings';
-  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>Character shading follows the map, including terrain. R repeater · C companion · H room · S sensor · @ selected. Live packets retain their colours and timing.</p>';
+  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>R repeater · C companion · H room · S sensor · @ selected. ANSI keeps packet colours; amber and green use one phosphor. Character shading follows the map and terrain. Live timing stays the same.</p>';
   document.querySelector('#map-appearance > summary')!.after(settings);
   const selects = settings.querySelectorAll('select');
   const sync = () => {
@@ -58,17 +60,21 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     return { width, height, size, cw: context.measureText('M').width, ch: size * 1.15 };
   }
 
-  function draw(source: HTMLCanvasElement, target: HTMLCanvasElement, ctx: CanvasRenderingContext2D, geography: boolean) {
+  function draw(source: HTMLCanvasElement | TerminalPixels, target: HTMLCanvasElement, ctx: CanvasRenderingContext2D, geography: boolean) {
     const { width, height, size, cw, ch } = dimensions(), dpr = Math.min(devicePixelRatio || 1, 2);
     if (!width || !height || !source.width || !source.height) return;
     if (target.width !== Math.ceil(width * dpr) || target.height !== Math.ceil(height * dpr)) { target.width = Math.ceil(width * dpr); target.height = Math.ceil(height * dpr); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
     if (geography) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, width, height); }
-    sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
-    read.imageSmoothingEnabled = false;
-    read.drawImage(source, 0, 0, sample.width, sample.height);
-    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii', geography);
+    let pixels: TerminalPixels;
+    if (source instanceof HTMLCanvasElement) {
+      sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
+      read.imageSmoothingEnabled = false;
+      read.drawImage(source, 0, 0, sample.width, sample.height);
+      pixels = read.getImageData(0, 0, sample.width, sample.height);
+    } else pixels = source;
+    const cells = characterCells(pixels, preferences.glyphs === 'ascii', geography);
     ctx.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
     ctx.textBaseline = 'top';
     // Batch same-colour runs. A full ocean is a few row draws, not 16,000 calls.
@@ -118,17 +124,18 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     fx.clearRect(0, 0, effects.width, effects.height);
   }
 
-  function paint() {
-    timer = undefined;
-    if (disposed || failed || document.hidden || !map.isStyleLoaded()) return;
+  function paint(pixels: TerminalPixels) {
+    if (disposed || failed || document.hidden) return;
     try {
-      draw(map.getCanvas(), canvas, context, true); labels(); lastMap = performance.now();
+      const started = performance.now();
+      draw(pixels, canvas, context, true); labels();
+      canvas.dataset.workMs = String(Math.round(performance.now() - started));
       const center = map.getCenter();
       status.querySelector('.terminal-coordinates')!.textContent = `${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}  Z:${map.getZoom().toFixed(1)}`;
     } catch { fail(); }
   }
   function schedule() {
-    if (!disposed && !failed && !document.hidden && timer === undefined) timer = window.setTimeout(paint, Math.max(0, 100 - (performance.now() - lastMap)));
+    capture.request();
   }
   // Deliberately restyle only basemap paint. Routes, terrain, regions and source
   // visibility continue to be owned by LiveMap and the user's layer controls.
@@ -151,14 +158,17 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         if (property) paint(layer.id, property, color);
       }
     }
-    schedule();
+    capture.attach(layers[layers.length - 1]?.id);
   }
-  const visibility = () => { if (document.hidden) { clearTimeout(timer); timer = undefined; } else { style(); map.triggerRepaint(); } };
-  const lost = () => { clearTimeout(timer); timer = undefined; };
+  const capture = terminalCapture(map, () => {
+    const { width, height, cw, ch } = dimensions();
+    return [Math.max(2, Math.ceil(width / cw) * 2), Math.max(4, Math.ceil(height / ch) * 4)];
+  }, paint, fail, () => !disposed && !failed && !document.hidden);
+  const visibility = () => { if (!document.hidden) { style(); schedule(); } };
   const restored = () => { failed = false; delete root.dataset.terminalFallback; notice.hidden = true; style(); map.triggerRepaint(); };
   notice.querySelector('button')!.addEventListener('click', restored);
-  map.on('load', style); map.on('idle', style); map.on('render', schedule);
-  map.on('webglcontextlost', lost); map.on('webglcontextrestored', restored);
+  map.on('load', style); map.on('idle', style);
+  map.on('webglcontextrestored', restored);
   document.addEventListener('visibilitychange', visibility);
   animator.setFrameSink(source => {
     if (!source) { fx.clearRect(0, 0, effects.width, effects.height); return; }
@@ -168,12 +178,16 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     try { draw(source, effects, fx, false); lastPacket = now; } catch { fail(); }
   });
   sync(); style();
-  return () => {
-    disposed = true; clearTimeout(timer); animator.setFrameSink(undefined);
-    map.off('load', style); map.off('idle', style); map.off('render', schedule);
-    map.off('webglcontextlost', lost); map.off('webglcontextrestored', restored);
+  const destroy = () => {
+    if (disposed) return;
+    disposed = true; capture.destroy(); animator.setFrameSink(undefined);
+    map.off('load', style); map.off('idle', style);
+    map.off('webglcontextrestored', restored);
+    map.off('remove', destroy);
     document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage);
     for (const element of [canvas, effects, status, notice, settings]) element.remove();
     delete root.dataset.terminal; delete root.dataset.terminalFallback; delete root.dataset.terminalPalette;
   };
+  map.on('remove', destroy);
+  return destroy;
 }

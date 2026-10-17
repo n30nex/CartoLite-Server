@@ -10,21 +10,13 @@ export function mountCinematicDock(): void {
   navigation.className = 'dock-views'; navigation.setAttribute('aria-label', 'Views');
   const graph = location.pathname.startsWith('/netgraph');
   const terminal = location.pathname.startsWith('/terminal');
-  const mapLink = document.createElement('a');
-  mapLink.href = '/'; mapLink.className = 'control-button'; mapLink.textContent = 'Map';
-  mapLink.setAttribute('aria-label', 'Open CartoLite map');
-  if (!graph && !terminal) mapLink.setAttribute('aria-current', 'page');
-  navigation.append(mapLink);
-  const graphLink = topbar.querySelector<HTMLAnchorElement>('#netgraph-link') ?? document.createElement('a');
-  graphLink.href = '/netgraph/'; graphLink.classList.add('control-button', 'netgraph-link'); graphLink.textContent = 'Netgraph';
-  graphLink.setAttribute('aria-label', 'Open CartoLite Netgraph');
-  if (graph) graphLink.setAttribute('aria-current', 'page');
-  navigation.append(graphLink);
-  const terminalLink = document.createElement('a');
-  terminalLink.href = '/terminal/'; terminalLink.className = 'control-button'; terminalLink.textContent = 'Terminal';
-  terminalLink.setAttribute('aria-label', 'Open CartoLite Terminal');
-  if (terminal) terminalLink.setAttribute('aria-current', 'page');
-  navigation.append(terminalLink);
+  for (const [label, path, active] of [['Map', '/', !graph && !terminal], ['Netgraph', '/netgraph/', graph], ['Terminal', '/terminal/', terminal]] as const) {
+    const link = (label === 'Netgraph' ? topbar.querySelector<HTMLAnchorElement>('#netgraph-link') : null) ?? document.createElement('a');
+    link.href = path; link.classList.add('control-button'); link.textContent = label;
+    link.setAttribute('aria-label', `Open CartoLite ${label === 'Map' ? 'map' : label}`);
+    if (active) link.setAttribute('aria-current', 'page');
+    navigation.append(link);
+  }
   const labs = topbar.querySelector<HTMLAnchorElement>('#labs-link');
   if (labs) { labs.classList.add('control-button'); navigation.append(labs); }
   controls.prepend(navigation);

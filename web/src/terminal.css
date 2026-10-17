@@ -11,6 +11,10 @@
 [data-terminal] button, [data-terminal] select, [data-terminal] input { font-family: inherit; }
 [data-terminal] .control-button { border-radius: 2px; }
 [data-terminal] .brand { color: var(--terminal-accent); }
+[data-terminal] #legend .node { width: auto; height: auto; border: 0; border-radius: 0; background: none; box-shadow: none; font-style: normal; }
+[data-terminal] #legend .repeater::after { content: 'R'; color: #71f5c7; }
+[data-terminal] #legend .companion::after { content: 'C'; color: #78cfff; }
+[data-terminal] #legend .room::after { content: 'H'; color: #b39aff; }
 [data-terminal] #map-grade { display: none; }
 [data-terminal]:not([data-terminal-fallback]) .maplibregl-canvas,
 [data-terminal]:not([data-terminal-fallback]) #packet-canvas { opacity: 0; }

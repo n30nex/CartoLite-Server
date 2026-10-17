@@ -15,7 +15,7 @@ export default defineConfig({
         // Keep shared controls, projections and effects together. Entry points
         // and MapLibre stay separate, so Netgraph never loads the basemap.
         codeSplitting: { groups: [
-          { name: 'terminal', test: /[\\/]src[\\/]terminal(?:Grid)?\.ts$/, priority: 20 },
+          { name: 'terminal', test: /[\\/]src[\\/]terminal(?:Grid|Capture)?\.ts$/, priority: 20, includeDependenciesRecursively: false },
           { name: 'shared', test: /[\\/]src[\\/]/, minShareCount: 2 },
         ] },
       },

@@ -251,7 +251,6 @@ export class LiveMap {
     this.container.dataset.exactRoutesLoaded = 'false';
     this.container.dataset.exactRoutesReady = 'false';
     this.map = new maplibregl.Map({
-      canvasContextAttributes: { preserveDrawingBuffer: location.pathname.startsWith('/terminal') },
       container: this.container,
       style: cartoVectorStyle(undefined, this.#appearance.basemap),
       center: DEFAULT_CENTER,

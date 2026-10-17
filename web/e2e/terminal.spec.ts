@@ -4,6 +4,7 @@ import { openMapOptions } from './mapControls';
 import { openViewMenu } from './dockControls';
 
 test('Terminal keeps geographic controls, live packets and device display choices', async ({ page }, info) => {
+  test.slow();
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await visualFixture(page); await page.goto('/terminal/');
   const map = page.locator('#map'), grid = page.locator('#terminal-map');
@@ -13,6 +14,14 @@ test('Terminal keeps geographic controls, live packets and device display choice
   await expect(page.locator('.dock-views [aria-current="page"]')).toHaveText('Terminal');
   await expect(page.locator('#fatal')).toBeHidden();
   await page.screenshot({ path: info.outputPath('terminal-ansi.png') });
+  if (info.project.name === 'desktop') {
+    await page.locator('#terrain-shortcut').click();
+    await expect(map).toHaveAttribute('data-terrain3d','true');
+    await expect(map).toHaveAttribute('data-camera-moving','false');
+    await page.screenshot({path:info.outputPath('terminal-terrain.png')});
+    await page.locator('#terrain-shortcut').click();
+    await expect(map).toHaveAttribute('data-terrain3d','false');
+  }
   const saved = await page.evaluate(() => [localStorage.getItem('cartolite:ui:v1'), localStorage.getItem('cartolite-server:ui:v1')]);
   await openMapOptions(page);
   await page.getByLabel('Terminal palette').selectOption('amber');
@@ -26,10 +35,13 @@ test('Terminal keeps geographic controls, live packets and device display choice
   await expect(grid).toHaveAttribute('data-glyphs', 'ascii');
   await openMapOptions(page); await page.locator('#routes-button').click(); await page.keyboard.press('Escape');
   await expect(map).toHaveAttribute('data-routes-visible', 'false');
+  await page.locator('#follow-button').click();
   await visualPacket(page, 1, 'Text');
+  await expect(page.locator('#follow-card')).toBeVisible();
   await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count', '1');
   await expect.poll(async () => Number(await page.locator('#terminal-packets').getAttribute('data-cells'))).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath('terminal-amber-packet.png') });
+  await page.locator('#follow-close').click();
   await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
   await page.getByRole('option', { name: /Visual Alpha/ }).click();
   await expect(map).toHaveAttribute('data-selected-node-id', 'visual-a');
@@ -59,10 +71,10 @@ test('Terminal stays compact and keeps selection when switching views', async ({
 test('unavailable character readback falls back without stopping the feed', async ({page}) => {
   await visualFixture(page);
   await page.addInitScript(() => {
-    const original = CanvasRenderingContext2D.prototype.getImageData;
-    CanvasRenderingContext2D.prototype.getImageData = function (...args: Parameters<typeof original>) {
+    const original = WebGL2RenderingContext.prototype.clientWaitSync;
+    WebGL2RenderingContext.prototype.clientWaitSync = function (...args: Parameters<typeof original>) {
       if (document.documentElement.dataset.terminal && !document.documentElement.dataset.readbackFailedOnce) {
-        document.documentElement.dataset.readbackFailedOnce = 'true'; throw new DOMException('Synthetic readback failure', 'SecurityError');
+        document.documentElement.dataset.readbackFailedOnce = 'true'; return this.WAIT_FAILED;
       }
       return original.apply(this,args);
     };
