@@ -305,6 +305,7 @@ export class PacketAnimator {
   #residueCacheUpdatedAt = Number.NEGATIVE_INFINITY;
   #dpr = 1;
   #scheduledWakeCount = 0;
+  #frameSink?: (canvas?: HTMLCanvasElement) => void;
   #appliedQuality?: VisualQuality;
 
   constructor(private readonly map: maplibregl.Map, private readonly canvas: HTMLCanvasElement) {
@@ -383,6 +384,9 @@ export class PacketAnimator {
     this.#requestFrame();
   }
 
+  /** Optional presentation sink; never owns packet progression or audio. */
+  setFrameSink(sink?: (canvas?: HTMLCanvasElement) => void): void { this.#frameSink = sink; }
+
   setPaused(paused: boolean): void {
     this.#paused = paused;
     if (paused) {
@@ -397,6 +401,7 @@ export class PacketAnimator {
       this.#frameId = 0;
       this.#residueTimer = undefined;
       this.#clearCanvas();
+      this.#frameSink?.();
       this.#gpu.batch.clear(); this.#gpu.flush();
       this.#clearResidueCanvas();
     } else {
@@ -568,6 +573,7 @@ export class PacketAnimator {
     for (const observer of this.#activeObservers) this.#drawObserver(observer, now);
     this.#context.restore();
     this.#gpu.flush();
+    this.#frameSink?.(this.canvas);
     if (!this.#reducedMotion && (this.activeRoutes.length || this.#activeObservers.length || this.#nodeWakes.length)) this.#requestFrame();
     else this.#requestTimedFrame(now);
   }

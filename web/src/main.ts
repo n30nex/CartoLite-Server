@@ -172,8 +172,11 @@ async function start(): Promise<void> {
   let store: LiveStore | undefined;
   let feed: LiveFeed | undefined;
   let followTimer: number | undefined;
+  let destroyTerminal: (() => void) | undefined;
   let pauseLiveFollow = (): void => {};
   try {
+    const terminal = location.pathname.startsWith('/terminal') ? await import('./terminal') : undefined;
+    if (terminal) document.documentElement.dataset.terminal = 'true';
     let configUnavailable = false;
     await loadBasemapConfiguration().catch(() => { configUnavailable = true; });
     // Construct MapLibre before the state request so the basemap can paint while
@@ -197,6 +200,7 @@ async function start(): Promise<void> {
     const packetCanvas = required<HTMLCanvasElement>('packet-canvas');
     const liveAnimator = new PacketAnimator(liveMap.map, packetCanvas);
     animator = liveAnimator;
+    destroyTerminal = terminal?.mountTerminal(liveMap, liveAnimator);
     const routeSonifier = new RouteSonifier(liveAnimator.projection, packetCanvas);
     sonifier = routeSonifier;
     mountSoundPreview(routeSonifier, soundPanel);
@@ -387,6 +391,7 @@ async function start(): Promise<void> {
       if (followTimer !== undefined) window.clearInterval(followTimer);
       feed?.stop();
       store?.destroy();
+      destroyTerminal?.();
       animator?.destroy();
       sonifier?.destroy();
       mapView?.destroy();
@@ -640,6 +645,7 @@ async function start(): Promise<void> {
   } catch (error) {
     feed?.stop();
     store?.destroy();
+    destroyTerminal?.();
     animator?.destroy();
     sonifier?.destroy();
     mapView?.destroy();

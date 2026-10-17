@@ -1,0 +1,34 @@
+:root[data-terminal] {
+  --panel-solid: #050b10; --panel-border: #527885; --ink-strong: #e9e9bf;
+  --ink-muted: #a5bdbb; --terminal-accent: #79f8c4;
+  font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+}
+:root[data-terminal-palette="amber"] { --terminal-accent: #ffd18a; }
+:root[data-terminal-palette="green"] { --terminal-accent: #8dffb0; }
+[data-terminal] body, [data-terminal] #map { background: #000; }
+[data-terminal] .glass, [data-terminal] dialog { border-radius: 2px; background: #050b10; border-color: #527885; box-shadow: none; backdrop-filter: none; color: #d5e6df; }
+[data-terminal] button, [data-terminal] select, [data-terminal] input { font-family: inherit; }
+[data-terminal] .control-button { border-radius: 2px; }
+[data-terminal] .brand { color: var(--terminal-accent); }
+[data-terminal] #map-grade { display: none; }
+[data-terminal]:not([data-terminal-fallback]) .maplibregl-canvas,
+[data-terminal]:not([data-terminal-fallback]) #packet-canvas { opacity: 0; }
+.terminal-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#terminal-map { z-index: 1; }
+#terminal-packets { z-index: 4; }
+[data-terminal-fallback] .terminal-canvas { display: none; }
+#terminal-status { position: absolute; top: 60px; left: 14px; right: 14px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px 18px; width: fit-content; max-width: calc(100% - 28px); padding: 5px 8px; border: 1px solid #334b57; background: #000d; color: var(--terminal-accent); font-size: 11px; pointer-events: none; }
+.terminal-help { color: #a3b4bd; }
+.terminal-settings { margin: 8px 0; padding: 8px; border: 1px solid #527885; display: grid; gap: 8px; }
+.terminal-settings legend { color: var(--terminal-accent); font-weight: bold; }
+.terminal-settings label { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.terminal-settings select { min-height: 36px; max-width: 100%; background: #08121a; color: #efffdf; border: 1px solid #527885; }
+.terminal-settings p { color: #a5bdbb; font-size: 11px; line-height: 1.5; margin: 0; }
+.terminal-notice { position: absolute; z-index: 8; top: 105px; left: 14px; max-width: min(340px, calc(100% - 28px)); padding: 8px; font-size: 12px; }
+.terminal-notice[hidden] { display: none; }
+@media(max-width:900px), (pointer:coarse) {
+  #terminal-status { top: max(52px, calc(env(safe-area-inset-top) + 45px)); font-size: 10px; gap: 4px 10px; }
+  .terminal-help { display: none; }
+  .terminal-settings select { min-height: 44px; }
+}
+@media(max-height:480px) { #terminal-status { top: 8px; left: 205px; right: 8px; max-width: calc(100% - 220px); } #terminal-status strong, .terminal-help { display: none; } }

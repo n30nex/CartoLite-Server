@@ -9,16 +9,22 @@ export function mountCinematicDock(): void {
   const navigation = document.createElement('nav');
   navigation.className = 'dock-views'; navigation.setAttribute('aria-label', 'Views');
   const graph = location.pathname.startsWith('/netgraph');
+  const terminal = location.pathname.startsWith('/terminal');
   const mapLink = document.createElement('a');
   mapLink.href = '/'; mapLink.className = 'control-button'; mapLink.textContent = 'Map';
   mapLink.setAttribute('aria-label', 'Open CartoLite map');
-  if (!graph) mapLink.setAttribute('aria-current', 'page');
+  if (!graph && !terminal) mapLink.setAttribute('aria-current', 'page');
   navigation.append(mapLink);
   const graphLink = topbar.querySelector<HTMLAnchorElement>('#netgraph-link') ?? document.createElement('a');
   graphLink.href = '/netgraph/'; graphLink.classList.add('control-button', 'netgraph-link'); graphLink.textContent = 'Netgraph';
   graphLink.setAttribute('aria-label', 'Open CartoLite Netgraph');
   if (graph) graphLink.setAttribute('aria-current', 'page');
   navigation.append(graphLink);
+  const terminalLink = document.createElement('a');
+  terminalLink.href = '/terminal/'; terminalLink.className = 'control-button'; terminalLink.textContent = 'Terminal';
+  terminalLink.setAttribute('aria-label', 'Open CartoLite Terminal');
+  if (terminal) terminalLink.setAttribute('aria-current', 'page');
+  navigation.append(terminalLink);
   const labs = topbar.querySelector<HTMLAnchorElement>('#labs-link');
   if (labs) { labs.classList.add('control-button'); navigation.append(labs); }
   controls.prepend(navigation);
@@ -44,7 +50,7 @@ export function mountCinematicDock(): void {
     close.setAttribute('aria-label', id === 'find' ? 'Close node search' : 'Close sound settings');
     close.addEventListener('click', () => { if (!panel.hidden) owner.click(); owner.focus(); }); header.append(close);
   }
-  mountMobileDock(controls, navigation, graph ? 'Netgraph' : 'Map');
+  mountMobileDock(controls, navigation, graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
   trackPanelHistory(controls, ['view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
   // One menu at a time, including the independently mounted display control.
   let closing = false;

@@ -156,7 +156,7 @@ export function mapEffects(map: LibreMap) {
   const retry=()=>{budgetFallback=false;slowFrames=0;slowPresentationFrames=0;lastFrameAt=0;requestedAt=0;};
   map.on('render',measure);map.on('moveend',retry);
   const layer: CustomLayerInterface={id:'live-packet-effects',type:'custom',renderingMode:'2d',onAdd(_map,gl){activeGL=gl as WebGL2RenderingContext;batch.initialize(activeGL);},render(){batch.draw();},onRemove(){batch.dispose();}};
-  const wanted=()=>displayPreferences().quality!=='economy'&&!budgetFallback
+  const wanted=()=>!document.documentElement.hasAttribute('data-terminal')&&displayPreferences().quality!=='economy'&&!budgetFallback
     && !(displayPreferences().quality==='auto'&&Math.max(Number(map.getContainer().dataset.eligibleRoutes)||0,Number(map.getContainer().dataset.renderedRouteSegments)||0)>2000);
   const attach=()=>{
     if(!wanted()){batch.setEnabled(false);if(map.getLayer?.(layer.id))map.removeLayer(layer.id);}
