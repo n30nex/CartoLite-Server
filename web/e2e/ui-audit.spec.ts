@@ -4,6 +4,31 @@ import { graphFilters, graphFocus } from './dockControls';
 import type { StateV2 } from '../src/types';
 
 test.describe('UI audit', () => {
+  for (const path of ['/', '/terminal/']) test(`Find refreshes a query entered before map resources finish ${path}`, async ({ page }) => {
+    await visualFixture(page);
+    let release!: () => void;
+    const ready = new Promise<void>(resolve => { release = resolve; });
+    await page.route(/carto\.streets\/v1\/tiles\.json|tiles\.openfreemap\.org\/planet/, async route => { await ready; await route.fallback(); });
+    try {
+      await page.goto(path); await expect(page.locator('#status-text')).toHaveText('Live');
+      await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
+    } finally { release(); }
+    await expect(page.locator('.node-search-result').first()).toContainText('Visual Alpha');
+  });
+
+  for (const path of ['/', '/netgraph/', '/terminal/']) test(`Find reflects a newly connected node while staying open ${path}`, async ({ page }) => {
+    await visualFixture(page); await page.goto(path);
+    await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
+    await page.locator('#find-button').click(); await page.locator('#node-search').fill('New Arrival');
+    await expect(page.locator('#node-search-results')).toContainText('No matching');
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('visual-node', { detail: { seq: 1, node: { id: 'arrival', label: 'New Arrival', role: 'repeater', observer: false, lat: 43.46, lng: -80.36, lastSeen: Date.now() } } }));
+      window.dispatchEvent(new CustomEvent('visual-packet', { detail: { seq: 2, id: 'arrival-packet', at: Date.now(), payloadType: 'Advert', mode: 'route', segments: [{ routeId: 'arrival-hop', fromId: 'visual-a', toId: 'arrival' }] } }));
+    });
+    await expect(page.locator('.node-search-result').first()).toContainText('New Arrival');
+    await expect(page.locator('#node-search')).toBeFocused();
+  });
+
   for (const path of ['/', '/terminal/']) {
     test(`About closes with Escape without clearing the inspected node ${path}`, async ({ page }, info) => {
       await visualFixture(page); await page.goto(path);
@@ -92,7 +117,7 @@ test.describe('UI audit', () => {
     else await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-focus-mode', 'all');
   });
 
-  for (const path of ['/', '/netgraph/', '/terminal/']) test(`Follow actions stay completely visible in short landscape ${path}`, async ({ page }, info) => {
+  for (const path of ['/', '/netgraph/', '/terminal/']) test(`Follow subject, countdown and actions stay visible in short landscape ${path}`, async ({ page }, info) => {
     await page.setViewportSize({ width: 568, height: 320 });
     await visualFixture(page); await page.goto(path);
     await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
@@ -101,7 +126,7 @@ test.describe('UI audit', () => {
     await page.screenshot({ path: info.outputPath('follow-short-landscape.png') });
     const visible = await card.evaluate(card => {
       const box = card.getBoundingClientRect();
-      return [...card.querySelectorAll<HTMLElement>('header button,.follow-actions button')].every(button => {
+      return [...card.querySelectorAll<HTMLElement>('header button,.follow-actions button,.follow-copy strong,.follow-copy span,footer')].every(button => {
         const rect = button.getBoundingClientRect();
         return rect.top >= box.top && rect.bottom <= box.bottom && rect.left >= box.left && rect.right <= box.right
           && button.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));

@@ -346,6 +346,8 @@ async function start(): Promise<void> {
         findButton.focus();
       },
     });
+    const refreshSearch = () => { if (!findPanel.hidden) renderNodeSearch(); };
+    liveMap.map.on('load', refreshSearch);
     findButton.addEventListener('click', () => {
       const opening = findPanel.hidden;
       findPanel.hidden = !opening;
@@ -533,6 +535,7 @@ async function start(): Promise<void> {
 
     liveStore.subscribe((state, changes) => {
       if (changes) liveMap.render(state, changes);
+      if (changes?.reset || changes?.nodes?.length) refreshSearch();
       updateStatus();
     });
     const savedView = loadSavedView(browserStorage(), activeViewClass);

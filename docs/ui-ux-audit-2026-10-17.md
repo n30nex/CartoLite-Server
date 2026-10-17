@@ -38,7 +38,7 @@ Current build sizes are informational, not release-blocking caps.
 | Netgraph inspection and routes | Node/connection cards, endpoint actions, approximate distance and live-only fading paths are shipped. | Improve discovery/help and selection contrast under dense backgrounds; never make hidden routes intercept pointer selection. |
 | Terminal geography | GPU character sampling preserves roads, water, landcover, urban texture and labels. Amber/green/ANSI and cell sizes are separate preferences. | Pixel-to-category classification can confuse overlapping cartography and network ink; plan a semantic network overlay, using the same public geometry/timeline (UI09). |
 | Terminal live effects | Bounded glow, white cores, colour-preserving fade and foreground labels are now shipped. | Preserve the improvement. Validate thin-core continuity at far zoom and 3D rather than adding wider blur. |
-| Display / themes | Shared palettes, six presets, advanced controls, intensity, motion, text and quality synchronize across tabs. | Labs exposes network-style controls that do not directly style its scenes; Terminal overrides basemap appearance. Explain or restrict controls by surface (UI07), without discarding shared saved settings. |
+| Display / themes | Shared palettes, six presets, advanced controls, intensity, motion, text and quality synchronize across tabs. | Labs exposes network-style controls that do not directly style its scenes; Terminal overrides basemap appearance. Labs manual High quality also needs to override a latched automatic economy fallback in phase 2. Explain or restrict controls by surface (UI07), without discarding shared saved settings. |
 | Sound | 31 voices, grouped choices, previews, gesture-unlocked resume, volume and visible-hop limits have automated evidence. | Preserve opt-in and timing. Evaluate a clearly labelled quick mute and easier voice browsing; physical listening remains unverified. |
 | Status / failures | Starting, Live, Reconnecting, unavailable and map notices exist; decorative embeds suppress notices. | Repeated tile errors reopen a dismissed notice. Respect dismissal per problem category and offer a visible Netgraph fallback (UI02). Do not treat an idle map as proof failed tiles recovered. |
 | Packet Pond | Ordered droplets/wakes/ripples over reactive water; reduced-motion and Canvas fallback paths exist. | Keep its identity; review background water versus live ripples at density and paused/resume transitions. |
@@ -59,7 +59,7 @@ The unchanged-runtime baseline runs reproduced the targeted failures:
 The initial run uses desktop plus explicit 568x320 cases; the fixed candidate
 expands the same assertions to Chromium desktop/phone/landscape and phone WebKit.
 
-UI01–UI06 are implemented in this candidate. Dialog state participates in Back
+UI01–UI06 and UI15 are implemented in this candidate. Dialog state participates in Back
 history; a modal Escape cannot clear underlying selection. Notices remember a
 dismissed problem category for the page visit and expose Netgraph. Empty graphs
 provide scoped recovery actions. Follow pins its header/actions during scrolling.
@@ -87,7 +87,15 @@ P3 is an enhancement requiring additional design/measurement.
 | UI11 | P2 | Regional startup and freshness/replay/clock fixes exist in a separate unfinished reliability workstream. | Review and integrate independently, proving retained/replayed traffic never appears live and failure recovery preserves filters. Do not claim those commits shipped here. |
 | UI12 | P2 | Three open Canada dependency alerts concern development tools: source-map-js (high), vitest and @vitest/mocker (moderate). | Resolve through their existing dependency PRs, regenerate locks in Actions, keep runtime scans and source-build checks; no claim of production exploitation. |
 | UI13 | P3 | Repeated local places/filters cannot be named and recalled as views. | Optional device-local bookmarks and public-only share links, with an obvious reset and no private identifiers/configuration. |
+| UI15 | P1 | Map/Terminal Find can stay empty after an early query; open search lists do not reflect incoming node/topology changes. | Refresh only open searches when data arrives and after initial map load; preserve keyboard selection by public node ID and unchanged DOM rows. Both editions, including Netgraph live updates. |
 | UI14 | P3 | Discovery and localization can better serve sparse networks and newcomers. | Bounded role/recent/in-view Find filters, honest no-data explanations, then EN/FR Canada chrome and extensible worldwide units/locale. |
+
+The first fixed candidate's screenshots exposed a second short-screen problem:
+sticky actions covered the Follow subject/countdown. The short-landscape card now
+uses a compact grid, and the regression checks those contents as well as buttons.
+A Worldwide WebKit retry exposed UI15: Find was queried before map layers were
+ready, then never refreshed. New delayed-resource and live-arrival fixtures test
+that recovery; unchanged rows and keyboard subjects remain stable during refresh.
 
 ## Animation review contract
 

@@ -99,6 +99,7 @@ async function start(): Promise<void> {
   let selectRoutes: (ids: string[], focus?: boolean) => void = () => undefined;
   let syncCamera = (): void => undefined;
   let syncRegions = (): void => undefined;
+  let refreshSearch = (): void => undefined;
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
 
   try {
@@ -234,6 +235,7 @@ async function start(): Promise<void> {
 
     liveStore.subscribe((state, changes) => {
       graph.render(state, changes);
+      if (changes?.reset || changes?.nodes?.length || changes?.routes?.length) refreshSearch();
       if (changes?.reset || changes?.routes?.length || changes?.nodes?.length) updateSummary();
       updateStatus();
       if (!changes) return;
@@ -328,7 +330,7 @@ async function start(): Promise<void> {
       }
       event.preventDefault();
     });
-    wireSearch(graph, (nodeID) => selectNode(nodeID, true));
+    refreshSearch = wireSearch(graph, (nodeID) => selectNode(nodeID, true));
     for (const control of graphControls) control.disabled = false;
     app.dataset.loading = 'false';
 
@@ -397,7 +399,7 @@ async function start(): Promise<void> {
   }
 }
 
-function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void): void {
+function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void): () => void {
   const renderResults = wireNodeSearch({
     input: nodeSearch,
     results: nodeSearchResults,
@@ -424,6 +426,7 @@ function wireSearch(renderer: NetgraphRenderer, select: (nodeID: string) => void
     renderResults();
     nodeSearch.focus();
   });
+  return () => { if (!findPanel.hidden) renderResults(); };
 }
 
 function configureSound(sonifier: RouteSonifier): void {

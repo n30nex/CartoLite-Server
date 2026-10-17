@@ -13,10 +13,18 @@ export function wireNodeSearch(options: {
   input.setAttribute('aria-autocomplete', 'list');
   input.setAttribute('aria-expanded', 'false');
   results.setAttribute('aria-label', 'Matching nodes');
+  let previousQuery = '', previousResults = '';
 
   const render = (): void => {
     const started = performance.now();
     const matches = options.search(input.value);
+    const rows = matches.map(({ node }) => [node.id, node.label, `${roleLabel(node.role)} · ${relativeTime(node.lastSeen)}`]);
+    const signature = JSON.stringify([input.value, rows]);
+    if (signature === previousResults) { options.metrics.dataset.nodeSearchApplyMs = (performance.now() - started).toFixed(1); return; }
+    const activeNode = input.value === previousQuery
+      ? results.querySelector<HTMLElement>('[aria-selected="true"]')?.dataset.nodeId : undefined;
+    const scroll = input.value === previousQuery ? results.scrollTop : 0;
+    previousQuery = input.value; previousResults = signature;
     input.removeAttribute('aria-activedescendant');
     input.setAttribute('aria-expanded', String(matches.length > 0));
     results.replaceChildren();
@@ -33,15 +41,18 @@ export function wireNodeSearch(options: {
       button.dataset.nodeId = node.id;
       button.tabIndex = -1;
       button.setAttribute('role', 'option');
-      button.setAttribute('aria-selected', 'false');
+      const active = node.id === activeNode;
+      button.setAttribute('aria-selected', String(active));
+      if (active) input.setAttribute('aria-activedescendant', button.id);
       const label = document.createElement('strong');
       label.textContent = node.label;
       const context = document.createElement('span');
-      context.textContent = `${roleLabel(node.role)} · ${relativeTime(node.lastSeen)}`;
+      context.textContent = rows[index]![2]!;
       button.append(label, context);
       button.addEventListener('click', () => options.select(node.id));
       results.append(button);
     }
+    results.scrollTop = scroll;
     options.metrics.dataset.nodeSearchApplyMs = (performance.now() - started).toFixed(1);
   };
 
