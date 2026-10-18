@@ -63,7 +63,7 @@ passed 224 frontend and 321 browser cases; its
 [161 deployed browser checks](https://github.com/n30nex/CartoLite/actions/runs/39066754097)
 passed without retries. Three live observations over 369.4 seconds confirmed
 advancing traffic/checkpoints and zero drops/restarts after an encrypted backup
-and isolated restore. The exact tested image remains deployed.
+and isolated restore. That exact tested image was deployed and qualified.
 
 Worldwide's [exact-main CI](https://github.com/n30nex/CartoLite-Server/actions/runs/39064086634)
 passed 198 frontend and 273 browser cases, including native anonymous AMD64/ARM64

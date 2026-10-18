@@ -327,14 +327,51 @@ test('Terminal custom traffic ink stays visible over geography without restartin
   await page.screenshot({path:info.outputPath('terminal-custom-live.png')});
 });
 
+test('Terminal cel-shaded 3D retains its profile and routes through graphics-context recovery',async({page},info)=>{
+  test.skip(info.project.name!=='desktop','Actual context-loss injection is exercised on desktop Chromium; fallback/retry runs on every browser.');
+  test.slow();await visualFixture(page,14,true);
+  await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>Object.assign(window,{terminalHarness:(event as CustomEvent).detail}),{once:true}));
+  await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption('cell');await page.keyboard.press('Escape');
+  await page.locator('#terrain-shortcut').click();
+  await expect(page.locator('#map')).toHaveAttribute('data-terrain3d','true');
+  await expect(page.locator('#map')).toHaveAttribute('data-camera-moving','false');
+  await page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    view.map.jumpTo({bearing:25});
+    const gl=view.map.getCanvas().getContext('webgl2')!,extension=gl.getExtension('WEBGL_lose_context');
+    if(!extension)throw Error('Context-loss fixture unavailable');
+    extension.loseContext();setTimeout(()=>extension.restoreContext(),120);
+  });
+  await expect(page.locator('#map')).toHaveAttribute('data-route-context-restores','1');
+  await expect(page.locator('#map')).toHaveAttribute('data-terminal-drawing','3');
+  await expect(page.locator('html')).toHaveAttribute('data-terminal-palette','cell');
+  await expect(page.locator('.terminal-notice')).toBeHidden();
+  await expect.poll(()=>page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const ids=view.map.getLayersOrder();return ids.indexOf('terminal-graphics')<ids.indexOf('route-exact-webgl');
+  })).toBe(true);
+  await visualPacket(page,1200,'Trace');await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count','1');
+  await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
+});
+
 async function greenRoutePixels(page: Page):Promise<number> {
   const png=await page.screenshot();
   return page.evaluate(async base64=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const a=view.map.project([-80.35,43.45]),b=view.map.project([-80.23,43.51]);
     const image=new Image();image.src='data:image/png;base64,'+base64;await image.decode();
     const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
     const ctx=canvas.getContext('2d')!;ctx.drawImage(image,0,0);
-    const pixels=ctx.getImageData(0,Math.floor(image.height*.2),image.width,Math.floor(image.height*.6)).data;
-    let count=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]!<140&&pixels[i+1]!>140&&pixels[i+2]!<100)count++;return count;
+    const pixels=ctx.getImageData(0,0,image.width,image.height).data;
+    const dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy,sx=image.width/innerWidth,sy=image.height/innerHeight;
+    // Sample the middle of the actual route. Endpoint labels may contain green
+    // emoji and must not be counted as retained network ink.
+    let count=0;for(let y=0;y<image.height;y++)for(let x=0;x<image.width;x++) {
+      const px=x/sx-a.x,py=y/sy-a.y,t=(px*dx+py*dy)/length;
+      if(t<.25||t>.75||(px-t*dx)**2+(py-t*dy)**2>36)continue;
+      const i=(y*image.width+x)*4;if(pixels[i]!<140&&pixels[i+1]!>140&&pixels[i+2]!<100)count++;
+    }return count;
   },png.toString('base64'));
 }
 

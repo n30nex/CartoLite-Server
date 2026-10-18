@@ -67,12 +67,14 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.on('terrain', this.#terrainChanged);
     map.on('sourcedata', this.#sourceChanged);
     this.#dirty = true;
+    map.setLayoutProperty(this.id,'visibility',this.#visible?'visible':'none');
   }
   onRemove(map: MapLibreMap, gl: GL): void {
     map.off('move', this.#cameraChanged);
     map.off('moveend', this.#cameraChanged);
     map.off('terrain', this.#terrainChanged);
     map.off('sourcedata', this.#sourceChanged);
+    map.off('render',this.#settleVisibility);
     this.#clearBuffers();
     if (this.#resources) gl.deleteProgram(this.#resources.program);
     this.#resources = undefined;
@@ -105,6 +107,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.#refreshTimer = setTimeout(() => { this.#refreshTimer = undefined; this.#invalidate(); }, delay);
   }
   #invalidate = (): void => { this.#dirty = true; if (this.#visible) this.#map?.triggerRepaint(); };
+  #settleVisibility = (): void => { this.#map?.triggerRepaint(); };
   #terrainChanged = (): void => {
     this.#cancelBuild();
     // A flat mesh has neither terrain heights nor viewport culling. Do not draw
@@ -128,6 +131,13 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (this.#visible === visible) return;
     this.#visible = visible;
     if (!visible) this.#cancelBuild();
+    // Keep MapLibre's scene visibility in sync with the draw guard. A custom
+    // layer returning early alone can leave Safari's previous composited frame.
+    if(this.#map?.getLayer(this.id))this.#map.setLayoutProperty(this.id,'visibility',visible?'visible':'none');
+    // Complete the compositor handoff even when the scene becomes entirely
+    // still. This is one final frame per toggle, not a permanent repaint loop.
+    this.#map?.off('render',this.#settleVisibility);
+    this.#map?.once('render',this.#settleVisibility);
     this.#map?.triggerRepaint();
   }
   setMaximumBand(band: number): void {
