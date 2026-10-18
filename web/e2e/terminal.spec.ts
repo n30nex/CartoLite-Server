@@ -330,6 +330,7 @@ test('Terminal custom traffic ink stays visible over geography without restartin
 test('Terminal cel-shaded 3D retains its profile and routes through graphics-context recovery',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Actual context-loss injection is exercised on desktop Chromium; fallback/retry runs on every browser.');
   test.slow();await visualFixture(page,14,true);
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>Object.assign(window,{terminalHarness:(event as CustomEvent).detail}),{once:true}));
   await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
   await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption('cell');await page.keyboard.press('Escape');
@@ -353,6 +354,7 @@ test('Terminal cel-shaded 3D retains its profile and routes through graphics-con
   })).toBe(true);
   await visualPacket(page,1,'Trace');await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count','1');
   await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
+  expect(errors).toEqual([]);
 });
 
 async function greenRoutePixels(page: Page):Promise<number> {

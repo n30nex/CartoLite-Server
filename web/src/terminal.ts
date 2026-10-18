@@ -89,7 +89,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       '#4de7c4':c.advert,'#ffd15a':c.trace,'#ff75b5':c.text,'#78cfff':c.ack,'#a78bfa':c.control,'#9caebd':c.other,
       '#73d9cf':c.advert,'#45c27f':c.repeater,'#53a7e8':c.companion,'#ab76dc':c.room,'#a2ad57':c.sensor,'#8794a6':c.sensor,
       '#ffffff':c.core,'#eaffff':c.core,'#f2ffff':c.core,'#edfffd':c.core,'#e5fffc':c.core,
-      '#f3b844':c.selection,'#f2bd55':c.selection,'#fff0b8':c.selection,'#f5cf76':c.selection,
+      '#f3b844':c.neighbours,'#f2bd55':c.selection,'#fff0b8':c.selection,'#f5cf76':c.selection,
       '#69d1ca':c.boundary,'#8ec5c1':c.places,'#f6d77f':c.labels,'#d2e0ef':c.labels,
       '#02070b':c.background,'#061216':c.background,'#08272c':c.background,'#bce9e5':c.labels,'#48d5c7':c.repeater,'#32c8bb':c.repeater,
     });
@@ -186,7 +186,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         cells.forEach(cell => occupied.add(cell));
         context.fillStyle = preferences.colours.background; context.fillRect(x-1,y,w+2,ch);
         const c=preferences.colours;
-        context.fillStyle = node ? (p.id===selected?c.selection:p.role==='companion'?c.companion:p.role==='room_server'?c.room:p.role==='repeater'?c.repeater:c.sensor) : cluster?c.repeater:nodeLabel?c.labels:shade(c.places,preferences.labelBrightness);
+        context.fillStyle = selected && p.id===selected ? c.selection : node ? (p.role==='companion'?c.companion:p.role==='room_server'?c.room:p.role==='repeater'?c.repeater:c.sensor) : cluster?c.repeater:nodeLabel?c.labels:shade(c.places,preferences.labelBrightness);
         context.shadowColor=String(context.fillStyle); context.shadowBlur=node || cluster ? 3*effectStrength() : 0;
         context.globalAlpha=node && p.id!==selected && typeof p.opacity==='number' ? Math.max(.65,Math.min(1,p.opacity)) : 1;
         context.fillText(text,x,y); context.shadowBlur=0; context.globalAlpha=1; drawn++; break;
@@ -285,7 +285,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     sync();
   };
   notice.querySelector('button')!.addEventListener('click', restored);
-  map.on('load', style); map.on('idle', style);
+  map.on('load', style); map.on('style.load',style);map.on('idle', style);
   map.on('render', ensureStyle);
   map.on('webglcontextrestored', restored);
   document.addEventListener('visibilitychange', visibility);
@@ -306,7 +306,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   const destroy = () => {
     if (disposed) return;
     disposed = true; capture.destroy(); animator.setFrameSink(undefined);
-    map.off('load', style); map.off('idle', style);
+    map.off('load', style); map.off('style.load',style);map.off('idle', style);
     map.off('render', ensureStyle);
     map.off('webglcontextrestored', restored);
     map.off('remove', destroy);

@@ -16,7 +16,8 @@ export const TERMINAL_COLOURS = {
   roads: ['Map', 'Roads', '#536b80'], boundary: ['Map', 'Borders', '#657d91'],
   shore: ['Map', 'Shorelines', '#788a98'], buildings: ['Map', 'Buildings', '#667b89'],
   terrain: ['Map', 'Terrain highlights', '#516455'], places: ['Labels', 'Place names', '#a5b8c8'],
-  labels: ['Labels', 'Node names', '#f2fff1'], selection: ['Nodes', 'Selection / neighbours', '#ffffff'],
+  labels: ['Labels', 'Node names', '#f2fff1'], selection: ['Nodes', 'Selected node', '#ffffff'],
+  neighbours: ['Nodes', 'Neighbours', '#a5b8c8'],
   repeater: ['Nodes', 'Repeaters', '#72ffcf'], companion: ['Nodes', 'Companions', '#89e5ff'],
   room: ['Nodes', 'Rooms', '#c6a4ff'], sensor: ['Nodes', 'Sensors / unknown', '#d7e393'],
   advert: ['Traffic', 'Advert', '#72ffcf'], trace: ['Traffic', 'Trace', '#ffdb72'],
@@ -47,12 +48,12 @@ export const TERMINAL_PRESETS: Record<TerminalPreset, { label: string; colours: 
   ansi: { label: 'BBS', colours: {} },
   amber: { label: 'Amber', colours: {
     water: '#332414', vegetation: '#30271b', urban: '#382d1c', roads: '#78552a', boundary: '#876c3c', shore: '#a5814c', buildings: '#806947', terrain: '#655235', places: '#bf9e70',
-    labels: '#ffe5ac', repeater: '#ffd18a', companion: '#ffe8ba', room: '#eaba6c', sensor: '#dac19a', advert: '#ffd18a', trace: '#ffffc7', text: '#eaba6c', ack: '#ffe8ba', control: '#d1a66b', other: '#c7ad83', core: '#fff5dc', selection: '#ffffff',
+    labels: '#ffe5ac', neighbours:'#bf9e70', repeater: '#ffd18a', companion: '#ffe8ba', room: '#eaba6c', sensor: '#dac19a', advert: '#ffd18a', trace: '#ffffc7', text: '#eaba6c', ack: '#ffe8ba', control: '#d1a66b', other: '#c7ad83', core: '#fff5dc', selection: '#ffffff',
     panel: '#100b05', field: '#1c1308', border: '#806538', ink: '#f3d8a4', strong: '#fff0cc', muted: '#c5ab80', accent: '#ffd18a', active: '#40301b', warning: '#fff3ba',
   } },
   green: { label: 'Green', colours: {
     water: '#113b32', vegetation: '#122c1d', urban: '#203b29', roads: '#42684d', boundary: '#5d7e60', shore: '#72997f', buildings: '#446b51', terrain: '#345440', places: '#94bb9a',
-    labels: '#afffc7', repeater: '#8dffb0', companion: '#ceffd9', room: '#61db86', sensor: '#b1d5ac', advert: '#8dffb0', trace: '#dfffab', text: '#6be79c', ack: '#ccffe4', control: '#51c98e', other: '#a3ceb1', core: '#effff2', selection: '#ffffff',
+    labels: '#afffc7', neighbours:'#94bb9a', repeater: '#8dffb0', companion: '#ceffd9', room: '#61db86', sensor: '#b1d5ac', advert: '#8dffb0', trace: '#dfffab', text: '#6be79c', ack: '#ccffe4', control: '#51c98e', other: '#a3ceb1', core: '#effff2', selection: '#ffffff',
     panel: '#050e08', field: '#0a1b12', border: '#497b5b', ink: '#c3f2cd', strong: '#e5ffdf', muted: '#9dbea5', accent: '#8dffb0', active: '#173c26', warning: '#dfffab',
   } },
   cga: { label: 'CGA', options: { glyphs: 'blocks', font: 'pixel', fontSize: 11, weight: 400, mapBrightness: .7, traffic: 'smooth' }, colours: {
