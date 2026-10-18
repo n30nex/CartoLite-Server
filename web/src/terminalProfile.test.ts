@@ -45,7 +45,8 @@ describe('Terminal profiles',()=>{
     try {
       const ui=await import('./preferences'),display=await import('./displayPreferences');
       expect(ui.UI_STORAGE_KEY).toContain(':terminal-ui:');expect(display.DISPLAY_STORAGE_KEY).toContain(':terminal-display:');
-      expect(ui.loadUiPreferences(localStorage)).toMatchObject({routes:true,livePackets:true,heatmap:true,clusters:false,regions:false,hillshade:false,terrain3D:false,buildings:true,routeWindow:'15m',nodeLabels:true,mapLabels:true,roads:true,relief:.15});
+      expect(ui.loadUiPreferences(localStorage)).toMatchObject({routes:true,livePackets:true,heatmap:true,clusters:false,hillshade:false,terrain3D:false,buildings:true,routeWindow:'15m',nodeLabels:true,mapLabels:true,roads:true,relief:.15});
+      if('regions' in ui.DEFAULT_UI_PREFERENCES)expect(ui.DEFAULT_UI_PREFERENCES.regions).toBe(false);
       expect(display.loadDisplayPreferences({getItem:()=>null})).toMatchObject({effects:'spectacle',detail:'complete',quality:'high',motion:'system',textSize:'standard',preset:'neon',...display.ROUTE_PRESETS.neon});
       expect(loadTerminal({getItem:()=>null})).toMatchObject({palette:'ansi',glyphs:'braille',size:10});
     } finally {document.documentElement.removeAttribute('data-terminal');vi.resetModules();}

@@ -53,7 +53,7 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   livePackets: true,
   routeOpacity: 0.8,
   relief: 0.75,
-  ...(TERMINAL_PAGE ? { routes:true,heatmap:true,clusters:false,regions:false,hillshade:false,terrain3D:false,buildings:true,routeWindow:'15m' as const,mapLabels:true,nodeLabels:true,roads:true,livePackets:true,relief:.15,routeOpacity:.9 } : {}),
+  ...(TERMINAL_PAGE ? { routes:true,heatmap:true,clusters:false,hillshade:false,terrain3D:false,buildings:true,routeWindow:'15m' as const,mapLabels:true,nodeLabels:true,roads:true,livePackets:true,relief:.15,routeOpacity:.9 } : {}),
 };
 
 export function viewClass(

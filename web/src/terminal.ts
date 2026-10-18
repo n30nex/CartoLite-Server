@@ -136,12 +136,14 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       ctx.globalAlpha=Math.min(1,energy/255*1.35);
       ctx.fillStyle=ctx.strokeStyle=ctx.shadowColor=colours[color as keyof typeof colours]??preferences.colours.core;
       ctx.shadowBlur=blooms++<120 ? glow : 0;
-      ctx.strokeText(text,start*cw,y*ch); ctx.fillText(text,start*cw,y*ch); visible+=x-start;
+      // A console font may fall back for Braille. Keep its glyphs inside the
+      // same geographic cells instead of letting the fallback widen the trail.
+      ctx.strokeText(text,start*cw,y*ch,(x-start)*cw); ctx.fillText(text,start*cw,y*ch,(x-start)*cw); visible+=x-start;
     }
     ctx.shadowBlur=0; ctx.fillStyle=preferences.colours.core;
     for(let i=0;i<cells.hot.length;i++) if(cells.hot[i]!==' ') {
       ctx.globalAlpha=cells.energy[i]!/255;
-      ctx.fillText(cells.hot[i]!,i%cells.columns*cw,Math.floor(i/cells.columns)*ch);
+      ctx.fillText(cells.hot[i]!,i%cells.columns*cw,Math.floor(i/cells.columns)*ch,cw);
     }
     ctx.globalAlpha=1;
     target.dataset.glow=String(glow);
@@ -286,11 +288,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     if (now - lastPacket < 40 && (source.dataset.activeCount !== '0' || source.dataset.residueCount !== '0')) return;
     try {
       if(preferences.traffic==='smooth') {
-        const {width,height}=dimensions(),dpr=Math.min(devicePixelRatio||1,2);
-        if(effects.width!==Math.ceil(width*dpr)||effects.height!==Math.ceil(height*dpr)){effects.width=Math.ceil(width*dpr);effects.height=Math.ceil(height*dpr);}
-        fx.setTransform(1,0,0,1,0,0);fx.clearRect(0,0,effects.width,effects.height);
-        // Copy the same timed frame. No second simulation, replay or hue guessing.
-        fx.drawImage(source,0,0,effects.width,effects.height);
+        // Show the original canvas directly: no full-screen copy or second clock.
         effects.dataset.cells=source.dataset.activeCount??'0';effects.dataset.glow='0';
       } else draw(source, effects, fx);
       lastPacket = now;

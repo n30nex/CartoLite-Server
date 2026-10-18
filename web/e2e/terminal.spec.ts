@@ -254,7 +254,7 @@ test('Terminal colour and typography editor preserves other views, survives refr
   await openMapOptions(page);
   await page.getByText('Typography',{exact:true}).click();
   await expect(page.getByLabel('Terminal map font size')).toHaveValue('16');
-  await page.getByLabel('Terminal map font').selectOption('vt323');
+  await page.getByLabel('Terminal map font',{exact:true}).selectOption('vt323');
   await page.getByLabel('Terminal interface font').selectOption('pixel');
   await page.getByLabel('Terminal map font size').fill('18');
   await page.getByLabel('Terminal interface scale').fill('1.35');
@@ -297,7 +297,23 @@ test('Terminal custom traffic ink stays visible over geography without restartin
   });expect(order[0]).toBeLessThan(order[1]!);
   await page.screenshot({path:info.outputPath('terminal-custom-ink.png')});
   await openMapOptions(page);await page.locator('#routes-button').click();await page.keyboard.press('Escape');
-  await expect.poll(()=>greenRoutePixels(page)).toBeLessThan(10);
+  await expect(page.locator('#map')).toHaveAttribute('data-routes-visible','false');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  try { await expect.poll(()=>greenRoutePixels(page)).toBeLessThan(10); }
+  catch(error) {
+    const diagnostic=await page.evaluate(async()=>{
+      const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+      const map=view.map,gl=map.getCanvas().getContext('webgl2')!;
+      const before={...map.getContainer().dataset};
+      const layers=map.getLayersOrder().filter(id=>id.startsWith('route')).map(id=>({id,visibility:map.getLayoutProperty(id,'visibility')}));
+      const gpuError=gl.getError();
+      await new Promise<void>(resolve=>{map.once('render',()=>{map.once('render',()=>resolve());map.triggerRepaint();});map.triggerRepaint();});
+      return {before,after:{...map.getContainer().dataset},layers,gpuError};
+    });
+    await info.attach('hidden-route-diagnostic',{body:JSON.stringify({...diagnostic,pixelsAfterTwoFrames:await greenRoutePixels(page)}),contentType:'application/json'});
+    await page.screenshot({path:info.outputPath('hidden-route-after-two-frames.png')});
+    throw error;
+  }
   await visualPacket(page,901,'Text');
   const continuity=await page.evaluate(()=>{
     const {view,animator}=(window as unknown as {terminalHarness:{view:LiveMap;animator:{activeRoutes:{started:number;duration:number}[]}}}).terminalHarness;
