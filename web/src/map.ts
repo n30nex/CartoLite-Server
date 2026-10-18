@@ -281,7 +281,13 @@ export class LiveMap {
     const creditSize = new ResizeObserver(() => document.documentElement.style.setProperty('--map-credits-height', `${credits.offsetHeight}px`));
     creditSize.observe(credits);
     this.map.once('remove', () => creditSize.disconnect());
-    this.map.once('load', () => this.#installLayers());
+    // Evented runs on listeners before once listeners. Keep initial indexing
+    // ahead of load consumers (Find), then unregister before graphics recovery.
+    const installInitialLayers = (): void => {
+      this.map.off('load', installInitialLayers);
+      this.#installLayers();
+    };
+    this.map.on('load', installInitialLayers);
     this.map.on('movestart', () => { this.container.dataset.cameraMoving = 'true'; });
     this.map.on('sourcedata', (event) => {
       if (this.#buildingSourceID && event.sourceId === this.#buildingSourceID) {
