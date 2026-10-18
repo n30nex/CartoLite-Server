@@ -331,6 +331,7 @@ test('Terminal cel-shaded 3D retains its profile and routes through graphics-con
   test.skip(info.project.name!=='desktop','Actual context-loss injection is exercised on desktop Chromium; fallback/retry runs on every browser.');
   test.slow();await visualFixture(page,14,true);
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  const warnings:string[]=[];page.on('console',message=>{if(['warning','error'].includes(message.type()))warnings.push(message.text());});
   await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>Object.assign(window,{terminalHarness:(event as CustomEvent).detail}),{once:true}));
   await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
   await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption('cell');await page.keyboard.press('Escape');
@@ -340,6 +341,11 @@ test('Terminal cel-shaded 3D retains its profile and routes through graphics-con
   await page.evaluate(()=>{
     const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
     view.map.jumpTo({bearing:25});
+  });
+  await terminalMapIdle(page);
+  const before=await page.screenshot({path:info.outputPath('terminal-3d-before-recovery.png')});
+  await page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
     const gl=view.map.getCanvas().getContext('webgl2')!,extension=gl.getExtension('WEBGL_lose_context');
     if(!extension)throw Error('Context-loss fixture unavailable');
     extension.loseContext();setTimeout(()=>extension.restoreContext(),120);
@@ -352,10 +358,34 @@ test('Terminal cel-shaded 3D retains its profile and routes through graphics-con
     const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
     const ids=view.map.getLayersOrder();return ids.indexOf('terminal-graphics')<ids.indexOf('route-exact-webgl');
   })).toBe(true);
+  await terminalMapIdle(page);
+  const after=await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
+  await info.attach('graphics-recovery-warnings',{body:JSON.stringify(warnings),contentType:'application/json'});
+  const difference=await page.evaluate(async images=>{
+    const samples:Uint8ClampedArray[]=[];
+    for(const image of images){
+      const img=new Image();img.src='data:image/png;base64,'+image;await img.decode();
+      const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;
+      const ctx=canvas.getContext('2d')!;ctx.drawImage(img,0,0);
+      samples.push(ctx.getImageData(0,0,img.width,img.height).data);
+    }
+    let total=0,count=0;
+    // Same stationary scene: ignore alpha and sample sparsely, allowing small
+    // label/antialias differences while rejecting a broken terrain framebuffer.
+    for(let i=0;i<samples[0]!.length;i+=64)for(let c=0;c<3;c++){total+=Math.abs(samples[0]![i+c]!-samples[1]![i+c]!);count++;}
+    return total/count;
+  },[before.toString('base64'),after.toString('base64')]);
+  expect(difference).toBeLessThan(12);
   await visualPacket(page,1,'Trace');await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count','1');
-  await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
   expect(errors).toEqual([]);
 });
+
+async function terminalMapIdle(page:Page):Promise<void>{
+  await page.evaluate(async()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    if(!view.map.loaded())await new Promise<void>(resolve=>view.map.once('idle',()=>resolve()));
+  });
+}
 
 async function greenRoutePixels(page: Page):Promise<number> {
   const png=await page.screenshot();
