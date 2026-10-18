@@ -49,6 +49,10 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   });
   const { settings }=controls;
   document.querySelector('#map-appearance > summary')!.after(settings);
+  const allReset=document.querySelector<HTMLButtonElement>('#reset-appearance')!;
+  const resetTerminal=()=>settings.querySelector<HTMLButtonElement>('[data-reset-terminal]')!.click();
+  allReset.addEventListener('click',resetTerminal);
+  if(allReset.nextElementSibling)allReset.nextElementSibling.textContent='Resets Terminal layers and display. Map, Netgraph and sound settings stay unchanged.';
   const font = (size: number) => `${preferences.weight} ${size}px ${TERMINAL_FONTS[preferences.font].family}`;
   const packetColours = () => ({2:preferences.colours.core,3:preferences.colours.other,4:preferences.colours.advert,5:preferences.colours.trace,6:preferences.colours.text,7:preferences.colours.ack,8:preferences.colours.control});
   let loadedFont = '';
@@ -78,6 +82,9 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   function applyColours() {
     if(failed)return;
     const c=preferences.colours;
+    for(const kind of ['advert','trace','text','ack','control','other'] as const) {
+      root.style.setProperty(`--terminal-${kind}-rgb`,[1,3,5].map(i=>parseInt(c[kind].slice(i,i+2),16)).join(','));
+    }
     setDisplayColors({
       '#4de7c4':c.advert,'#ffd15a':c.trace,'#ff75b5':c.text,'#78cfff':c.ack,'#a78bfa':c.control,'#9caebd':c.other,
       '#73d9cf':c.advert,'#45c27f':c.repeater,'#53a7e8':c.companion,'#ab76dc':c.room,'#a2ad57':c.sensor,'#8794a6':c.sensor,
@@ -298,7 +305,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     map.off('webglcontextrestored', restored);
     map.off('remove', destroy);
     document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage);
-    window.removeEventListener(DISPLAY_EVENT,displayChanged);setDisplayColors();animator.setPresentationGlow(1);
+    window.removeEventListener(DISPLAY_EVENT,displayChanged);allReset.removeEventListener('click',resetTerminal);setDisplayColors();animator.setPresentationGlow(1);
     for (const element of [canvas, effects, status, notice, settings]) element.remove();
     delete root.dataset.terminal; delete root.dataset.terminalFallback; delete root.dataset.terminalPalette;
     delete root.dataset.terminalTraffic;delete root.dataset.terminalFont;

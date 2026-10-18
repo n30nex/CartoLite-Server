@@ -385,9 +385,9 @@ export class PacketAnimator {
     this.#requestFrame();
   }
 
-  /** Optional presentation sink; never owns packet progression or audio. */
+  /** Presentation only; never changes packet progression or audio. */
   setPresentationGlow(scale: number): void { this.#presentationGlow = Math.max(0, Math.min(2, Number.isFinite(scale) ? scale : 1)); this.#residueContentDirty = true; this.#requestFrame(); }
-  #glow(): number { return displayPreferences().glow * this.#presentationGlow; }
+  #glow(): number { return Math.min(1,displayPreferences().glow * this.#presentationGlow); }
 
   setFrameSink(sink?: (canvas?: HTMLCanvasElement) => void): void { this.#frameSink = sink; }
 

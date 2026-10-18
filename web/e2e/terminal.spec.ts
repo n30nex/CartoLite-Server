@@ -215,6 +215,32 @@ test('Terminal presets keep real routes above every drawing mode and load the se
   expect(errors).toEqual([]);
 });
 
+test('Terminal starts with the requested layers and Neon appearance without overwriting Map defaults',async({page},info)=>{
+  test.slow();await visualFixture(page,10.2,true);
+  await page.addInitScript(()=>{
+    if(sessionStorage.getItem('terminal-defaults-seeded'))return;
+    sessionStorage.setItem('terminal-defaults-seeded','true');
+    for(const prefix of ['cartolite','cartolite-server']) {
+      localStorage.removeItem(`${prefix}:terminal-ui:v1`);
+      localStorage.setItem(`${prefix}:display:v1`,JSON.stringify({preset:'dotted',quality:'economy'}));
+    }
+  });
+  await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await openMapOptions(page);
+  for(const id of ['routes','live-packets','heatmap','node-labels','map-labels','roads','buildings'])await expect(page.locator(`#${id}-button`)).toHaveAttribute('aria-pressed','true');
+  for(const id of ['clusters','regions','hillshade','terrain'])if(await page.locator(`#${id}-button`).count())await expect(page.locator(`#${id}-button`)).toHaveAttribute('aria-pressed','false');
+  await expect(page.locator('#route-window')).toHaveValue('15m');await expect(page.locator('#terrain-relief')).toHaveValue('15');
+  for(const [label,value] of [['Terminal palette','ansi'],['Terminal characters','braille'],['Terminal cell size','10'],['Effects intensity','spectacle'],['Detail level','complete'],['Graphics quality','high'],['Motion preference','system'],['Text size','standard'],['Route style','neon']])await expect(page.getByLabel(label!,{exact:true})).toHaveValue(value!);
+  await page.screenshot({path:info.outputPath('terminal-defaults.png')});
+  await page.locator('#route-window').selectOption('1h');await page.getByLabel('Route style',{exact:true}).selectOption('dashed');
+  await page.keyboard.press('Escape');await page.goto('/');await openMapOptions(page);
+  await expect(page.locator('#route-window')).toHaveValue('24h');await expect(page.getByLabel('Graphics quality')).toHaveValue('economy');await expect(page.getByLabel('Route style',{exact:true})).toHaveValue('dotted');
+  await page.goto('/terminal/');await openMapOptions(page);
+  await expect(page.locator('#route-window')).toHaveValue('1h');await expect(page.getByLabel('Route style',{exact:true})).toHaveValue('dashed');
+  await page.getByRole('button',{name:'Reset all display settings',exact:true}).click();
+  await expect(page.locator('#route-window')).toHaveValue('15m');await expect(page.getByLabel('Route style',{exact:true})).toHaveValue('neon');
+});
+
 test('Terminal colour and typography editor preserves other views, survives refresh and synchronizes tabs',async({page,context},info)=>{
   test.slow();await visualFixture(page,10.2,true);
   await page.addInitScript(()=>{

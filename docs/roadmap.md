@@ -108,3 +108,9 @@ loading, keyboard input, migration/reset, cross-tab behavior, unchanged live tim
 context recovery and the existing scale/privacy/installation gates. Exact-image
 release and Canada qualification follow passing paired reviews. The remaining
 phase 3 Labs/dense-label/terrain audit and phases 4-5 remain planned.
+
+Owner-selected Terminal defaults (18 October): routes/live/heatmap/labels/roads/
+buildings on; clusters/regions/Topo/3D off; 15-minute routes, 15% Topo shading;
+BBS/ANSI fine Braille, Spectacle, Complete, High, system motion, standard text
+and Neon routes. Terminal layer/display settings now use separate storage from
+Map/Netgraph, while existing Terminal custom profiles and sound choices persist.

@@ -1,4 +1,4 @@
-import { UI_STORAGE_KEY, type BasemapStyle, type InterfaceTheme } from './preferences';
+import { TERMINAL_PAGE, UI_STORAGE_KEY, type BasemapStyle, type InterfaceTheme } from './preferences';
 import { PACKET_KIND_COLORS as DARK_KINDS } from './trafficVisuals';
 
 export type LinePattern = 'solid' | 'dashed' | 'dotted';
@@ -21,7 +21,7 @@ export interface DisplayPreferences {
   residueSeconds: number;
 }
 
-export const DISPLAY_STORAGE_KEY = UI_STORAGE_KEY.replace(':ui:', ':display:');
+export const DISPLAY_STORAGE_KEY = UI_STORAGE_KEY.replace(':ui:', ':display:').replace(':terminal-ui:', ':terminal-display:');
 export const DISPLAY_EVENT = 'cartolite:display-change';
 export const ROUTE_PRESETS = {
   crisp: { pattern: 'solid', width: 1.6, opacity: 0.8, glow: 0.15, packetSize: 1, trailLength: 1, residueSeconds: 15 },
@@ -31,10 +31,7 @@ export const ROUTE_PRESETS = {
   ribbon: { pattern: 'solid', width: 3.5, opacity: 0.75, glow: 0.1, packetSize: 1.35, trailLength: 1, residueSeconds: 12 },
   comet: { pattern: 'solid', width: 1.4, opacity: 0.8, glow: 0.5, packetSize: 1.4, trailLength: 2, residueSeconds: 30 },
 } as const;
-// The existing Android shell identifies itself before loading any view.
-// This changes a default only; saved Full/System/Reduced choices still win.
-const defaultMotion = typeof navigator !== 'undefined' && /CartoLiteAndroid\//.test(navigator.userAgent) ? 'full' : 'system';
-export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: 'auto', quality: 'auto', motion: defaultMotion, textSize: 'standard', basemap: 'dark', theme: 'map', preset: 'crisp', ...ROUTE_PRESETS.crisp };
+export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: TERMINAL_PAGE ? 'complete' : 'auto', quality: TERMINAL_PAGE ? 'high' : 'auto', motion: 'system', textSize: 'standard', basemap: 'dark', theme: 'map', preset: TERMINAL_PAGE ? 'neon' : 'crisp', ...(TERMINAL_PAGE ? ROUTE_PRESETS.neon : ROUTE_PRESETS.crisp) };
 
 const LIGHT_KINDS = { Advert: '#006957', Trace: '#855000', Text: '#a21b58', ACK: '#075b98', Control: '#6740a0', Other: '#445760' };
 const LIGHT_COLORS: Record<string, string> = {
@@ -113,13 +110,13 @@ export function normalizeDisplay(value: unknown): DisplayPreferences {
   };
   return {
     effects: v.effects === 'calm' || v.effects === 'minimal' ? v.effects : 'spectacle',
-    detail: v.detail === 'complete' ? 'complete' : 'auto',
-    quality: v.quality === 'high' || v.quality === 'economy' ? v.quality : 'auto',
+    detail: v.detail === 'complete' || v.detail === 'auto' ? v.detail : DEFAULT_DISPLAY.detail,
+    quality: v.quality === 'high' || v.quality === 'economy' || v.quality === 'auto' ? v.quality : DEFAULT_DISPLAY.quality,
     motion: v.motion === 'full' || v.motion === 'reduced' || v.motion === 'system' ? v.motion : DEFAULT_DISPLAY.motion,
     textSize: v.textSize === 'large' ? 'large' : 'standard',
     basemap: v.basemap === 'light' || v.basemap === 'streets' ? v.basemap : 'dark',
     theme: v.theme === 'light' || v.theme === 'dark' ? v.theme : 'map',
-    preset: v.preset === 'custom' || (typeof v.preset === 'string' && Object.hasOwn(ROUTE_PRESETS, v.preset)) ? v.preset as RoutePreset : 'crisp',
+    preset: v.preset === 'custom' || (typeof v.preset === 'string' && Object.hasOwn(ROUTE_PRESETS, v.preset)) ? v.preset as RoutePreset : DEFAULT_DISPLAY.preset,
     pattern: v.pattern === 'dashed' || v.pattern === 'dotted' ? v.pattern : 'solid',
     width: amount('width', 1, 5), opacity: amount('opacity', 0.2, 1), glow: amount('glow', 0, 1),
     packetSize: amount('packetSize', 0.75, 2), trailLength: amount('trailLength', 0.5, 2), residueSeconds: amount('residueSeconds', 0, 45),

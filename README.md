@@ -202,3 +202,10 @@ sharp above it. Live packets can use characters or smooth strokes. Settings are
 local, migrate older Terminal choices and synchronize across tabs without changing
 Map/Netgraph preferences or sound. The colour editor always keeps a readable reset.
 Fonts and licences are bundled in `web/public/fonts/terminal/`.
+
+Terminal defaults match the owner-selected screenshots: routes, live packets,
+heatmap, node/place labels, roads and buildings on; clusters, regions, Topo and
+3D off; 15-minute routes and 15% Topo shading. Fine ANSI/BBS Braille, Spectacle,
+Complete detail, High graphics, system motion, standard text and Neon routes.
+Layer/display settings are independent from Map/Netgraph, and saved Terminal
+customizations remain. Reset all display settings restores these Terminal defaults.

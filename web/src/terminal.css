@@ -21,6 +21,21 @@ html:root[data-terminal] :is(.glass,dialog,.maplibregl-popup-content,.maplibregl
 [data-terminal] :is(button,input,select):disabled { color:var(--muted); opacity:.7; }
 [data-terminal] :is(input,select) { background:var(--field-bg); color:var(--ink); border-color:var(--panel-border); }
 [data-terminal] :is(button,a):focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+html:root[data-terminal] :is(.control-button,.node-search-result,.neighbor-row,.follow-card,.node-inspector,.tooltip,.route-legend,.legend,.sound-panel,.maplibregl-ctrl-attrib) { color:var(--ink); }
+html:root[data-terminal] :is(.tooltip strong,.node-inspector strong,.node-inspector h3,.node-search-result strong,.follow-subject,.follow-title) { color:var(--ink-strong); }
+html:root[data-terminal] :is(.tooltip span,.node-inspector dt,.node-role,.node-search-result span,.follow-detail,.follow-meta,.sound-description,.display-note,.layer-hint) { color:var(--muted); }
+html:root[data-terminal] :is(.control-button.selected,.control-button.active,.control-button[aria-pressed="true"],.node-search-result[aria-selected="true"],.node-search-result:hover,.neighbor-row:hover) { color:var(--ink-strong); background:var(--selected); }
+html:root[data-terminal] :is(.control-button,.node-search-result,.neighbor-row,.maplibregl-popup-content,.sound-panel button) { border-color:var(--panel-border); }
+html:root[data-terminal] :is(.node-search-result:focus-visible,.neighbor-row:focus-visible) { box-shadow:inset 0 0 0 2px var(--focus-ring); }
+html:root[data-terminal] .focus-chip i { background:var(--terminal-selection); border-color:var(--terminal-selection); box-shadow:none; }
+html:root[data-terminal] .maplibregl-popup-tip { border-top-color:var(--panel-solid); }
+html:root[data-terminal] input[type=range] { accent-color:var(--terminal-accent); }
+html:root[data-terminal] #app { --traffic-rgb:var(--terminal-advert-rgb); }
+html:root[data-terminal] #app[data-traffic-kind="trace"] { --traffic-rgb:var(--terminal-trace-rgb); }
+html:root[data-terminal] #app[data-traffic-kind="text"] { --traffic-rgb:var(--terminal-text-rgb); }
+html:root[data-terminal] #app[data-traffic-kind="ack"] { --traffic-rgb:var(--terminal-ack-rgb); }
+html:root[data-terminal] #app[data-traffic-kind="control"] { --traffic-rgb:var(--terminal-control-rgb); }
+html:root[data-terminal] #app[data-traffic-kind="other"] { --traffic-rgb:var(--terminal-other-rgb); }
 [data-terminal] .control-button { border-radius: 2px; }
 [data-terminal] .brand { color: var(--terminal-accent); }
 [data-terminal] #legend .node { width: auto; height: auto; border: 0; border-radius: 0; background: none; box-shadow: none; font-style: normal; }
@@ -48,6 +63,7 @@ html:root .terminal-settings :is(input,select,button):focus-visible { outline:2p
 .terminal-settings details[open] > :not(summary) { margin-top:10px; }
 .terminal-settings a { color:#89e5ff; }
 .terminal-slider input { width:100%; margin:0; accent-color:#79f8c4; }
+html:root[data-terminal] .terminal-settings input[type=range] { accent-color:#79f8c4; }
 .terminal-slider output { color:#efffdf; }
 .terminal-colour-inputs { display:flex; gap:10px; }
 .terminal-colour-inputs input[type=color] { width:52px; flex-shrink:0; padding:3px; }

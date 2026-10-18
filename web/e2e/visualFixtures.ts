@@ -24,7 +24,7 @@ export async function visualFixture(page: Page, zoom = 10.2, detail = false): Pr
   await page.route('**/api/config', (route) => route.fulfill({ json: { schemaVersion: 1, basemap: { provider: 'openfreemap' } } }));
   await page.addInitScript(({ center, zoom, detail }) => {
     const ui = { routes: true, heatmap: false, clusters: false, hillshade: false, terrain3D: false, buildings: false, mapLabels: detail, nodeLabels: detail, livePackets: true, routeWindow: '24h' };
-    for (const key of ['cartolite:ui:v1', 'cartolite-server:ui:v1']) if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(ui));
+    for (const key of ['cartolite:ui:v1', 'cartolite-server:ui:v1','cartolite:terminal-ui:v1','cartolite-server:terminal-ui:v1']) if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(ui));
     for (const prefix of ['cartolite:view:v3', 'cartolite-server:view:v1']) for (const kind of ['desktop', 'mobile']) {
       if (!localStorage.getItem(`${prefix}:${kind}`)) localStorage.setItem(`${prefix}:${kind}`, JSON.stringify({ center, zoom }));
     }

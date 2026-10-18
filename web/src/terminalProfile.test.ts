@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { colourHSL, hslColour, loadTerminal, normalizeTerminal, TERMINAL_COLOURS, TERMINAL_KEY, TERMINAL_PRESETS, terminalPreset } from './terminalProfile';
 import { displayColor, displayColorRevision, packetPalette, recolorPaint, setDisplayColors } from './displayPreferences';
 import { characterCells } from './terminalGrid';
@@ -39,5 +39,15 @@ describe('Terminal profiles',()=>{
     const data=new Uint8ClampedArray(32);data.set([83,41,255,220],0);data.set([255,85,0,255],28);
     const cell=characterCells({data,width:2,height:4},false,{2:'#ff5500',4:'#5329ff',6:'#00ff00'});
     expect([...cell.colors]).toEqual([4]);expect(cell.hot).toEqual(['⢀']);
+  });
+  it('starts Terminal with the owner-selected defaults in its own storage scope',async()=>{
+    vi.resetModules();document.documentElement.setAttribute('data-terminal','true');
+    try {
+      const ui=await import('./preferences'),display=await import('./displayPreferences');
+      expect(ui.UI_STORAGE_KEY).toContain(':terminal-ui:');expect(display.DISPLAY_STORAGE_KEY).toContain(':terminal-display:');
+      expect(ui.loadUiPreferences(localStorage)).toMatchObject({routes:true,livePackets:true,heatmap:true,clusters:false,regions:false,hillshade:false,terrain3D:false,buildings:true,routeWindow:'15m',nodeLabels:true,mapLabels:true,roads:true,relief:.15});
+      expect(display.loadDisplayPreferences({getItem:()=>null})).toMatchObject({effects:'spectacle',detail:'complete',quality:'high',motion:'system',textSize:'standard',preset:'neon',...display.ROUTE_PRESETS.neon});
+      expect(loadTerminal({getItem:()=>null})).toMatchObject({palette:'ansi',glyphs:'braille',size:10});
+    } finally {document.documentElement.removeAttribute('data-terminal');vi.resetModules();}
   });
 });

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, unlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, unlink, rmdir } from 'node:fs/promises';
 
 // Reuse the Map document and its exact asset graph. A second bundled Map entry
 // would move MapLibre into shared chunks also downloaded by Netgraph.
@@ -26,3 +26,4 @@ await mkdir('dist/terminal', { recursive: true });
 await writeFile('dist/terminal/index.html', terminal);
 // This manifest is build input, not a new public endpoint.
 await unlink('dist/.vite/manifest.json');
+await rmdir('dist/.vite');

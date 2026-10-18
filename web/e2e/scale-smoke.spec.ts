@@ -36,7 +36,7 @@ for (const viewPath of ['/', '/terminal/']) test('keeps a 4k-node / 7k-route fir
   await expect(page.locator('#status')).toHaveAttribute('title', '4000 nodes · 7000 routes', { timeout: 10_000 });
   await expect(page.locator('#map .maplibregl-canvas')).toBeVisible();
   await expect(page.locator('#packet-canvas')).toHaveAttribute('data-power-mode', testInfo.project.name.startsWith('mobile') ? 'low' : 'full');
-  await expect(page.locator('#packet-canvas')).toHaveAttribute('data-quality-mode', testInfo.project.name.startsWith('mobile') ? 'low' : 'full');
+  await expect(page.locator('#packet-canvas')).toHaveAttribute('data-quality-mode', viewPath === '/terminal/' ? 'full' : testInfo.project.name.startsWith('mobile') ? 'low' : 'full');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state', 'idle', { timeout: 10_000 });
   expect(Date.now() - started, 'large topology should hydrate inside the first-view budget').toBeLessThan(10_000);
   const map = page.locator('#map');
@@ -45,6 +45,13 @@ for (const viewPath of ['/', '/terminal/']) test('keeps a 4k-node / 7k-route fir
   try { await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 15_000 }); }
   catch(error) { console.log('Route readiness diagnostic',await map.evaluate(element=>({...((element as HTMLElement).dataset)}))); throw error; }
   await expect(map).toHaveAttribute('data-rendered-route-segments', '7000');
+  if(viewPath === '/terminal/') {
+    // First-view timing above exercises the new High/Neon/unclustered defaults.
+    // Stage the same off-to-on route and clustered-to-individual interactions
+    // below, preserving every existing count and performance assertion.
+    await openMapOptions(page);await page.locator('#routes-button').click();await page.locator('#clusters-button').click();
+    await page.keyboard.press('Escape');await expect(map).toHaveAttribute('data-render-state','idle');
+  }
   await installLongTaskObserver(page);
 
   const heatmapButton = page.locator('#heatmap-button');

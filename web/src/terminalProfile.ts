@@ -40,7 +40,7 @@ export interface TerminalProfile {
 }
 const baseColours = Object.fromEntries(Object.entries(TERMINAL_COLOURS).map(([key, value]) => [key, value[2]])) as TerminalProfile['colours'];
 const BASE: Omit<TerminalProfile, 'palette' | 'colours'> = {
-  glyphs: 'braille', size: 12, font: 'mono', uiFont: 'mono', fontSize: 12, weight: 600, uiScale: 1,
+  glyphs: 'braille', size: 10, font: 'mono', uiFont: 'mono', fontSize: 10, weight: 600, uiScale: 1,
   mapBrightness: 1, labelBrightness: 1, liveGlow: 1, traffic: 'characters',
 };
 export const TERMINAL_PRESETS: Record<TerminalPreset, { label: string; colours: Partial<TerminalProfile['colours']>; options?: Partial<Omit<TerminalProfile, 'colours' | 'palette'>> }> = {
@@ -97,7 +97,9 @@ export function loadTerminal(storage: Pick<Storage,'getItem'>): TerminalProfile 
   try {
     const value = storage.getItem(TERMINAL_KEY);
     if (value) return normalizeTerminal(JSON.parse(value));
-    const legacy=legacyPreferences(storage.getItem(TERMINAL_LEGACY_KEY));
+    const raw=storage.getItem(TERMINAL_LEGACY_KEY);
+    if(!raw)return terminalPreset('ansi');
+    const legacy=legacyPreferences(raw);
     return normalizeTerminal({...legacy,fontSize:legacy.size});
   } catch { return terminalPreset('ansi'); }
 }

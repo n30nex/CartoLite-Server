@@ -1,4 +1,5 @@
 import './display.css';
+import { TERMINAL_PAGE } from './preferences';
 import './cinematic.css';
 import { DEFAULT_DISPLAY, DISPLAY_EVENT, ROUTE_PRESETS, displayPreferences, initializeDisplay, updateDisplay, type DisplayPreferences } from './displayPreferences';
 
@@ -25,7 +26,7 @@ export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netg
       ] as const).map(([key, label, min, max, step, unit]) => `<label class="display-slider">${label}<output data-output="${key}" data-unit="${unit}"></output><input data-display="${key}" aria-label="${label}" type="range" min="${min}" max="${max}" step="${step}"></label>`).join('')}
       <button class="display-reset" type="button">Reset route styling</button>
     </details>` : '<p id="labs-quality-status" class="display-note" role="status"></p>'}
-    <p class="display-note">${surface === 'labs' ? 'Effects, motion, graphics, text and interface settings are shared. Each experiment keeps its own artistic setting; route styling stays in Map, Netgraph and Terminal.' : 'Shared across Map, Netgraph and Terminal in this browser. Route styling changes appearance, not connections or packet timing.'}</p>`;
+    <p class="display-note">${surface === 'labs' ? 'Effects, motion, graphics, text and interface settings are shared. Each experiment keeps its own artistic setting; route styling stays in Map, Netgraph and Terminal.' : (TERMINAL_PAGE ? 'Terminal saves its own display settings. Map and Netgraph keep their choices. Styling never changes connections or packet timing.' : 'Shared across Map and Netgraph in this browser. Terminal saves its own display settings. Styling never changes connections or packet timing.')}</p>`;
   const oldOpacity = parent.querySelector<HTMLInputElement>('#route-opacity');
   const oldOpacityLabel = oldOpacity?.closest('label');
   const duplicateOpacity = section.querySelector('[data-display="opacity"]')?.closest('label');
@@ -61,7 +62,7 @@ export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netg
       if (input.value !== 'custom') updateDisplay({ preset: input.value as DisplayPreferences['preset'], ...ROUTE_PRESETS[input.value as keyof typeof ROUTE_PRESETS] });
     } else updateDisplay({ [key]: input.value, ...(key === 'pattern' ? { preset: 'custom' as const } : {}) });
   });
-  section.querySelector('.display-reset')?.addEventListener('click', () => updateDisplay({ preset: DEFAULT_DISPLAY.preset, ...ROUTE_PRESETS.crisp }));
+  section.querySelector('.display-reset')?.addEventListener('click', () => updateDisplay({ preset: DEFAULT_DISPLAY.preset, ...ROUTE_PRESETS[DEFAULT_DISPLAY.preset === 'neon' ? 'neon' : 'crisp'] }));
   window.addEventListener(DISPLAY_EVENT, sync);
   sync();
 }
