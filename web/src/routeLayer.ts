@@ -2,7 +2,7 @@ import { LngLat, MercatorCoordinate, type CustomLayerInterface, type CustomRende
 import type { Feature, LineString } from 'geojson';
 import { splitWorldRoute, routeCoordinate, longitudeDelta, type Coordinate } from './worldGeometry';
 import { adaptiveSurfacePath, type SurfacePoint } from './terrainProjection';
-import { displayColor, displayPreferences } from './displayPreferences';
+import { displayColor, displayColorRevision, displayPreferences } from './displayPreferences';
 
 export const ROUTE_WEBGL_LAYER_ID = 'route-exact-webgl';
 // From xyz, to xyz, corner (along/side), rgb, alpha, age band.
@@ -44,6 +44,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   #cameraKey = '';
   #buffers: GPUChunk[] = [];
   #bufferTerrain = false;
+  #colorRevision = -1;
 
   onAdd(map: MapLibreMap, gl: GL): void {
     this.#map = map;
@@ -72,6 +73,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.off('moveend', this.#cameraChanged);
     map.off('terrain', this.#terrainChanged);
     map.off('sourcedata', this.#sourceChanged);
+    map.off('render',this.#settleVisibility);
     this.#clearBuffers();
     if (this.#resources) gl.deleteProgram(this.#resources.program);
     this.#resources = undefined;
@@ -104,6 +106,7 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     this.#refreshTimer = setTimeout(() => { this.#refreshTimer = undefined; this.#invalidate(); }, delay);
   }
   #invalidate = (): void => { this.#dirty = true; if (this.#visible) this.#map?.triggerRepaint(); };
+  #settleVisibility = (): void => { this.#map?.triggerRepaint(); };
   #terrainChanged = (): void => {
     this.#cancelBuild();
     // A flat mesh has neither terrain heights nor viewport culling. Do not draw
@@ -127,6 +130,12 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (this.#visible === visible) return;
     this.#visible = visible;
     if (!visible) this.#cancelBuild();
+    // Keep this custom layer's slot stable: native visibility changes rebuild
+    // terrain's render-to-texture stacks. The draw guard hides the strokes.
+    // Complete the compositor handoff even when the scene becomes entirely
+    // still. This is one final frame per toggle, not a permanent repaint loop.
+    this.#map?.off('render',this.#settleVisibility);
+    this.#map?.once('render',this.#settleVisibility);
     this.#map?.triggerRepaint();
   }
   setMaximumBand(band: number): void {
@@ -292,6 +301,9 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
   }
   render(gl: GL, options: CustomRenderMethodInput): void {
     if (!this.#resources || !this.#map || !this.#visible) return;
+    if(this.#colorRevision !== displayColorRevision()) {
+      this.#colorRevision=displayColorRevision(); this.#cancelBuild();
+    }
     if (this.#dirty && !this.#building && !this.#prepared) void this.#upload(Array.from(options.defaultProjectionData.mainMatrix)).catch(() => {
       this.#building = false;
       if (this.#map) this.#map.getContainer().dataset.routeMeshBusy = 'false';
@@ -371,11 +383,12 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     gl.uniform1f(uniforms.glow!, denseOverview ? 0 : settings.glow * clamp((this.#map.getZoom() - 3) / 7, 0.15, 1));
     gl.uniform1f(uniforms.outline!, denseOverview ? 0 : 1);
     gl.uniform1f(uniforms.simple!, denseOverview ? 1 : 0);
+    // Character conversion needs a clear foreground signal; keep the same
+    // routes/patterns and the user's opacity control, without density dimming.
     gl.uniform1f(uniforms.opacity!, Math.min(1,this.#opacity * (terminal ? 1.35 : settings.detail === 'auto' ? clamp(1 - Math.log2(1 + this.#routes.length / 150) * .1, .38, .9) : 1)));
     gl.uniform1f(uniforms.maximum_band!, this.#maximumBand);
     gl.uniform1f(uniforms.pattern!, settings.pattern === 'dashed' ? 1 : settings.pattern === 'dotted' ? 2 : 0);
-    if (this.#lightBackground) gl.uniform3f(uniforms.casing!, 0.97, 0.99, 0.95);
-    else gl.uniform3f(uniforms.casing!, 0.025, 0.055, 0.075);
+    gl.uniform3fv(uniforms.casing!, parseColor(displayColor('#061216',this.#lightBackground)));
     for (const chunk of this.#buffers) {
       gl.bindBuffer(gl.ARRAY_BUFFER, chunk.buffer);
       let offset = 0;

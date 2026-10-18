@@ -311,16 +311,16 @@ async function start(): Promise<void> {
         const button = document.getElementById(id);
         if (button && uiPreferences[key] !== DEFAULT_UI_PREFERENCES[key]) button.click();
       }
-      persistUiPreference({ relief: DEFAULT_UI_PREFERENCES.relief, routeWindow: 'auto' });
-      routeWindow.value = 'auto';
-      liveMap.setRouteWindow('auto');
+      persistUiPreference({ relief: DEFAULT_UI_PREFERENCES.relief, routeWindow: DEFAULT_UI_PREFERENCES.routeWindow });
+      routeWindow.value = DEFAULT_UI_PREFERENCES.routeWindow;
+      liveMap.setRouteWindow(DEFAULT_UI_PREFERENCES.routeWindow);
       applyAppearance();
     };
     required<HTMLButtonElement>('reset-layers').addEventListener('click', resetLayers);
     required<HTMLButtonElement>('reset-appearance').addEventListener('click', () => {
       resetLayers();
       if (legendExpanded) legendToggle.click();
-      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: 0.8, terrainExaggeration: 1, terrainPitch: 50, terrainBearing: 0 });
+      persistUiPreference({ basemap: 'dark', theme: 'map', routeOpacity: DEFAULT_UI_PREFERENCES.routeOpacity, terrainExaggeration: 1, terrainPitch: 50, terrainBearing: 0 });
       updateDisplay({ ...DEFAULT_DISPLAY });
       applyAppearance();
     });

@@ -305,6 +305,7 @@ export class PacketAnimator {
   #residueCacheUpdatedAt = Number.NEGATIVE_INFINITY;
   #dpr = 1;
   #scheduledWakeCount = 0;
+  #presentationGlow = 1;
   #frameSink?: (canvas?: HTMLCanvasElement) => void;
   #appliedQuality?: VisualQuality;
 
@@ -384,7 +385,10 @@ export class PacketAnimator {
     this.#requestFrame();
   }
 
-  /** Optional presentation sink; never owns packet progression or audio. */
+  /** Presentation only; never changes packet progression or audio. */
+  setPresentationGlow(scale: number): void { this.#presentationGlow = Math.max(0, Math.min(2, Number.isFinite(scale) ? scale : 1)); this.#residueContentDirty = true; this.#requestFrame(); }
+  #glow(): number { return Math.min(1,displayPreferences().glow * this.#presentationGlow); }
+
   setFrameSink(sink?: (canvas?: HTMLCanvasElement) => void): void { this.#frameSink = sink; }
 
   setPaused(paused: boolean): void {
@@ -608,7 +612,7 @@ export class PacketAnimator {
     const coreWidth = this.#reducedMotion ? 1.8 : style.coreWidth;
     const coreColor = this.#reducedMotion ? item.color : blendWithWhite(item.color, style.hot * 0.16);
     traceSurfacePath(context, this.projection.projectSegment(item.segment));
-    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost * detail) * displayPreferences().glow);
+    context.strokeStyle = withAlpha(item.color, Math.min(0.7, bloomOpacity * rangeBoost * detail) * this.#glow());
     context.lineWidth = bloomWidth * rangeBoost * detail;
     context.stroke();
     context.setLineDash(lineDash());
@@ -755,7 +759,7 @@ export class PacketAnimator {
     const width = quality === 'full' ? 7.2 : quality === 'balanced' ? 5.8 : 3.8;
     this.#context.lineWidth = width * (longHaul ? 1.42 : 1) * (trail.head.scale ?? 1);
     traceSurfacePath(this.#context, trail.points ?? [trail.tail, trail.head]);
-    this.#context.globalAlpha = displayPreferences().glow * effectStrength();
+    this.#context.globalAlpha = this.#glow() * effectStrength();
     this.#context.stroke();
     this.#context.globalAlpha = 1;
     const core = this.#context.createLinearGradient(trail.tail.x, trail.tail.y, trail.head.x, trail.head.y);
@@ -818,7 +822,7 @@ export class PacketAnimator {
   }
 
   #drawStaticSegment(points: readonly ScreenPoint[], color: string, opacity: number, _signature: PacketSignature): void {
-    this.#context.strokeStyle = withAlpha(color, opacity * 0.2 * displayPreferences().glow);
+    this.#context.strokeStyle = withAlpha(color, opacity * 0.2 * this.#glow());
     this.#context.lineWidth = 7;
     traceSurfacePath(this.#context, points);
     this.#context.stroke();
@@ -859,7 +863,7 @@ export class PacketAnimator {
     this.#context.fillStyle = glow;
     this.#context.beginPath();
     this.#context.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    this.#context.globalAlpha = displayPreferences().glow * effectStrength();
+    this.#context.globalAlpha = this.#glow() * effectStrength();
     this.#context.fill();
     this.#context.globalAlpha = 1;
     this.#context.fillStyle = displayColor(color);
@@ -922,8 +926,8 @@ export class PacketAnimator {
       return;
     }
     const gradient = this.#context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-    gradient.addColorStop(0, withAlpha(blendWithWhite(color, 0.3), timing.opacity * 0.62 * displayPreferences().glow));
-    gradient.addColorStop(0.2, withAlpha(color, timing.opacity * 0.5 * displayPreferences().glow));
+    gradient.addColorStop(0, withAlpha(blendWithWhite(color, 0.3), timing.opacity * 0.62 * this.#glow()));
+    gradient.addColorStop(0.2, withAlpha(color, timing.opacity * 0.5 * this.#glow()));
     gradient.addColorStop(1, withAlpha(color, 0));
     this.#context.fillStyle = gradient;
     this.#context.beginPath();

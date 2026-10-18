@@ -1,4 +1,4 @@
-import { UI_STORAGE_KEY, type BasemapStyle, type InterfaceTheme } from './preferences';
+import { TERMINAL_PAGE, UI_STORAGE_KEY, type BasemapStyle, type InterfaceTheme } from './preferences';
 import { PACKET_KIND_COLORS as DARK_KINDS } from './trafficVisuals';
 
 export type LinePattern = 'solid' | 'dashed' | 'dotted';
@@ -21,7 +21,7 @@ export interface DisplayPreferences {
   residueSeconds: number;
 }
 
-export const DISPLAY_STORAGE_KEY = UI_STORAGE_KEY.replace(':ui:', ':display:');
+export const DISPLAY_STORAGE_KEY = UI_STORAGE_KEY.replace(':ui:', ':display:').replace(':terminal-ui:', ':terminal-display:');
 export const DISPLAY_EVENT = 'cartolite:display-change';
 export const ROUTE_PRESETS = {
   crisp: { pattern: 'solid', width: 1.6, opacity: 0.8, glow: 0.15, packetSize: 1, trailLength: 1, residueSeconds: 15 },
@@ -31,7 +31,7 @@ export const ROUTE_PRESETS = {
   ribbon: { pattern: 'solid', width: 3.5, opacity: 0.75, glow: 0.1, packetSize: 1.35, trailLength: 1, residueSeconds: 12 },
   comet: { pattern: 'solid', width: 1.4, opacity: 0.8, glow: 0.5, packetSize: 1.4, trailLength: 2, residueSeconds: 30 },
 } as const;
-export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: 'auto', quality: 'auto', motion: 'system', textSize: 'standard', basemap: 'dark', theme: 'map', preset: 'crisp', ...ROUTE_PRESETS.crisp };
+export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: TERMINAL_PAGE ? 'complete' : 'auto', quality: TERMINAL_PAGE ? 'high' : 'auto', motion: 'system', textSize: 'standard', basemap: 'dark', theme: 'map', preset: TERMINAL_PAGE ? 'neon' : 'crisp', ...(TERMINAL_PAGE ? ROUTE_PRESETS.neon : ROUTE_PRESETS.crisp) };
 
 const LIGHT_KINDS = { Advert: '#006957', Trace: '#855000', Text: '#a21b58', ACK: '#075b98', Control: '#6740a0', Other: '#445760' };
 const LIGHT_COLORS: Record<string, string> = {
@@ -51,16 +51,29 @@ const LIGHT_COLORS: Record<string, string> = {
 
 let current: DisplayPreferences = { ...DEFAULT_DISPLAY };
 let initialized = false;
+// Optional per-view colour presentation. Terminal installs this after its lazy
+// entry loads; shared preferences and other pages never import its renderer.
+let viewColors: Record<string,string> = {};
+let viewLightColors: Record<string,string> = LIGHT_COLORS;
+let hasViewColors = false;
+let colorRevision = 0;
+export function displayColorRevision(): number { return colorRevision; }
+export function setDisplayColors(colors: Record<string,string> = {}): void {
+  const safe = Object.fromEntries(Object.entries(colors).filter(([from,to]) => /^#[0-9a-f]{6}$/i.test(from) && /^#[0-9a-f]{6}$/i.test(to)).map(([from,to])=>[from.toLowerCase(),to.toLowerCase()]));
+  if(JSON.stringify(safe)===JSON.stringify(viewColors))return;
+  viewColors=safe; hasViewColors=Object.keys(safe).length>0; viewLightColors={...LIGHT_COLORS,...safe}; colorRevision++;
+}
 export function displayPreferences(): Readonly<DisplayPreferences> { return current; }
 export function lightScene(): boolean { return !document.documentElement.hasAttribute('data-terminal') && current.basemap !== 'dark'; }
 export function displayColor(color: string, light = lightScene()): string {
-  if (!light) return color;
-  const direct = LIGHT_COLORS[color.toLowerCase()];
+  if(!light && !hasViewColors)return color;
+  const colors = light ? viewLightColors : viewColors;
+  const direct = colors[color.toLowerCase()];
   if (direct) return direct;
   const rgba = /^rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\s*\)$/i.exec(color);
   if (!rgba) return color;
   const hex = '#' + rgba.slice(1, 4).map((channel) => Number(channel).toString(16).padStart(2, '0')).join('');
-  const mapped = LIGHT_COLORS[hex];
+  const mapped = colors[hex];
   if (!mapped) return color;
   const value = Number.parseInt(mapped.slice(1), 16);
   return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${rgba[4] ?? 1})`;
@@ -68,12 +81,16 @@ export function displayColor(color: string, light = lightScene()): string {
 export function recolorPaint(value: unknown, light: boolean): unknown {
   if (typeof value === 'string') return displayColor(value, light);
   if (!Array.isArray(value)) return value;
-  if (light && value[0] === 'get' && typeof value[1] === 'string' && /^color(?:\d|$)/.test(value[1])) {
-    return ['match', value, ...Object.entries(LIGHT_COLORS).flat(), value];
+  const colors = light ? viewLightColors : viewColors;
+  if ((light || hasViewColors) && value[0] === 'get' && typeof value[1] === 'string' && /^color(?:\d|$)/.test(value[1])) {
+    return ['match', value, ...Object.entries(colors).flat(), value];
   }
   return value.map((item) => recolorPaint(item, light));
 }
-export function packetPalette(light = lightScene()): typeof DARK_KINDS { return light ? LIGHT_KINDS : DARK_KINDS; }
+export function packetPalette(light = lightScene()): typeof DARK_KINDS {
+  if(!hasViewColors)return light ? LIGHT_KINDS : DARK_KINDS;
+  return Object.fromEntries(Object.entries(DARK_KINDS).map(([kind,color])=>[kind,displayColor(color,light)])) as typeof DARK_KINDS;
+}
 export function canvasColorWithAlpha(color: string, alpha: number): string {
   const resolved = displayColor(color);
   const value = Number.parseInt(resolved.startsWith('#') ? resolved.slice(1) : 'ffffff', 16);
@@ -93,13 +110,13 @@ export function normalizeDisplay(value: unknown): DisplayPreferences {
   };
   return {
     effects: v.effects === 'calm' || v.effects === 'minimal' ? v.effects : 'spectacle',
-    detail: v.detail === 'complete' ? 'complete' : 'auto',
-    quality: v.quality === 'high' || v.quality === 'economy' ? v.quality : 'auto',
-    motion: v.motion === 'full' || v.motion === 'reduced' ? v.motion : 'system',
+    detail: v.detail === 'complete' || v.detail === 'auto' ? v.detail : DEFAULT_DISPLAY.detail,
+    quality: v.quality === 'high' || v.quality === 'economy' || v.quality === 'auto' ? v.quality : DEFAULT_DISPLAY.quality,
+    motion: v.motion === 'full' || v.motion === 'reduced' || v.motion === 'system' ? v.motion : DEFAULT_DISPLAY.motion,
     textSize: v.textSize === 'large' ? 'large' : 'standard',
     basemap: v.basemap === 'light' || v.basemap === 'streets' ? v.basemap : 'dark',
     theme: v.theme === 'light' || v.theme === 'dark' ? v.theme : 'map',
-    preset: v.preset === 'custom' || (typeof v.preset === 'string' && Object.hasOwn(ROUTE_PRESETS, v.preset)) ? v.preset as RoutePreset : 'crisp',
+    preset: v.preset === 'custom' || (typeof v.preset === 'string' && Object.hasOwn(ROUTE_PRESETS, v.preset)) ? v.preset as RoutePreset : DEFAULT_DISPLAY.preset,
     pattern: v.pattern === 'dashed' || v.pattern === 'dotted' ? v.pattern : 'solid',
     width: amount('width', 1, 5), opacity: amount('opacity', 0.2, 1), glow: amount('glow', 0, 1),
     packetSize: amount('packetSize', 0.75, 2), trailLength: amount('trailLength', 0.5, 2), residueSeconds: amount('residueSeconds', 0, 45),

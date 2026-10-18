@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import { openViewMenu } from './dockControls';
+import type { LiveMap } from '../src/map';
 
 test('Terminal gives live packets a bounded glow while keeping labels and quiet modes clear', async ({page},info) => {
   test.slow();
@@ -184,7 +185,7 @@ test('unavailable Terminal graphics falls back without stopping the feed', async
 
 test('Map and Netgraph never download the optional Terminal renderer', async ({page}) => {
   const terminalAssets: string[] = [];
-  page.on('request', request => { if (/\/terminal-[^/]+\.(?:js|css)(?:\?|$)/.test(request.url())) terminalAssets.push(request.url()); });
+  page.on('request', request => { if (/\/terminal-[^/]+\.(?:js|css)(?:\?|$)|\/fonts\/terminal\//.test(request.url())) terminalAssets.push(request.url()); });
   await visualFixture(page);
   for (const path of ['/', '/netgraph/']) {
     await page.goto(path);
@@ -192,6 +193,232 @@ test('Map and Netgraph never download the optional Terminal renderer', async ({p
   }
   expect(terminalAssets).toEqual([]);
 });
+
+test('Terminal presets keep real routes above every drawing mode and load the selected fonts',async({page},info)=>{
+  test.slow();await visualFixture(page,10.2,true);await page.goto('/terminal/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  let sequence=0;
+  for(const [preset,mode,font] of [['ansi','0','mono'],['amber','0','mono'],['green','0','mono'],['cga','2','pixel'],['ega','1','vt323'],['cell','3','mono']]) {
+    await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption(preset!);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#map')).toHaveAttribute('data-terminal-drawing',mode!);
+    await expect(page.locator('html')).toHaveAttribute('data-terminal-font',font!);
+    await expect(page.locator('#map')).toHaveAttribute('data-eligible-routes','1');
+    await expect(page.locator('.terminal-notice')).toBeHidden();
+    await expect.poll(()=>page.evaluate(()=>document.fonts.status)).toBe('loaded');
+    if(font==='pixel')expect(await page.evaluate(()=>document.fonts.check('16px Silkscreen'))).toBe(true);
+    if(font==='vt323')expect(await page.evaluate(()=>document.fonts.check('16px VT323'))).toBe(true);
+    await visualPacket(page,++sequence, 'Text');
+    await page.screenshot({path:info.outputPath(`preset-${preset}.png`)});
+  }
+  expect(errors).toEqual([]);
+});
+
+test('Terminal starts with the requested layers and Neon appearance without overwriting Map defaults',async({page},info)=>{
+  test.slow();await visualFixture(page,10.2,true);
+  await page.addInitScript(()=>{
+    if(sessionStorage.getItem('terminal-defaults-seeded'))return;
+    sessionStorage.setItem('terminal-defaults-seeded','true');
+    for(const prefix of ['cartolite','cartolite-server']) {
+      localStorage.removeItem(`${prefix}:terminal-ui:v1`);
+      localStorage.setItem(`${prefix}:display:v1`,JSON.stringify({preset:'dotted',quality:'economy'}));
+    }
+  });
+  await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await openMapOptions(page);
+  for(const id of ['routes','live-packets','heatmap','node-labels','map-labels','roads','buildings'])await expect(page.locator(`#${id}-button`)).toHaveAttribute('aria-pressed','true');
+  for(const id of ['clusters','regions','hillshade','terrain'])if(await page.locator(`#${id}-button`).count())await expect(page.locator(`#${id}-button`)).toHaveAttribute('aria-pressed','false');
+  await expect(page.locator('#route-window')).toHaveValue('15m');await expect(page.locator('#terrain-relief')).toHaveValue('15');
+  for(const [label,value] of [['Terminal palette','ansi'],['Terminal characters','braille'],['Terminal cell size','10'],['Effects intensity','spectacle'],['Detail level','complete'],['Graphics quality','high'],['Motion preference','system'],['Text size','standard'],['Route style','neon']])await expect(page.getByLabel(label!,{exact:true})).toHaveValue(value!);
+  await page.screenshot({path:info.outputPath('terminal-defaults.png')});
+  await page.locator('#route-window').selectOption('1h');await page.getByLabel('Route style',{exact:true}).selectOption('dashed');
+  await page.keyboard.press('Escape');await page.goto('/');await openMapOptions(page);
+  await expect(page.locator('#route-window')).toHaveValue('24h');await expect(page.getByLabel('Graphics quality')).toHaveValue('economy');await expect(page.getByLabel('Route style',{exact:true})).toHaveValue('dotted');
+  await page.goto('/terminal/');await openMapOptions(page);
+  await expect(page.locator('#route-window')).toHaveValue('1h');await expect(page.getByLabel('Route style',{exact:true})).toHaveValue('dashed');
+  await page.getByRole('button',{name:'Reset all display settings',exact:true}).click();
+  await expect(page.locator('#route-window')).toHaveValue('15m');await expect(page.getByLabel('Route style',{exact:true})).toHaveValue('neon');
+});
+
+test('Terminal colour and typography editor preserves other views, survives refresh and synchronizes tabs',async({page,context},info)=>{
+  test.slow();await visualFixture(page,10.2,true);
+  await page.addInitScript(()=>{
+    if(!localStorage.getItem('cartolite-terminal-v2'))localStorage.setItem('cartolite-terminal-v1',JSON.stringify({palette:'amber',glyphs:'ascii',size:16}));
+  });
+  await page.goto('/terminal/?node=visual-a');
+  await expect(page.locator('#map')).toHaveAttribute('data-selected-node-id','visual-a');
+  await expect(page.locator('html')).toHaveAttribute('data-terminal-palette','amber');
+  await page.keyboard.press('Escape');
+  const saved=await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([key])=>!key.startsWith('cartolite-terminal')&&!key.includes(':view:'))));
+  await openMapOptions(page);
+  await page.getByText('Typography',{exact:true}).click();
+  await expect(page.getByLabel('Terminal map font size')).toHaveValue('16');
+  await page.getByLabel('Terminal map font',{exact:true}).selectOption('vt323');
+  await page.getByLabel('Terminal interface font').selectOption('pixel');
+  await page.getByLabel('Terminal map font size').fill('18');
+  await page.getByLabel('Terminal interface scale').fill('1.35');
+  await page.getByText('Element colours',{exact:true}).click();
+  await page.getByLabel('Terminal colour element').selectOption('water');
+  await page.getByLabel('Terminal hue',{exact:true}).focus();await page.keyboard.press('ArrowRight');
+  await page.getByLabel('Terminal colour hex').fill('#403a77');
+  await page.getByLabel('Terminal colour element').selectOption('ink');
+  await page.getByLabel('Terminal colour hex').fill('#050b10');
+  // Even a deliberately invisible custom UI must leave the recovery editor legible.
+  expect(await page.locator('.terminal-settings').evaluate(el=>getComputedStyle(el).color)).toBe('rgb(213, 230, 223)');
+  await page.screenshot({path:info.outputPath('terminal-editor.png')});
+  const panel=(await page.locator('#layers-panel').boundingBox())!;
+  expect(panel.x).toBeGreaterThanOrEqual(0);expect(panel.x+panel.width).toBeLessThanOrEqual(page.viewportSize()!.width+1);
+  expect(await page.locator('.terminal-settings').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await page.keyboard.press('Escape');await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-terminal-font','vt323');
+  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--terminal-water').trim())).toBe('#403a77');
+  expect(await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([key])=>!key.startsWith('cartolite-terminal')&&!key.includes(':view:'))))).toEqual(saved);
+  const other=await context.newPage();await visualFixture(other,10.2,true);await other.goto('/terminal/');
+  await expect(other.locator('html')).toHaveAttribute('data-terminal-font','vt323');
+  await openMapOptions(page);await page.getByRole('button',{name:'Reset Terminal display',exact:true}).click();
+  await expect(other.locator('html')).toHaveAttribute('data-terminal-palette','ansi');
+  await expect(other.locator('html')).toHaveAttribute('data-terminal-font','mono');
+  await other.close();
+});
+
+test('Terminal custom traffic ink stays visible over geography without restarting packets or camera',async({page},info)=>{
+  test.slow();await visualFixture(page,10.2,true);
+  await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>Object.assign(window,{terminalHarness:(event as CustomEvent).detail}),{once:true}));
+  await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await openMapOptions(page);await page.getByText('Element colours',{exact:true}).click();
+  await page.getByLabel('Terminal colour element').selectOption('text');await page.getByLabel('Terminal colour hex').fill('#67ff23');
+  await page.getByLabel('Terminal colour element').selectOption('water');await page.getByLabel('Terminal colour hex').fill('#5b183a');
+  await page.getByLabel('Terminal colour element').selectOption('roads');await page.getByLabel('Terminal colour hex').fill('#ff3600');
+  await page.keyboard.press('Escape');
+  await expect.poll(()=>greenRoutePixels(page)).toBeGreaterThan(20);
+  await expect.poll(async()=>{
+    const screenshot=await page.screenshot();
+    return page.evaluate(async image=>{
+      const img=new Image();img.src='data:image/png;base64,'+image;await img.decode();
+      const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;
+      const ctx=canvas.getContext('2d')!;ctx.drawImage(img,0,0);
+      const pixels=ctx.getImageData(0,0,img.width,img.height).data;let roads=0;
+      for(let i=0;i<pixels.length;i+=4)if(pixels[i]!>110&&pixels[i+1]!<70&&pixels[i+2]!<40)roads++;
+      return roads;
+    },screenshot.toString('base64'));
+  }).toBeGreaterThan(30);
+  const order=await page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const ids=view.map.getLayersOrder();return [ids.indexOf('terminal-graphics'),ids.indexOf('route-exact-webgl')];
+  });expect(order[0]).toBeLessThan(order[1]!);
+  await page.screenshot({path:info.outputPath('terminal-custom-ink.png')});
+  await openMapOptions(page);await page.locator('#routes-button').click();await page.keyboard.press('Escape');
+  await expect(page.locator('#map')).toHaveAttribute('data-routes-visible','false');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  try { await expect.poll(()=>greenRoutePixels(page)).toBeLessThan(10); }
+  catch(error) {
+    const diagnostic=await page.evaluate(async()=>{
+      const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+      const map=view.map,gl=map.getCanvas().getContext('webgl2')!;
+      const before={...map.getContainer().dataset};
+      const layers=map.getLayersOrder().filter(id=>id.startsWith('route')).map(id=>({id,visibility:map.getLayoutProperty(id,'visibility')}));
+      const gpuError=gl.getError();
+      await new Promise<void>(resolve=>{map.once('render',()=>{map.once('render',()=>resolve());map.triggerRepaint();});map.triggerRepaint();});
+      return {before,after:{...map.getContainer().dataset},layers,gpuError};
+    });
+    await info.attach('hidden-route-diagnostic',{body:JSON.stringify({...diagnostic,pixelsAfterTwoFrames:await greenRoutePixels(page)}),contentType:'application/json'});
+    await page.screenshot({path:info.outputPath('hidden-route-after-two-frames.png')});
+    throw error;
+  }
+  await visualPacket(page,1,'Text');
+  const continuity=await page.evaluate(()=>{
+    const {view,animator}=(window as unknown as {terminalHarness:{view:LiveMap;animator:{activeRoutes:{started:number;duration:number}[]}}}).terminalHarness;
+    const before=animator.activeRoutes.map(route=>[route.started,route.duration]);const camera=[view.map.getCenter().toArray(),view.map.getZoom(),view.map.getPitch()];
+    const input=document.querySelector<HTMLInputElement>('[data-terminal="mapBrightness"]')!;
+    input.value='.3';input.dispatchEvent(new Event('input',{bubbles:true}));
+    return {before,after:animator.activeRoutes.map(route=>[route.started,route.duration]),camera,afterCamera:[view.map.getCenter().toArray(),view.map.getZoom(),view.map.getPitch()]};
+  });
+  expect(continuity.before.length).toBe(1);expect(continuity.after).toEqual(continuity.before);expect(continuity.afterCamera).toEqual(continuity.camera);
+  await expect.poll(async()=>Number(await page.locator('#terminal-packets').getAttribute('data-cells'))).toBeGreaterThan(0);
+  await page.screenshot({path:info.outputPath('terminal-custom-live.png')});
+});
+
+test('Terminal cel-shaded 3D retains its profile and routes through graphics-context recovery',async({page},info)=>{
+  test.skip(info.project.name!=='desktop','Actual context-loss injection is exercised on desktop Chromium; fallback/retry runs on every browser.');
+  test.slow();await visualFixture(page,14,true);
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  const warnings:string[]=[];page.on('console',message=>{if(['warning','error'].includes(message.type()))warnings.push(message.text());});
+  await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>Object.assign(window,{terminalHarness:(event as CustomEvent).detail}),{once:true}));
+  await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption('cell');await page.keyboard.press('Escape');
+  await page.locator('#terrain-shortcut').click();
+  await expect(page.locator('#map')).toHaveAttribute('data-terrain3d','true');
+  await expect(page.locator('#map')).toHaveAttribute('data-camera-moving','false');
+  await page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    view.map.jumpTo({bearing:25});
+  });
+  await terminalMapIdle(page);
+  const before=await page.screenshot({path:info.outputPath('terminal-3d-before-recovery.png')});
+  await page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const gl=view.map.getCanvas().getContext('webgl2')!,extension=gl.getExtension('WEBGL_lose_context');
+    if(!extension)throw Error('Context-loss fixture unavailable');
+    extension.loseContext();setTimeout(()=>extension.restoreContext(),120);
+  });
+  await expect(page.locator('#map')).toHaveAttribute('data-route-context-restores','1');
+  await expect(page.locator('#map')).toHaveAttribute('data-terminal-drawing','3');
+  await expect(page.locator('html')).toHaveAttribute('data-terminal-palette','cell');
+  await expect(page.locator('.terminal-notice')).toBeHidden();
+  await expect.poll(()=>page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const ids=view.map.getLayersOrder();return ids.indexOf('terminal-graphics')<ids.indexOf('route-exact-webgl');
+  })).toBe(true);
+  await terminalMapIdle(page);
+  const after=await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
+  await info.attach('graphics-recovery-warnings',{body:JSON.stringify(warnings),contentType:'application/json'});
+  expect(warnings.filter(message=>message.includes('INVALID_OPERATION'))).toEqual([]);
+  const difference=await page.evaluate(async images=>{
+    const samples:Uint8ClampedArray[]=[];
+    for(const image of images){
+      const img=new Image();img.src='data:image/png;base64,'+image;await img.decode();
+      const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;
+      const ctx=canvas.getContext('2d')!;ctx.drawImage(img,0,0);
+      samples.push(ctx.getImageData(0,0,img.width,img.height).data);
+    }
+    let total=0,count=0;
+    // Same stationary scene: ignore alpha and sample sparsely, allowing small
+    // label/antialias differences while rejecting a broken terrain framebuffer.
+    for(let i=0;i<samples[0]!.length;i+=64)for(let c=0;c<3;c++){total+=Math.abs(samples[0]![i+c]!-samples[1]![i+c]!);count++;}
+    return total/count;
+  },[before.toString('base64'),after.toString('base64')]);
+  expect(difference).toBeLessThan(12);
+  await visualPacket(page,1,'Trace');await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count','1');
+  expect(errors).toEqual([]);
+});
+
+async function terminalMapIdle(page:Page):Promise<void>{
+  await page.evaluate(async()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    if(!view.map.loaded())await new Promise<void>(resolve=>view.map.once('idle',()=>resolve()));
+  });
+}
+
+async function greenRoutePixels(page: Page):Promise<number> {
+  const png=await page.screenshot();
+  return page.evaluate(async base64=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const a=view.map.project([-80.35,43.45]),b=view.map.project([-80.23,43.51]);
+    const image=new Image();image.src='data:image/png;base64,'+base64;await image.decode();
+    const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+    const ctx=canvas.getContext('2d')!;ctx.drawImage(image,0,0);
+    const pixels=ctx.getImageData(0,0,image.width,image.height).data;
+    const dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy,sx=image.width/innerWidth,sy=image.height/innerHeight;
+    // Sample the middle of the actual route. Endpoint labels may contain green
+    // emoji and must not be counted as retained network ink.
+    let count=0;for(let y=0;y<image.height;y++)for(let x=0;x<image.width;x++) {
+      const px=x/sx-a.x,py=y/sy-a.y,t=(px*dx+py*dy)/length;
+      if(t<.25||t>.75||(px-t*dx)**2+(py-t*dy)**2>36)continue;
+      const i=(y*image.width+x)*4;if(pixels[i]!<140&&pixels[i+1]!>140&&pixels[i+2]!<100)count++;
+    }return count;
+  },png.toString('base64'));
+}
 
 // Inspect actual pixels, not a renderer's own readiness flag. Only the ANSI
 // character water has this bright blue in the synthetic scene's centre.

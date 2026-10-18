@@ -150,6 +150,21 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
+      - name: Terminal presentation and isolation
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: terminal-playwright-report
+        run: npm run test:e2e -- terminal.spec.ts --output terminal-test-results
+      - name: Preserve Terminal review screenshots
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-terminal-review
+          retention-days: 30
+          path: |
+            web/terminal-test-results/
+            web/terminal-playwright-report/
       - name: UI audit and recovery regressions
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -165,12 +180,6 @@ jobs:
           path: |
             web/ux-audit-test-results/
             web/ux-audit-playwright-report/
-      - name: Terminal presentation and isolation
-        if: matrix.arch == 'amd64'
-        working-directory: web
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: terminal-playwright-report
-        run: npm run test:e2e -- terminal.spec.ts --output terminal-test-results
       - name: Worldwide and terrain regressions
         if: matrix.arch == 'amd64'
         working-directory: web

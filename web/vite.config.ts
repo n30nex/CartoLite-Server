@@ -7,6 +7,7 @@ function inputPath(relative: string): string {
 
 export default defineConfig({
   build: {
+    manifest: true,
     target: 'es2022',
     assetsInlineLimit: 0,
     chunkSizeWarningLimit: 500,
