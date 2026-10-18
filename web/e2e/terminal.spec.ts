@@ -289,8 +289,20 @@ test('Terminal custom traffic ink stays visible over geography without restartin
   await openMapOptions(page);await page.getByText('Element colours',{exact:true}).click();
   await page.getByLabel('Terminal colour element').selectOption('text');await page.getByLabel('Terminal colour hex').fill('#67ff23');
   await page.getByLabel('Terminal colour element').selectOption('water');await page.getByLabel('Terminal colour hex').fill('#5b183a');
+  await page.getByLabel('Terminal colour element').selectOption('roads');await page.getByLabel('Terminal colour hex').fill('#ff3600');
   await page.keyboard.press('Escape');
   await expect.poll(()=>greenRoutePixels(page)).toBeGreaterThan(20);
+  await expect.poll(async()=>{
+    const screenshot=await page.screenshot();
+    return page.evaluate(async image=>{
+      const img=new Image();img.src='data:image/png;base64,'+image;await img.decode();
+      const canvas=document.createElement('canvas');canvas.width=img.width;canvas.height=img.height;
+      const ctx=canvas.getContext('2d')!;ctx.drawImage(img,0,0);
+      const pixels=ctx.getImageData(0,0,img.width,img.height).data;let roads=0;
+      for(let i=0;i<pixels.length;i+=4)if(pixels[i]!>110&&pixels[i+1]!<70&&pixels[i+2]!<40)roads++;
+      return roads;
+    },screenshot.toString('base64'));
+  }).toBeGreaterThan(30);
   const order=await page.evaluate(()=>{
     const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
     const ids=view.map.getLayersOrder();return [ids.indexOf('terminal-graphics'),ids.indexOf('route-exact-webgl')];

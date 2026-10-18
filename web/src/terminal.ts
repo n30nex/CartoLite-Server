@@ -258,7 +258,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         setPaint(layer.id,'hillshade-shadow-color','#030609');setPaint(layer.id,'hillshade-highlight-color','#72b89b');
       } else if (layer.id.startsWith('basemap-')) {
         const property = layer.type === 'background' ? 'background-color' : layer.type === 'fill' ? 'fill-color' : layer.type === 'line' ? 'line-color' : undefined;
-        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#c184f6' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#526270' : '#030609';
+        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#c184f6' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#405060' : '#030609';
         if (property) setPaint(layer.id, property, layer.id === 'basemap-landcover' ? ['match', ['get','class'], ['wood','grass'], '#124b24', '#383838'] : color);
       }
     }
