@@ -6,12 +6,24 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
   const navigate = () => stage.dispatchEvent(new Event('graphnavigate'));
   const measure = () => document.documentElement.style.setProperty('--graph-controls-bottom', `${Math.ceil((host.closest('#display-panel') ? document.getElementById('graph-summary')! : host).getBoundingClientRect().bottom)}px`);
   const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined; resize?.observe(host);
+  resize?.observe(document.getElementById('graph-summary')!);
   window.addEventListener('resize', measure); measure();
   const menu = graphTemplate<HTMLDetailsElement>('graph-regions-ui');
   const summary = menu.querySelector('summary')!, search = menu.querySelector('input')!, list = menu.querySelector<HTMLElement>('.region-checks')!;
   const routes = document.createElement('button'); routes.type = 'button'; routes.id = 'graph-routes-button'; routes.textContent = 'Routes';
   routes.setAttribute('aria-label', 'Show historical routes'); routes.title = 'Hide standing lines; live packets still light their routes briefly';
   host.append(menu, routes);
+  const scope = document.createElement('p'); scope.id = 'graph-scope'; scope.className = 'graph-scope'; scope.hidden = true;
+  scope.setAttribute('role', 'status'); scope.setAttribute('aria-label', 'Active view filters');
+  document.getElementById('graph-summary')!.append(scope);
+  const clear = document.createElement('button'); clear.type = 'button'; clear.textContent = 'Clear filters'; clear.dataset.clearView = '';
+  clear.title = 'Show all regions and components; keep route visibility and saved layout';
+  menu.querySelector('.region-actions')!.append(clear);
+  clear.addEventListener('click', () => {
+    navigate(); graph.setRegions(null); graph.setFocus('all');
+    host.querySelector<HTMLSelectElement>('[aria-label="Topology focus"]')!.value = 'all';
+    sync(); changed();
+  });
   const layout = graphTemplate<HTMLDetailsElement>('graph-layout-ui');
   document.getElementById('display-panel')!.append(layout);
   const spacing = layout.querySelector('input')!, output = layout.querySelector('output')!, move = layout.querySelector('select')!;
@@ -45,6 +57,13 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     spacing.value = String(prefs.spacing); output.value = `${Math.round(prefs.spacing * 100)}%`;
     routes.setAttribute('aria-pressed', String(prefs.routes)); routes.classList.toggle('selected', prefs.routes);
     summary.textContent = `Regions · ${prefs.regions === null ? 'All' : prefs.regions.length}`;
+    const focused = stage.dataset.focusMode ?? 'all';
+    const description = [prefs.regions === null ? '' : `${prefs.regions.length} regions`, focused === 'all' ? '' : `${focused === 'area' ? 'Area' : 'Component'} focus`, prefs.routes ? '' : 'Routes hidden'].filter(Boolean).join(' · ');
+    if (scope.hidden !== !description) scope.hidden = !description;
+    if (scope.textContent !== description) {
+      scope.textContent = description;
+    }
+    clear.disabled = prefs.regions === null && focused === 'all';
     layout.querySelector('[data-save-state]')!.textContent = stage.dataset.layoutSaved === 'false'
       ? 'Kept for this visit; storage unavailable.' : 'Saved on this device.';
     if (areas !== lastAreas || prefs.regions !== lastRegions) {
@@ -71,5 +90,5 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     }
   }
   sync();
-  return { sync, destroy() { resize?.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); layout.remove(); } };
+  return { sync, destroy() { resize?.disconnect(); window.removeEventListener('resize', measure); document.removeEventListener('pointerdown', dismiss); menu.remove(); routes.remove(); scope.remove(); layout.remove(); } };
 }

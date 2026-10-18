@@ -84,3 +84,24 @@ button,select,input { font:inherit; }
 #map[data-terrain3d="true"] + .map-grade::after { display: none; }
 
 .inspector-window-note { display: block; margin-top: 6px; color: var(--muted); font-size: 10px; line-height: 1.45; font-weight: 400; letter-spacing: 0; text-transform: none; }
+
+.view-help { width:min(520px,calc(100vw - 24px)); max-height:calc(var(--available-height,100dvh) - 24px); margin:auto; overflow:auto; padding:16px; color:var(--ink); background:var(--panel-solid); border:1px solid var(--panel-border); border-radius:14px; }
+.view-help::backdrop { background:#031018aa; }
+.view-help header { display:flex; justify-content:space-between; align-items:center; }
+.view-help button { min-width:44px; min-height:44px; color:var(--ink); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:8px; }
+.view-help h1 { font-size:20px; margin:0 44px 12px 0; color:var(--ink-strong); }
+.view-help h2 { font-size:15px; margin:12px 0 8px; color:var(--ink-strong); }
+.view-help :is(p,dd) { font-size:13px; line-height:1.5; color:var(--ink); }
+.view-help summary { min-height:44px; padding:12px 0; cursor:pointer; font-weight:650; }
+.view-help dl { display:grid; gap:12px; margin:0; }
+.view-help dt { font-size:12px; font-weight:750; color:var(--ink-strong); }
+.view-help dd { margin:4px 0 0; }
+.view-help-button { justify-content:flex-start; min-height:44px; }
+:root[data-text-size="large"] .view-help :is(p,dd,dt,summary) { font-size:15px; }
+:root[data-terminal] label:has(#basemap-style,#interface-theme) { display:none; }
+.terminal-basemap-note { display:none; }
+:root[data-terminal] .terminal-basemap-note { display:block; }
+:root .view-help { color:var(--ink); background:var(--panel-solid); }
+:root .view-help :is(p,dd,dt,h1,h2) { color:var(--ink); }
+:root .view-help > header { position:sticky; top:0; z-index:2; background:var(--panel-solid); padding:8px 0; }
+:root .view-help .about-close { position:static; flex:none; }

@@ -1,4 +1,5 @@
 import { required } from './dom';
+import { closeHelpBackdrop } from './viewHelp';
 import { requestScreenAwake, releaseScreenAwake } from './screenAwake';
 import { updateSoundChrome } from './soundControls';
 import './networkControls.css';
@@ -101,6 +102,9 @@ const followPause = required<HTMLButtonElement>('follow-pause');
 initializeDisplay();
 let uiPreferences: UiPreferences = { ...loadUiPreferences(browserStorage()), basemap: displayPreferences().basemap, theme: displayPreferences().theme, routeOpacity: displayPreferences().opacity };
 mountDisplayControls(required<HTMLElement>('map-appearance-content'));
+const terminalNote = document.createElement('p'); terminalNote.className = 'display-note terminal-basemap-note';
+terminalNote.textContent = 'Terminal uses its own phosphor palette and characters. Map style and interface theme stay saved for the other views.';
+basemapStyle.closest('label')!.after(terminalNote);
 let legendExpanded = uiPreferences.legendExpanded;
 let lastTrafficPulseAt = -Infinity;
 let soundPulseTimer: number | undefined;
@@ -136,7 +140,7 @@ renderRouteLegend(routeLegend);
 aboutButton.addEventListener('click', () => { closeFindPanel(); closeSoundPanel(); setLayersOpen(false); aboutDialog.showModal(); });
 aboutClose.addEventListener('click', () => aboutDialog.close());
 aboutDialog.addEventListener('click', (event) => {
-  if (event.target === aboutDialog) aboutDialog.close();
+  closeHelpBackdrop(aboutDialog, event);
 });
 layersSummary.addEventListener('click', () => {
   const opening = !layersDisclosure.hasAttribute('open');
@@ -747,10 +751,11 @@ function persistUiPreference(update: Partial<UiPreferences>): void {
 function updateLayerChrome(): void {
   const enabled = layersPanel.querySelectorAll('.layer-toggles button[aria-pressed="true"]').length;
   const layerSummary = required<HTMLElement>('layer-summary');
-  const summaryText = `${enabled} layers on`;
+  const summaryText = `${enabled} layers on · ${uiPreferences.routes ? 'Routes on' : 'Routes hidden'} · ${uiPreferences.livePackets ? 'Live packets on' : 'Live packets off'}`;
   if (layerSummary.textContent !== summaryText) layerSummary.textContent = summaryText;
+  layersSummary.title = summaryText;
   const preset = displayPreferences().preset;
-  required<HTMLElement>('appearance-summary').textContent = `${{ dark: 'Night', light: 'Daylight', streets: 'Streets' }[uiPreferences.basemap]} · ${preset[0]!.toUpperCase()}${preset.slice(1)}`;
+  required<HTMLElement>('appearance-summary').textContent = `${document.documentElement.hasAttribute('data-terminal') ? 'Terminal' : { dark: 'Night', light: 'Daylight', streets: 'Streets' }[uiPreferences.basemap]} · ${preset[0]!.toUpperCase()}${preset.slice(1)}`;
   required<HTMLElement>('terrain-summary').textContent = `${uiPreferences.terrain3D ? '3D' : '2D'}${uiPreferences.buildings ? ' · Buildings' : ''}`;
   const zoom = Number(mapElement.dataset.cameraZoom ?? 0);
   const buildingText = !uiPreferences.buildings

@@ -2,18 +2,19 @@ import './display.css';
 import './cinematic.css';
 import { DEFAULT_DISPLAY, DISPLAY_EVENT, ROUTE_PRESETS, displayPreferences, initializeDisplay, updateDisplay, type DisplayPreferences } from './displayPreferences';
 
-export function mountDisplayControls(parent: HTMLElement, sceneControls = false): void {
+export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netgraph' | 'labs' = 'map'): void {
   initializeDisplay();
   const section = document.createElement('section');
   section.className = 'display-settings';
   section.setAttribute('aria-label', 'Shared display settings');
-  section.innerHTML = `${sceneControls ? `<label>Scene<select data-display="basemap" aria-label="Scene style"><option value="dark">Night</option><option value="light">Daylight</option><option value="streets">Paper</option></select></label><label>Interface<select data-display="theme" aria-label="Interface theme"><option value="map">Match scene</option><option value="dark">Dark</option><option value="light">Light</option></select></label>` : ''}
+  section.innerHTML = `${surface === 'netgraph' ? `<label>Scene<select data-display="basemap" aria-label="Scene style"><option value="dark">Night</option><option value="light">Daylight</option><option value="streets">Paper</option></select></label>` : ''}
+    ${surface !== 'map' ? `<label>Interface<select data-display="theme" aria-label="Interface theme"><option value="map">${surface === 'labs' ? 'Match Map theme' : 'Match scene'}</option><option value="dark">Dark</option><option value="light">Light</option></select></label>` : ''}
     <label>Effects<select data-display="effects" aria-label="Effects intensity"><option value="spectacle">Spectacle</option><option value="calm">Calm</option><option value="minimal">Minimal</option></select></label>
-    <label>Detail<select data-display="detail" aria-label="Detail level"><option value="auto">Automatic</option><option value="complete">Complete</option></select></label>
+    ${surface !== 'labs' ? '<label>Detail<select data-display="detail" aria-label="Detail level"><option value="auto">Automatic</option><option value="complete">Complete</option></select></label>' : ''}
     <label>Graphics<select data-display="quality" aria-label="Graphics quality"><option value="auto">Automatic</option><option value="high">High</option><option value="economy">Economy</option></select></label>
     <label>Motion<select data-display="motion" aria-label="Motion preference"><option value="system">Use system setting</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
     <label>Text<select data-display="textSize" aria-label="Text size"><option value="standard">Standard</option><option value="large">Large</option></select></label>
-    <label>Route style<select data-display="preset" aria-label="Route style">${Object.keys(ROUTE_PRESETS).map((id) => `<option value="${id}">${id[0]!.toUpperCase()}${id.slice(1)}</option>`).join('')}<option value="custom">Custom</option></select></label>
+    ${surface !== 'labs' ? `<label>Route style<select data-display="preset" aria-label="Route style">${Object.keys(ROUTE_PRESETS).map((id) => `<option value="${id}">${id[0]!.toUpperCase()}${id.slice(1)}</option>`).join('')}<option value="custom">Custom</option></select></label>
     <div class="route-preview" aria-label="Silent route style preview"><i></i><b></b><span>Preview · silent</span></div>
     <details class="display-advanced"><summary>Advanced route styling</summary>
       <label>Line pattern<select data-display="pattern" aria-label="Line pattern"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
@@ -23,7 +24,8 @@ export function mountDisplayControls(parent: HTMLElement, sceneControls = false)
         ['trailLength', 'Trail length', 0.5, 2, 0.05, '%'], ['residueSeconds', 'After-trails', 0, 45, 1, 's'],
       ] as const).map(([key, label, min, max, step, unit]) => `<label class="display-slider">${label}<output data-output="${key}" data-unit="${unit}"></output><input data-display="${key}" aria-label="${label}" type="range" min="${min}" max="${max}" step="${step}"></label>`).join('')}
       <button class="display-reset" type="button">Reset route styling</button>
-    </details><p class="display-note">Shared with Map and Netgraph in this browser.</p>`;
+    </details>` : '<p id="labs-quality-status" class="display-note" role="status"></p>'}
+    <p class="display-note">${surface === 'labs' ? 'Effects, motion, graphics, text and interface settings are shared. Each experiment keeps its own artistic setting; route styling stays in Map, Netgraph and Terminal.' : 'Shared across Map, Netgraph and Terminal in this browser. Route styling changes appearance, not connections or packet timing.'}</p>`;
   const oldOpacity = parent.querySelector<HTMLInputElement>('#route-opacity');
   const oldOpacityLabel = oldOpacity?.closest('label');
   const duplicateOpacity = section.querySelector('[data-display="opacity"]')?.closest('label');
@@ -59,7 +61,7 @@ export function mountDisplayControls(parent: HTMLElement, sceneControls = false)
       if (input.value !== 'custom') updateDisplay({ preset: input.value as DisplayPreferences['preset'], ...ROUTE_PRESETS[input.value as keyof typeof ROUTE_PRESETS] });
     } else updateDisplay({ [key]: input.value, ...(key === 'pattern' ? { preset: 'custom' as const } : {}) });
   });
-  section.querySelector('.display-reset')!.addEventListener('click', () => updateDisplay({ preset: DEFAULT_DISPLAY.preset, ...ROUTE_PRESETS.crisp }));
+  section.querySelector('.display-reset')?.addEventListener('click', () => updateDisplay({ preset: DEFAULT_DISPLAY.preset, ...ROUTE_PRESETS.crisp }));
   window.addEventListener(DISPLAY_EVENT, sync);
   sync();
 }
@@ -80,6 +82,6 @@ export function mountNetgraphDisplay(onOpen: () => void = () => {}): () => void 
     if (event.key !== 'Escape' || panel.hidden) return;
     event.preventDefault(); event.stopImmediatePropagation(); close(true);
   });
-  mountDisplayControls(panel, true);
+  mountDisplayControls(panel, 'netgraph');
   return () => close();
 }

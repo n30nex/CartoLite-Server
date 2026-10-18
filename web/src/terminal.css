@@ -1,11 +1,12 @@
-:root[data-terminal] {
+:root[data-terminal][data-theme] {
   --panel-solid: #050b10; --panel-border: #527885; --ink-strong: #e9e9bf;
   --ink: #d5e6df; --muted: #a5bdbb; --field-bg: #08121a; --selected: #193c3e;
   --focus-ring: #79f8c4; --terminal-accent: #79f8c4; color-scheme: dark;
   font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
 }
-:root[data-terminal-palette="amber"] { --terminal-accent: #ffd18a; }
-:root[data-terminal-palette="green"] { --terminal-accent: #8dffb0; }
+:root[data-terminal][data-terminal-palette="amber"] { --terminal-accent: #ffd18a; }
+:root[data-terminal][data-terminal-palette="green"] { --terminal-accent: #8dffb0; }
+[data-terminal] .route-preview { background:#000; color:var(--terminal-accent); }
 [data-terminal] body, [data-terminal] #map { background: #000; }
 [data-terminal] .glass, [data-terminal] dialog { border-radius: 2px; background: #050b10; border-color: #527885; box-shadow: none; backdrop-filter: none; color: #d5e6df; }
 [data-terminal] button, [data-terminal] select, [data-terminal] input { font-family: inherit; }
