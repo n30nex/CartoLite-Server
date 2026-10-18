@@ -306,6 +306,7 @@ export class LiveMap {
     this.map.on('zoom', this.#updateRouteRepresentation);
     this.map.on('zoomend', this.#handleZoomEnd);
     this.map.on('resize', this.#handleInspectorResize);
+    this.map.getCanvas().addEventListener('webglcontextlost', this.#prepareWebGLContextLoss, true);
     this.map.on('webglcontextlost', this.#handleWebGLContextLost);
     this.map.on('webglcontextrestored', this.#handleWebGLContextRestored);
     document.addEventListener('keydown', this.#handleKeyDown);
@@ -943,6 +944,7 @@ export class LiveMap {
     this.map.off('zoom', this.#updateRouteRepresentation);
     this.map.off('zoomend', this.#handleZoomEnd);
     this.map.off('resize', this.#handleInspectorResize);
+    this.map.getCanvas().removeEventListener('webglcontextlost', this.#prepareWebGLContextLoss, true);
     this.map.off('webglcontextlost', this.#handleWebGLContextLost);
     this.map.off('webglcontextrestored', this.#handleWebGLContextRestored);
     this.map.remove();
@@ -1829,6 +1831,13 @@ export class LiveMap {
     if (this.#selectedNodeID) this.#renderNodeInspector(true);
   };
 
+  #prepareWebGLContextLoss = (): void => {
+    // Release terrain's tile textures into the OLD painter before MapLibre
+    // replaces it. Otherwise its terrain teardown recycles invalid GPU handles
+    // into the restored painter. Keep our 3D preference and camera unchanged.
+    if (this.map.getTerrain()) this.map.setTerrain(null);
+  };
+
   #handleWebGLContextLost = (): void => {
     // MapLibre discards its stylesheet during context loss. Resize/data events
     // can run before the replacement stylesheet exists; retain state, not writes.
@@ -1863,6 +1872,10 @@ export class LiveMap {
       const before = this.map.getLayer(ROUTE_FOCUS_LAYER_IDS[0]) ? ROUTE_FOCUS_LAYER_IDS[0] : undefined;
       this.map.addLayer(layer, before);
       this.setAppearance(this.#appearance,true);
+      if (this.#terrain3D) {
+        this.#ensureTerrainLayers();
+        this.map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: this.#appearance.terrainExaggeration });
+      }
       this.render(this.#lastState,{reset:true},true);
       this.showFollowPacket(this.#followedPacket);
       this.container.dataset.graphicsRecovering='false';

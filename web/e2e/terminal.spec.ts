@@ -361,6 +361,7 @@ test('Terminal cel-shaded 3D retains its profile and routes through graphics-con
   await terminalMapIdle(page);
   const after=await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
   await info.attach('graphics-recovery-warnings',{body:JSON.stringify(warnings),contentType:'application/json'});
+  expect(warnings.filter(message=>message.includes('INVALID_OPERATION'))).toEqual([]);
   const difference=await page.evaluate(async images=>{
     const samples:Uint8ClampedArray[]=[];
     for(const image of images){
