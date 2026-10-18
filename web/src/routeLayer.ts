@@ -67,7 +67,6 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     map.on('terrain', this.#terrainChanged);
     map.on('sourcedata', this.#sourceChanged);
     this.#dirty = true;
-    map.setLayoutProperty(this.id,'visibility',this.#visible?'visible':'none');
   }
   onRemove(map: MapLibreMap, gl: GL): void {
     map.off('move', this.#cameraChanged);
@@ -131,9 +130,8 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
     if (this.#visible === visible) return;
     this.#visible = visible;
     if (!visible) this.#cancelBuild();
-    // Keep MapLibre's scene visibility in sync with the draw guard. A custom
-    // layer returning early alone can leave Safari's previous composited frame.
-    if(this.#map?.getLayer(this.id))this.#map.setLayoutProperty(this.id,'visibility',visible?'visible':'none');
+    // Keep this custom layer's slot stable: native visibility changes rebuild
+    // terrain's render-to-texture stacks. The draw guard hides the strokes.
     // Complete the compositor handoff even when the scene becomes entirely
     // still. This is one final frame per toggle, not a permanent repaint loop.
     this.#map?.off('render',this.#settleVisibility);

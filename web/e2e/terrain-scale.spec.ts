@@ -5,7 +5,7 @@ import type { NodeV2, RouteV2, StateV2 } from '../src/types';
 
 test.use({ trace: 'off', screenshot: 'off' });
 
-test('keeps close 3D inspection responsive with 7000 retained routes', async ({ page }, info) => {
+test('@terrain keeps close 3D inspection responsive with 7000 retained routes', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop terrain scale gate');
   await visualFixture(page, 15);
   const now = Date.now();
@@ -43,7 +43,7 @@ test('keeps close 3D inspection responsive with 7000 retained routes', async ({ 
   await page.screenshot({ path: info.outputPath('terrain-scale-close.png') });
 });
 
-test('keeps controls responsive while preparing a dense 7000-route terrain mesh', async ({ page }, info) => {
+test('@terrain keeps controls responsive while preparing a dense 7000-route terrain mesh', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop dense terrain gate');
   await visualFixture(page, 13);
   const now = Date.now();
