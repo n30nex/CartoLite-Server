@@ -198,7 +198,7 @@ test('Terminal presets keep real routes above every drawing mode and load the se
   test.slow();await visualFixture(page,10.2,true);await page.goto('/terminal/');
   await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
-  let sequence=100;
+  let sequence=0;
   for(const [preset,mode,font] of [['ansi','0','mono'],['amber','0','mono'],['green','0','mono'],['cga','2','pixel'],['ega','1','vt323'],['cell','3','mono']]) {
     await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption(preset!);
     await page.keyboard.press('Escape');
@@ -314,7 +314,7 @@ test('Terminal custom traffic ink stays visible over geography without restartin
     await page.screenshot({path:info.outputPath('hidden-route-after-two-frames.png')});
     throw error;
   }
-  await visualPacket(page,901,'Text');
+  await visualPacket(page,1,'Text');
   const continuity=await page.evaluate(()=>{
     const {view,animator}=(window as unknown as {terminalHarness:{view:LiveMap;animator:{activeRoutes:{started:number;duration:number}[]}}}).terminalHarness;
     const before=animator.activeRoutes.map(route=>[route.started,route.duration]);const camera=[view.map.getCenter().toArray(),view.map.getZoom(),view.map.getPitch()];
@@ -351,7 +351,7 @@ test('Terminal cel-shaded 3D retains its profile and routes through graphics-con
     const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
     const ids=view.map.getLayersOrder();return ids.indexOf('terminal-graphics')<ids.indexOf('route-exact-webgl');
   })).toBe(true);
-  await visualPacket(page,1200,'Trace');await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count','1');
+  await visualPacket(page,1,'Trace');await expect(page.locator('#packet-canvas')).toHaveAttribute('data-active-count','1');
   await page.screenshot({path:info.outputPath('terminal-3d-restored.png')});
 });
 

@@ -54,9 +54,9 @@ ${INK}
 void main(){
  if(mode==3){
   vec2 uv=gl_FragCoord.xy/viewport;int k=ink(texture(terminal_scene,uv).rgb);
-  float edge=0.;vec2 stepSize=vec2(1.5)/viewport;
-  for(int i=0;i<4;i++) {vec2 p=uv+vec2(i<2?(i==0?stepSize.x:-stepSize.x):0.,i>1?(i==2?stepSize.y:-stepSize.y):0.);if(ink(texture(terminal_scene,clamp(p,vec2(0),vec2(1))).rgb)!=k)edge=1.;}
-  result=vec4(mix(colors[0],colors[k]*brightness,1.-edge*.4),1);return;
+  float edge=0.,shore=0.;vec2 stepSize=vec2(1.5)/viewport;
+  for(int i=0;i<4;i++) {vec2 p=uv+vec2(i<2?(i==0?stepSize.x:-stepSize.x):0.,i>1?(i==2?stepSize.y:-stepSize.y):0.);int next=ink(texture(terminal_scene,clamp(p,vec2(0),vec2(1))).rgb);if(next!=k)edge=1.;if(k!=1&&next==1)shore=1.;}
+  result=vec4(mix(mix(colors[0],colors[k]*brightness,1.-edge*.4),colors[11]*brightness,shore),1);return;
  }
  vec2 p=gl_FragCoord.xy/viewport*grid;
  vec3 cell=floor(texture(cells,(floor(p)+.5)/grid).rgb*255.+.5);

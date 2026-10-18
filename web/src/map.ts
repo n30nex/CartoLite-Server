@@ -1823,7 +1823,8 @@ export class LiveMap {
   #handleWebGLContextRestored = (): void => {
     const restore = (): void => {
       if (!this.#layersReady) return;
-      if (!this.map.isStyleLoaded()) {
+      // Terrain tile reloads do not emit a new style.load event.
+      if (!this.map.getLayer(ROUTE_FOCUS_LAYER_IDS[0])) {
         this.map.once('style.load', restore);
         return;
       }

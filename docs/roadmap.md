@@ -114,3 +114,11 @@ buildings on; clusters/regions/Topo/3D off; 15-minute routes, 15% Topo shading;
 BBS/ANSI fine Braille, Spectacle, Complete, High, system motion, standard text
 and Neon routes. Terminal layer/display settings now use separate storage from
 Map/Netgraph, while existing Terminal custom profiles and sound choices persist.
+
+## Supplemental visual audit
+
+The owner-supplied 15-page visual audit adds A01–A15, separate from this audit's
+UI identifiers. [The follow-up](visual-audit-followup-2026-10-18.md) prioritizes a
+measured selected-node/inspector layout and complete duration labels after the
+Terminal package, then scope handoff, overview/selection clarity and control copy.
+These findings remain planned until reproduced and verified on current code.

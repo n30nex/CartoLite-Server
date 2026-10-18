@@ -1,7 +1,7 @@
 import type { LiveMap } from './map';
 import type { PacketAnimator } from './packetAnimator';
 import { browserStorage } from './browserStorage';
-import { applyDisplayChrome, DISPLAY_EVENT, effectStrength, prefersReducedMotion, setDisplayColors } from './displayPreferences';
+import { applyDisplayChrome, displayPreferences, DISPLAY_EVENT, effectStrength, prefersReducedMotion, setDisplayColors } from './displayPreferences';
 import { terminalGraphics } from './terminalGraphics';
 import { characterCells } from './terminalGrid';
 import { loadTerminal, TERMINAL_FONTS, TERMINAL_KEY, TERMINAL_LEGACY_KEY, shade } from './terminalProfile';
@@ -37,7 +37,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   const sample = document.createElement('canvas');
   const read = sample.getContext('2d', { willReadFrequently: true })!;
   const status = document.createElement('div'); status.id = 'terminal-status';
-  status.innerHTML = '<strong>CARTOLITE BBS</strong><span class="terminal-coordinates"></span><span class="terminal-help">Drag to pan · Scroll to zoom · Find to inspect</span>';
+  status.innerHTML = '<strong>CARTOLITE BBS</strong><span class="terminal-coordinates"></span><span class="terminal-scope"></span><span class="terminal-help">Drag to pan · Scroll to zoom · Find to inspect</span>';
   host.after(status);
   const notice = document.createElement('div'); notice.className = 'terminal-notice glass'; notice.hidden = true;
   notice.innerHTML = '<span>Terminal graphics paused. The map and live traffic are still available.</span><button type="button">Retry Terminal</button>';
@@ -152,7 +152,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   }
 
   function labels() {
-    const { width, height } = dimensions(), size = preferences.fontSize;
+    const { width, height } = dimensions(), size = preferences.fontSize * (displayPreferences().textSize==='large'?1.25:1);
     context.font = font(size);
     const cw = context.measureText('M').width, ch = size * 1.25;
     const occupied = new Set<string>();
@@ -188,7 +188,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         const c=preferences.colours;
         context.fillStyle = node ? (p.id===selected?c.selection:p.role==='companion'?c.companion:p.role==='room_server'?c.room:p.role==='repeater'?c.repeater:c.sensor) : cluster?c.repeater:nodeLabel?c.labels:shade(c.places,preferences.labelBrightness);
         context.shadowColor=String(context.fillStyle); context.shadowBlur=node || cluster ? 3*effectStrength() : 0;
-        context.globalAlpha=1;
+        context.globalAlpha=node && p.id!==selected && typeof p.opacity==='number' ? Math.max(.65,Math.min(1,p.opacity)) : 1;
         context.fillText(text,x,y); context.shadowBlur=0; context.globalAlpha=1; drawn++; break;
       }
     }
@@ -217,6 +217,10 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       canvas.dataset.workMs = String(Math.round(performance.now() - started));
       const center = map.getCenter();
       status.querySelector('.terminal-coordinates')!.textContent = `${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}  Z:${map.getZoom().toFixed(1)}`;
+      const routes=document.querySelector('#routes-button')?.getAttribute('aria-pressed')==='true';
+      const live=document.querySelector('#live-packets-button')?.getAttribute('aria-pressed')==='true';
+      const window=document.querySelector<HTMLSelectElement>('#route-window')?.selectedOptions[0]?.textContent??'';
+      status.querySelector('.terminal-scope')!.textContent=routes?`Links ${window}${live?'':' · live off'}`:live?'Live only':'Traffic hidden';
     } catch { fail(); }
   }
   function schedule() {
@@ -245,8 +249,11 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       } else if (['nodes','nodes-glow','node-core'].includes(layer.id)) {
         setPaint(layer.id,'circle-opacity',0);
         if(layer.id==='nodes')setPaint(layer.id,'circle-stroke-opacity',0);
-      } else if(layer.id==='building-footprints')setPaint(layer.id,'fill-color','#ffd15a');
-      else if(layer.id==='building-extrusions')setPaint(layer.id,'fill-extrusion-color','#ffd15a');
+      } else if(layer.id==='building-footprints') {
+        setPaint(layer.id,'fill-color','#ffd15a');setPaint(layer.id,'fill-opacity',1);
+      } else if(layer.id==='building-extrusions') {
+        setPaint(layer.id,'fill-extrusion-color','#ffd15a');setPaint(layer.id,'fill-extrusion-opacity',1);
+      }
       else if(layer.id==='terrain-hillshade') {
         setPaint(layer.id,'hillshade-shadow-color','#030609');setPaint(layer.id,'hillshade-highlight-color','#72b89b');
       } else if (layer.id.startsWith('basemap-')) {
@@ -270,7 +277,8 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   const ensureStyle = () => {
     if (map.getLayer('basemap-water') && (map.getPaintProperty('basemap-water','fill-color') !== '#08145a'
       || (map.getLayer('node-labels') && map.getPaintProperty('node-labels','text-opacity') !== 0)
-      || (map.getLayer('nodes') && map.getPaintProperty('nodes','circle-opacity') !== 0))) style();
+      || (map.getLayer('nodes') && map.getPaintProperty('nodes','circle-opacity') !== 0)
+      || (map.getLayer('building-footprints') && map.getPaintProperty('building-footprints','fill-color') !== '#ffd15a'))) style();
   };
   const restored = () => {
     failed = false; root.dataset.terminal = 'true'; delete root.dataset.terminalFallback; notice.hidden = true;
