@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import { openViewMenu } from './dockControls';
+import type { LiveMap } from '../src/map';
 
 test('Terminal gives live packets a bounded glow while keeping labels and quiet modes clear', async ({page},info) => {
   test.slow();
@@ -184,7 +185,7 @@ test('unavailable Terminal graphics falls back without stopping the feed', async
 
 test('Map and Netgraph never download the optional Terminal renderer', async ({page}) => {
   const terminalAssets: string[] = [];
-  page.on('request', request => { if (/\/terminal-[^/]+\.(?:js|css)(?:\?|$)/.test(request.url())) terminalAssets.push(request.url()); });
+  page.on('request', request => { if (/\/terminal-[^/]+\.(?:js|css)(?:\?|$)|\/fonts\/terminal\//.test(request.url())) terminalAssets.push(request.url()); });
   await visualFixture(page);
   for (const path of ['/', '/netgraph/']) {
     await page.goto(path);
@@ -192,6 +193,108 @@ test('Map and Netgraph never download the optional Terminal renderer', async ({p
   }
   expect(terminalAssets).toEqual([]);
 });
+
+test('Terminal presets keep real routes above every drawing mode and load the selected fonts',async({page},info)=>{
+  test.slow();await visualFixture(page,10.2,true);await page.goto('/terminal/');
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+  let sequence=100;
+  for(const [preset,mode,font] of [['ansi','0','mono'],['amber','0','mono'],['green','0','mono'],['cga','2','pixel'],['ega','1','vt323'],['cell','3','mono']]) {
+    await openMapOptions(page);await page.getByLabel('Terminal palette').selectOption(preset!);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#map')).toHaveAttribute('data-terminal-drawing',mode!);
+    await expect(page.locator('html')).toHaveAttribute('data-terminal-font',font!);
+    await expect(page.locator('#map')).toHaveAttribute('data-eligible-routes','1');
+    await expect(page.locator('.terminal-notice')).toBeHidden();
+    await expect.poll(()=>page.evaluate(()=>document.fonts.status)).toBe('loaded');
+    if(font==='pixel')expect(await page.evaluate(()=>document.fonts.check('16px Silkscreen'))).toBe(true);
+    if(font==='vt323')expect(await page.evaluate(()=>document.fonts.check('16px VT323'))).toBe(true);
+    await visualPacket(page,++sequence, 'Text');
+    await page.screenshot({path:info.outputPath(`preset-${preset}.png`)});
+  }
+  expect(errors).toEqual([]);
+});
+
+test('Terminal colour and typography editor preserves other views, survives refresh and synchronizes tabs',async({page,context},info)=>{
+  test.slow();await visualFixture(page,10.2,true);
+  await page.addInitScript(()=>{
+    if(!localStorage.getItem('cartolite-terminal-v2'))localStorage.setItem('cartolite-terminal-v1',JSON.stringify({palette:'amber',glyphs:'ascii',size:16}));
+  });
+  await page.goto('/terminal/?node=visual-a');
+  await expect(page.locator('#map')).toHaveAttribute('data-selected-node-id','visual-a');
+  await expect(page.locator('html')).toHaveAttribute('data-terminal-palette','amber');
+  await page.keyboard.press('Escape');
+  const saved=await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([key])=>!key.startsWith('cartolite-terminal')&&!key.includes(':view:'))));
+  await openMapOptions(page);
+  await page.getByText('Typography',{exact:true}).click();
+  await expect(page.getByLabel('Terminal map font size')).toHaveValue('16');
+  await page.getByLabel('Terminal map font').selectOption('vt323');
+  await page.getByLabel('Terminal interface font').selectOption('pixel');
+  await page.getByLabel('Terminal map font size').fill('18');
+  await page.getByLabel('Terminal interface scale').fill('1.35');
+  await page.getByText('Element colours',{exact:true}).click();
+  await page.getByLabel('Terminal colour element').selectOption('water');
+  await page.getByLabel('Terminal hue',{exact:true}).focus();await page.keyboard.press('ArrowRight');
+  await page.getByLabel('Terminal colour hex').fill('#403a77');
+  await page.getByLabel('Terminal colour element').selectOption('ink');
+  await page.getByLabel('Terminal colour hex').fill('#050b10');
+  // Even a deliberately invisible custom UI must leave the recovery editor legible.
+  expect(await page.locator('.terminal-settings').evaluate(el=>getComputedStyle(el).color)).toBe('rgb(213, 230, 223)');
+  await page.screenshot({path:info.outputPath('terminal-editor.png')});
+  const panel=(await page.locator('#layers-panel').boundingBox())!;
+  expect(panel.x).toBeGreaterThanOrEqual(0);expect(panel.x+panel.width).toBeLessThanOrEqual(page.viewportSize()!.width+1);
+  expect(await page.locator('.terminal-settings').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  await page.keyboard.press('Escape');await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-terminal-font','vt323');
+  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--terminal-water').trim())).toBe('#403a77');
+  expect(await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([key])=>!key.startsWith('cartolite-terminal')&&!key.includes(':view:'))))).toEqual(saved);
+  const other=await context.newPage();await visualFixture(other,10.2,true);await other.goto('/terminal/');
+  await expect(other.locator('html')).toHaveAttribute('data-terminal-font','vt323');
+  await openMapOptions(page);await page.getByRole('button',{name:'Reset Terminal display',exact:true}).click();
+  await expect(other.locator('html')).toHaveAttribute('data-terminal-palette','ansi');
+  await expect(other.locator('html')).toHaveAttribute('data-terminal-font','mono');
+  await other.close();
+});
+
+test('Terminal custom traffic ink stays visible over geography without restarting packets or camera',async({page},info)=>{
+  test.slow();await visualFixture(page,10.2,true);
+  await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>Object.assign(window,{terminalHarness:(event as CustomEvent).detail}),{once:true}));
+  await page.goto('/terminal/');await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  await openMapOptions(page);await page.getByText('Element colours',{exact:true}).click();
+  await page.getByLabel('Terminal colour element').selectOption('text');await page.getByLabel('Terminal colour hex').fill('#67ff23');
+  await page.getByLabel('Terminal colour element').selectOption('water');await page.getByLabel('Terminal colour hex').fill('#5b183a');
+  await page.keyboard.press('Escape');
+  await expect.poll(()=>greenRoutePixels(page)).toBeGreaterThan(20);
+  const order=await page.evaluate(()=>{
+    const {view}=(window as unknown as {terminalHarness:{view:LiveMap}}).terminalHarness;
+    const ids=view.map.getLayersOrder();return [ids.indexOf('terminal-graphics'),ids.indexOf('route-exact-webgl')];
+  });expect(order[0]).toBeLessThan(order[1]!);
+  await page.screenshot({path:info.outputPath('terminal-custom-ink.png')});
+  await openMapOptions(page);await page.locator('#routes-button').click();await page.keyboard.press('Escape');
+  await expect.poll(()=>greenRoutePixels(page)).toBeLessThan(10);
+  await visualPacket(page,901,'Text');
+  const continuity=await page.evaluate(()=>{
+    const {view,animator}=(window as unknown as {terminalHarness:{view:LiveMap;animator:{activeRoutes:{started:number;duration:number}[]}}}).terminalHarness;
+    const before=animator.activeRoutes.map(route=>[route.started,route.duration]);const camera=[view.map.getCenter().toArray(),view.map.getZoom(),view.map.getPitch()];
+    const input=document.querySelector<HTMLInputElement>('[data-terminal="mapBrightness"]')!;
+    input.value='.3';input.dispatchEvent(new Event('input',{bubbles:true}));
+    return {before,after:animator.activeRoutes.map(route=>[route.started,route.duration]),camera,afterCamera:[view.map.getCenter().toArray(),view.map.getZoom(),view.map.getPitch()]};
+  });
+  expect(continuity.before.length).toBe(1);expect(continuity.after).toEqual(continuity.before);expect(continuity.afterCamera).toEqual(continuity.camera);
+  await expect.poll(async()=>Number(await page.locator('#terminal-packets').getAttribute('data-cells'))).toBeGreaterThan(0);
+  await page.screenshot({path:info.outputPath('terminal-custom-live.png')});
+});
+
+async function greenRoutePixels(page: Page):Promise<number> {
+  const png=await page.screenshot();
+  return page.evaluate(async base64=>{
+    const image=new Image();image.src='data:image/png;base64,'+base64;await image.decode();
+    const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
+    const ctx=canvas.getContext('2d')!;ctx.drawImage(image,0,0);
+    const pixels=ctx.getImageData(0,Math.floor(image.height*.2),image.width,Math.floor(image.height*.6)).data;
+    let count=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]!<140&&pixels[i+1]!>140&&pixels[i+2]!<100)count++;return count;
+  },png.toString('base64'));
+}
 
 // Inspect actual pixels, not a renderer's own readiness flag. Only the ANSI
 // character water has this bright blue in the synthetic scene's centre.

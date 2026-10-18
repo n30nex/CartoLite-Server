@@ -1,12 +1,12 @@
 # CartoLite delivery roadmap
 
-Updated 17 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
+Updated 18 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
 The [older roadmap](roadmap-archive-2026-09.md) is preserved as a dated record;
 its Planned labels and build-size caps are not current instructions.
 
 ## Previously verified release baseline
 
-Canada **0.17.3**, Worldwide **0.8.4**, Canada Android **1.1.2**. Already shipped:
+Canada **0.17.4**, Worldwide **0.8.5**, Canada Android **1.1.2**. Already shipped:
 shared appearance and six route presets; cinematic effects and quality/motion
 controls; optional Map and Netgraph 3D; buildings/topography; scoped ten-second
 Follow; region layout/dragging/filtering and live-only routes; compact phone
@@ -23,8 +23,8 @@ It must be reviewed against current main before integration, preserving the new 
 | Phase | Status | Deliverable | Exit condition |
 | --- | --- | --- | --- |
 | 1. Everyday navigation and recovery | Delivered | UI01–UI06/UI15: live search refresh, dialog Back/Escape, quiet dismissible map notices, actionable empty Netgraph, reachable Follow actions, stable Labs feedback and this reconciled roadmap. Released in Canada 0.17.3 / Worldwide 0.8.4. | Baseline reproduction; focused tests pass without weakening assertions; full Actions gates; reviewed paired PRs; exact images, qualified Canada deployment and Worldwide installs. |
-| 2. Controls, discovery and explanations | Implemented; [delivery status](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.8.5) | UI07/UI08: relevant per-view controls (including a true High-quality override in Labs), consistent visible help, clearer active filters and route/live/observer-only explanations. Silent voice browsing and reliable immediate mute. | Keyboard/Back/focus, 320px/short landscape, enlarged text, sound opt-in and no duplicate feed/layout reset. |
-| 3. Animation and visual clarity | Planned | UI09/UI10: semantic Terminal network ink, dense-label priority, purposeful live emphasis, consistent ground/perspective behavior and measured sustained quality. Review each Labs scene independently. | Fixed-time synthetic GPU/Canvas/audio comparisons; all themes/presets; terrain/buildings/date-line/context loss; unchanged 4k-node/7k-route and responsiveness gates. |
+| 2. Controls, discovery and explanations | Delivered; [delivery status](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.8.5) | UI07/UI08: relevant per-view controls (including a true High-quality override in Labs), consistent visible help, clearer active filters and route/live/observer-only explanations. Silent voice browsing and reliable immediate mute. | Keyboard/Back/focus, 320px/short landscape, enlarged text, sound opt-in and no duplicate feed/layout reset. |
+| 3. Animation and visual clarity | Active: Terminal customization | UI09/UI10: semantic Terminal network ink, dense-label priority, purposeful live emphasis, consistent ground/perspective behavior and measured sustained quality. Review each Labs scene independently. | Fixed-time synthetic GPU/Canvas/audio comparisons; all themes/presets; terrain/buildings/date-line/context loss; unchanged 4k-node/7k-route and responsiveness gates. |
 | 4. Recovery and release hardening | Planned integration | UI11/UI12: reconcile the separate retained/freshness/clock/region-loading work; clear development-tool advisories through existing dependency PRs; extend browser/accessibility coverage. | Conservative topology/privacy; real reconnect/failure scenarios; exact native images and checkpoint-preserving anonymous installs. No unrelated branch resets or local builds. |
 | 5. Optional additions | Planned | UI13/UI14: named local views, public-only share links, bounded role/recent/in-view Find filters, EN/FR Canada chrome and worldwide locale/units. Approved extra tile providers remain a separate configuration decision. | Demonstrate a useful task, reversible saved settings and explicit data/coverage limitations before broadening the UI. |
 
@@ -86,3 +86,25 @@ The new Find filters remain an optional addition; existing Find recovery is reta
 The linked release record carries final validation and delivery status. This
 versioned roadmap records the source implementation; publication alone is not
 proof of a healthy deployment. The release notes distinguish these stages.
+
+## Next package: Terminal customization
+
+Target Canada 0.18.0 / Worldwide 0.9.0. Add a compact Terminal options editor
+inside Display with BBS, Amber, Green, CGA, EGA and Cel-shaded presets. Provide
+separate semantic colours for geography, traffic, nodes, labels and interface,
+colour-picker/hex/HSL sliders, independent map brightness, live glow and typography.
+Keep a readable reset/editor surface even for low-contrast custom palettes.
+
+Convert geography before drawing the existing network layers. Preserve solid
+route cores, source topology, hit geometry and packet/audio timing. Offer Braille,
+ASCII, pixel blocks or flat cel-shaded geography, and character or smooth packets.
+Keep bounded sampling, quality/reduced-motion behavior, fallback and context recovery.
+Fonts are bundled locally with their licences and only loaded by Terminal.
+
+Migrate legacy phosphor/glyph/grid preferences; save the new profile separately
+and synchronize Terminal tabs. Existing Map/Netgraph styles, layers and sound remain.
+Actions must cover all presets, arbitrary colour separation, mobile bounds, font
+loading, keyboard input, migration/reset, cross-tab behavior, unchanged live timing,
+context recovery and the existing scale/privacy/installation gates. Exact-image
+release and Canada qualification follow passing paired reviews. The remaining
+phase 3 Labs/dense-label/terrain audit and phases 4-5 remain planned.

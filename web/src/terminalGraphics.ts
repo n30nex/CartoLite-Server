@@ -3,11 +3,7 @@ import type { CustomLayerInterface, Map as LibreMap } from 'maplibre-gl';
 const VERTEX = `#version 300 es
 void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2.-1.,0,1);}`;
 // One pixel per character in the first pass; screen pixels only sample the font.
-const CELLS = `#version 300 es
-precision highp float;precision highp int;
-uniform sampler2D terminal_scene;uniform vec2 grid;uniform int ascii;
-out vec4 result;
-int ink(vec3 c){
+const INK = `int ink(vec3 c){
  if(max(c.r,max(c.g,c.b))<26./255.)return 0;
  if(c.b>c.r*1.8&&c.b>c.g*1.6)return 1;
  if(max(c.r,max(c.g,c.b))<100./255.&&c.g>c.r*1.5&&c.g>c.b*1.2)return 9;
@@ -19,7 +15,12 @@ int ink(vec3 c){
  if(c.g>c.r*1.2&&c.g>c.b*.9)return 4;
  if(c.b>c.r*1.1&&c.r>c.g*.9)return 8;
  if(c.b>c.r*1.1)return 7;return 2;
-}
+}`;
+const CELLS = `#version 300 es
+precision highp float;precision highp int;
+uniform sampler2D terminal_scene;uniform vec2 grid;uniform int ascii;
+out vec4 result;
+${INK}
 int at(vec2 p){return ink(texture(terminal_scene,clamp(p,vec2(0),vec2(1))).rgb);}
 int rank(int k){return k==0?-1:k==1||k==9||k==10?0:k==3?1:k==11?2:3;}
 void main(){
@@ -47,21 +48,31 @@ void main(){
 }`;
 const GLYPHS = `#version 300 es
 precision highp float;precision highp int;
-uniform sampler2D cells;uniform sampler2D glyphs;uniform vec2 grid;uniform vec2 viewport;uniform vec3 colors[12];
+uniform sampler2D cells;uniform sampler2D glyphs;uniform sampler2D terminal_scene;uniform vec2 grid;uniform vec2 viewport;uniform vec3 colors[12];uniform int mode;uniform float brightness;
 out vec4 result;
+${INK}
 void main(){
+ if(mode==3){
+  vec2 uv=gl_FragCoord.xy/viewport;int k=ink(texture(terminal_scene,uv).rgb);
+  float edge=0.;vec2 stepSize=vec2(1.5)/viewport;
+  for(int i=0;i<4;i++) {vec2 p=uv+vec2(i<2?(i==0?stepSize.x:-stepSize.x):0.,i>1?(i==2?stepSize.y:-stepSize.y):0.);if(ink(texture(terminal_scene,clamp(p,vec2(0),vec2(1))).rgb)!=k)edge=1.;}
+  result=vec4(mix(colors[0],colors[k]*brightness,1.-edge*.4),1);return;
+ }
  vec2 p=gl_FragCoord.xy/viewport*grid;
  vec3 cell=floor(texture(cells,(floor(p)+.5)/grid).rgb*255.+.5);
  vec2 local=clamp(vec2(fract(p.x),1.-fract(p.y)),vec2(.5/24.,.5/40.),vec2(1.-.5/24.,1.-.5/40.));
  vec2 uv=(cell.xy+local)/vec2(16,17);
- result=vec4(colors[int(cell.z)]*texture(glyphs,uv).a,1);
+ float coverage=texture(glyphs,uv).a;
+ if(mode==2){int bits[8]=int[8](1,8,2,16,4,32,64,128);int x=int(local.x*2.);int y=int(local.y*4.);coverage=(int(cell.x+cell.y*16.)&bits[y*2+x])!=0?1.:0.;}
+ result=vec4(mix(colors[0],colors[int(cell.z)]*brightness,coverage),1);
 }`;
 
-export function terminalGraphics(map: LibreMap, config: () => { columns: number; rows: number; ascii: boolean; colors: string[] }, frame: () => void, failure: () => void, enabled: () => boolean) {
+export function terminalGraphics(map: LibreMap, config: () => { columns: number; rows: number; mode: number; colors: string[]; brightness: number; font: string }, frame: () => void, failure: () => void, enabled: () => boolean) {
   let gl: WebGL2RenderingContext | undefined, programs: WebGLProgram[] = [], textures: WebGLTexture[] = [], shaders: WebGLShader[] = [];
   let framebuffer: WebGLFramebuffer | null = null, vao: WebGLVertexArrayObject | null = null;
   let locations: Record<string, WebGLUniformLocation | null>[] = [], width = 0, height = 0, columns = 0, rows = 0, disposed = false, lastLabels = 0;
   const metrics = map.getContainer().dataset;
+  let atlasFont = '';
   function release() {
     if (gl) {
       for (const p of programs) gl.deleteProgram(p);
@@ -70,7 +81,7 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
       gl.deleteFramebuffer(framebuffer); gl.deleteVertexArray(vao);
     }
     programs = []; textures = []; shaders = []; locations = []; framebuffer = vao = null;
-    width = height = columns = rows = 0;
+    width = height = columns = rows = 0; atlasFont='';
   }
   function initialize(g: WebGL2RenderingContext) {
     for (const fragment of [CELLS, GLYPHS]) {
@@ -82,7 +93,7 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
         g.attachShader(p, s);
       }
       g.linkProgram(p); if (!g.getProgramParameter(p, g.LINK_STATUS)) throw new Error('Terminal program unavailable');
-      locations.push(Object.fromEntries(['terminal_scene','grid','ascii','cells','glyphs','viewport','colors[0]'].map(name => [name,g.getUniformLocation(p,name)])));
+      locations.push(Object.fromEntries(['terminal_scene','grid','ascii','cells','glyphs','viewport','colors[0]','mode','brightness'].map(name => [name,g.getUniformLocation(p,name)])));
     }
     for (const s of shaders) g.deleteShader(s); shaders = [];
     framebuffer = g.createFramebuffer(); vao = g.createVertexArray();
@@ -93,14 +104,19 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.NEAREST); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, g.NEAREST);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE); g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
     }
+  }
+  function updateFont(g: WebGL2RenderingContext, font: string) {
+    if(atlasFont===font)return;
     const atlas = document.createElement('canvas'); atlas.width = 384; atlas.height = 680;
     const ctx = atlas.getContext('2d'); if (!ctx) throw new Error('Terminal font unavailable');
-    ctx.font = '32px ui-monospace, "DejaVu Sans Mono", monospace'; ctx.textBaseline = 'top'; ctx.fillStyle = '#fff';
+    ctx.font = font; ctx.textBaseline = 'top'; ctx.fillStyle = '#fff'; ctx.textAlign='center';
     for (let i = 1; i < 256; i++) for (let dot=0;dot<8;dot++) {
       if (i & [1,8,2,16,4,32,64,128][dot]!) ctx.fillRect((i%16)*24+(dot%2)*12+3,Math.floor(i/16)*40+Math.floor(dot/2)*10+2,6,6);
     }
-    for (let i=257;i<=260;i++) ctx.fillText(['.','+','#',':'][i-257]!, (i%16)*24,Math.floor(i/16)*40);
+    for (let i=257;i<=260;i++) ctx.fillText(['.','+','#',':'][i-257]!, (i%16)*24+12,Math.floor(i/16)*40,24);
+    g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,textures[2]!);
     g.texImage2D(g.TEXTURE_2D,0,g.RGBA,g.RGBA,g.UNSIGNED_BYTE,atlas);
+    atlasFont=font;
   }
   const layer: CustomLayerInterface = {
     id: 'terminal-graphics', type: 'custom', renderingMode: '2d',
@@ -111,16 +127,18 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
       const target = g.getParameter(g.FRAMEBUFFER_BINDING), readTarget = g.getParameter(g.READ_FRAMEBUFFER_BINDING), viewport = g.getParameter(g.VIEWPORT);
       const unpack = g.getParameter(g.PIXEL_UNPACK_BUFFER_BINDING), flip = g.getParameter(g.UNPACK_FLIP_Y_WEBGL);
       const dither = g.isEnabled(g.DITHER);
+      const depthMask=g.getParameter(g.DEPTH_WRITEMASK), activeTexture=g.getParameter(g.ACTIVE_TEXTURE);
       try {
         g.bindBuffer(g.PIXEL_UNPACK_BUFFER,null); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,false);
         g.activeTexture(g.TEXTURE0);
         if (!programs.length) initialize(g);
         const options = config(), w = g.drawingBufferWidth, h = g.drawingBufferHeight;
+        updateFont(g,options.font);g.activeTexture(g.TEXTURE0);
         g.bindTexture(g.TEXTURE_2D,textures[0]!);
         if (width !== w || height !== h) { width=w; height=h; g.texImage2D(g.TEXTURE_2D,0,g.RGBA8,w,h,0,g.RGBA,g.UNSIGNED_BYTE,null); }
         // No readPixels, preserved drawing buffer, or CPU geographic copy.
         g.bindFramebuffer(g.READ_FRAMEBUFFER,target); g.copyTexSubImage2D(g.TEXTURE_2D,0,0,0,0,0,w,h);
-        g.disable(g.BLEND); g.disable(g.DEPTH_TEST); g.disable(g.STENCIL_TEST); g.disable(g.SCISSOR_TEST); g.disable(g.CULL_FACE); g.disable(g.DITHER); g.colorMask(true,true,true,true);
+        g.disable(g.BLEND); g.disable(g.DEPTH_TEST); g.depthMask(false);g.disable(g.STENCIL_TEST); g.disable(g.SCISSOR_TEST); g.disable(g.CULL_FACE); g.disable(g.DITHER); g.colorMask(true,true,true,true);
         g.bindVertexArray(vao); g.bindFramebuffer(g.FRAMEBUFFER,framebuffer);
         g.activeTexture(g.TEXTURE1); g.bindTexture(g.TEXTURE_2D,textures[1]!);
         if (columns !== options.columns || rows !== options.rows) {
@@ -131,22 +149,30 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
         }
         g.viewport(0,0,columns,rows); g.useProgram(programs[0]!);
         const a=locations[0]!, b=locations[1]!;
-        g.uniform1i(a.terminal_scene!,0); g.uniform2f(a.grid!,columns,rows); g.uniform1i(a.ascii!,Number(options.ascii)); g.drawArrays(g.TRIANGLES,0,3);
+        g.uniform1i(a.terminal_scene!,0); g.uniform2f(a.grid!,columns,rows); g.uniform1i(a.ascii!,Number(options.mode===1)); g.drawArrays(g.TRIANGLES,0,3);
         g.bindFramebuffer(g.FRAMEBUFFER,target); g.viewport(0,0,w,h); g.useProgram(programs[1]!);
         g.activeTexture(g.TEXTURE2); g.bindTexture(g.TEXTURE_2D,textures[2]!);
         g.uniform1i(b.cells!,1); g.uniform1i(b.glyphs!,2); g.uniform2f(b.grid!,columns,rows); g.uniform2f(b.viewport!,w,h);
+        g.uniform1i(b.terminal_scene!,0);g.uniform1i(b.mode!,options.mode);g.uniform1f(b.brightness!,options.brightness);
         g.uniform3fv(b['colors[0]']!, options.colors.flatMap(color => { const n=parseInt(color.slice(1),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]; }));
         g.drawArrays(g.TRIANGLES,0,3);
         metrics.terminalRenderer='webgl2'; metrics.terminalGridCells=String(columns*rows);
+        metrics.terminalDrawing=String(options.mode);metrics.terminalBrightness=String(options.brightness);
         metrics.terminalSamples=String(Number(metrics.terminalSamples??0)+1);
         if (performance.now()-lastLabels>100) { frame(); lastLabels=performance.now(); }
       } catch { release(); failure(); }
-      finally { g.bindFramebuffer(g.FRAMEBUFFER,target); g.bindFramebuffer(g.READ_FRAMEBUFFER,readTarget); g.viewport(...viewport as [number,number,number,number]); g.bindBuffer(g.PIXEL_UNPACK_BUFFER,unpack); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,flip); if (dither) g.enable(g.DITHER); }
+      finally { g.bindFramebuffer(g.FRAMEBUFFER,target); g.bindFramebuffer(g.READ_FRAMEBUFFER,readTarget); g.viewport(...viewport as [number,number,number,number]); g.bindBuffer(g.PIXEL_UNPACK_BUFFER,unpack); g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL,flip);g.depthMask(depthMask);g.activeTexture(activeTexture); if (dither) g.enable(g.DITHER); }
     },
   };
   map.on('webglcontextlost',release);
   return {
-    attach() { if (disposed) return; if (!map.getLayer(layer.id)) map.addLayer(layer); else if (map.getLayersOrder().at(-1)!==layer.id) map.moveLayer(layer.id); },
+    // Only geography is converted. Network ink, heat, selection and hit targets
+    // retain their real layers and cannot be mistaken for a cartographic colour.
+    attach() { if (disposed) return; const before=map.getLayersOrder().find(id=>id.startsWith('activity-heat-'));
+      if (!map.getLayer(layer.id)) map.addLayer(layer,before);
+      else if (before && map.getLayersOrder().indexOf(layer.id)!==map.getLayersOrder().indexOf(before)-1) map.moveLayer(layer.id,before);
+    },
+    refreshFont() { atlasFont='';lastLabels=0;if(!disposed && enabled())map.triggerRepaint(); },
     request() { lastLabels=0; if (!disposed && enabled()) map.triggerRepaint(); },
     suspend: release,
     destroy() { disposed=true; map.off('webglcontextlost',release); if (map.getLayersOrder().includes(layer.id)) map.removeLayer(layer.id); release(); },

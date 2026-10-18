@@ -192,3 +192,13 @@ Layout, region choices and route visibility are remembered in this browser.
 Open /terminal/ or choose **Terminal** beside Map and Netgraph (in the View picker on phones). This BBS-style geographic view uses live Braille/ASCII graphics with ANSI, amber or green phosphor. Find, inspection, layer toggles, route windows, Follow, optional 3D and opt-in sounds use the same live data and controls as Map. Set characters and cell size under **Display → Terminal display**. The character renderer is downloaded only when you open Terminal; no extra map key or service is required.
 
 See [implementation and validation plan](docs/terminal-view-plan-2026-10-17.md).
+
+### Terminal appearance
+
+Open **Terminal → Display → Terminal options** for six retro presets, per-element
+colours, HSL sliders, console/pixel fonts and independent map brightness/live glow.
+Choose Braille, ASCII, pixel-block or cel-shaded geography; confirmed routes stay
+sharp above it. Live packets can use characters or smooth strokes. Settings are
+local, migrate older Terminal choices and synchronize across tabs without changing
+Map/Netgraph preferences or sound. The colour editor always keeps a readable reset.
+Fonts and licences are bundled in `web/public/fonts/terminal/`.

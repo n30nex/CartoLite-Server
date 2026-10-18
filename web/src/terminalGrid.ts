@@ -36,17 +36,29 @@ export function terminalInk(r: number, g: number, b: number, alpha = 255): numbe
   return 2;
 }
 
-export function characterCells(image: Pick<ImageData, 'data' | 'width' | 'height'>, ascii: boolean) {
+export function characterCells(image: Pick<ImageData, 'data' | 'width' | 'height'>, ascii: boolean, palette?: Record<number,string>) {
   const { data, width, height } = image;
   const columns = Math.floor(width / 2), rows = Math.floor(height / 4);
   const glyphs: string[] = new Array(columns * rows).fill(' '), hot = [...glyphs];
   const colors = new Uint8Array(glyphs.length), energy = new Uint8Array(glyphs.length);
   const strengths = new Float32Array(8), kinds = new Uint8Array(8);
+  const inks=palette?Object.entries(palette).map(([id,hex])=>{
+    const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));const peak=Math.max(1,...rgb);
+    return {id:Number(id),rgb:rgb.map(channel=>channel/peak)};
+  }):undefined;
   for (let y = 0; y < rows; y++) for (let x = 0; x < columns; x++) {
     let mask = 0, white = 0, color = 2, peak = 0, colourPeak = 0, count = 0;
     for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 2; dx++) {
       const p = ((y*4+dy)*width+x*2+dx)*4;
-      const k = terminalInk(data[p]!, data[p+1]!, data[p+2]!, data[p+3]!);
+      let k = terminalInk(data[p]!, data[p+1]!, data[p+2]!, data[p+3]!);
+      if(k && inks) {
+        const peak=Math.max(1,data[p]!,data[p+1]!,data[p+2]!);
+        let distance=Infinity;
+        for(const ink of inks) {
+          const d=ink.rgb.reduce((sum,v,i)=>sum+(data[p+i]!/peak-v)**2,0);
+          if(d<distance){distance=d;k=ink.id;}
+        }
+      }
       const strength = k ? data[p+3]! * Math.max(data[p]!,data[p+1]!,data[p+2]!) / 255 : 0;
       const dot=dy*2+dx; strengths[dot]=strength; kinds[dot]=k;
       peak=Math.max(peak,strength);

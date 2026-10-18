@@ -1,12 +1,13 @@
 import type { LiveMap } from './map';
 import type { PacketAnimator } from './packetAnimator';
 import { browserStorage } from './browserStorage';
-import { applyDisplayChrome, effectStrength, prefersReducedMotion } from './displayPreferences';
+import { applyDisplayChrome, DISPLAY_EVENT, effectStrength, prefersReducedMotion, setDisplayColors } from './displayPreferences';
 import { terminalGraphics } from './terminalGraphics';
-import { characterCells, terminalColor, terminalPreferences, TERMINAL_DEFAULTS, TERMINAL_COLORS } from './terminalGrid';
+import { characterCells } from './terminalGrid';
+import { loadTerminal, TERMINAL_FONTS, TERMINAL_KEY, TERMINAL_LEGACY_KEY, shade } from './terminalProfile';
+import { terminalControls } from './terminalControls';
 import './terminal.css';
 
-const KEY = 'cartolite-terminal-v1';
 const ROLES: Record<string, string> = { repeater: 'R', companion: 'C', room_server: 'H', sensor: 'S' };
 
 // This page samples the existing 2D packet canvas. Choose CPU backing before
@@ -25,8 +26,7 @@ window.addEventListener('cartolite-map-ready', event => {
 /** Presentation only: the existing Map and packet clock still own the scene. */
 export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => void {
   const map = view.map, host = map.getContainer(), root = document.documentElement;
-  let preferences = { ...TERMINAL_DEFAULTS };
-  try { preferences = terminalPreferences(browserStorage().getItem(KEY)); } catch { /* Storage may be disabled. */ }
+  let preferences = loadTerminal(browserStorage());
   const originalPaint = new Map<string, { layer: string; property: string; value: Parameters<typeof map.setPaintProperty>[2] }>();
   let labelLayers: string[] = [];
   let disposed = false, failed = false, lastPacket = 0;
@@ -42,27 +42,61 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   const notice = document.createElement('div'); notice.className = 'terminal-notice glass'; notice.hidden = true;
   notice.innerHTML = '<span>Terminal graphics paused. The map and live traffic are still available.</span><button type="button">Retry Terminal</button>';
   host.after(notice);
-  const settings = document.createElement('fieldset'); settings.className = 'terminal-settings';
-  settings.innerHTML = '<legend>Terminal display</legend><label>Phosphor<select aria-label="Terminal palette"><option value="ansi">ANSI colour</option><option value="amber">Amber</option><option value="green">Green</option></select></label><label>Characters<select aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option></select></label><label>Cell size<select aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label><button type="button">Reset Terminal display</button><p>R repeater · C companion · H room · S sensor · @ selected. ANSI textures: green vegetation, grey built-up land. Live timing stays the same.</p>';
+  const controls = terminalControls(preferences, value => {
+    preferences=value;
+    try { browserStorage().setItem(TERMINAL_KEY,JSON.stringify(preferences)); } catch { /* Session settings still work. */ }
+    sync();
+  });
+  const { settings }=controls;
   document.querySelector('#map-appearance > summary')!.after(settings);
-  const selects = settings.querySelectorAll('select');
+  const font = (size: number) => `${preferences.weight} ${size}px ${TERMINAL_FONTS[preferences.font].family}`;
+  const packetColours = () => ({2:preferences.colours.core,3:preferences.colours.other,4:preferences.colours.advert,5:preferences.colours.trace,6:preferences.colours.text,7:preferences.colours.ack,8:preferences.colours.control});
+  let loadedFont = '';
   const sync = () => {
-    selects[0]!.value = preferences.palette; selects[1]!.value = preferences.glyphs; selects[2]!.value = String(preferences.size);
+    controls.sync(preferences);
     root.dataset.terminalPalette = preferences.palette;
+    root.dataset.terminalTraffic = preferences.traffic;
+    root.dataset.terminalFont = preferences.font;
+    for(const [key,value] of Object.entries(preferences.colours))root.style.setProperty(`--terminal-${key}`,value);
+    root.style.setProperty('--terminal-font',TERMINAL_FONTS[preferences.uiFont].family);
+    root.style.setProperty('--terminal-scale',String(preferences.uiScale));
+    applyColours();
+    view.setAppearance(undefined,true); animator.setPresentationGlow(preferences.liveGlow);animator.refreshAppearance(); style();
+    const nextFont=[preferences.font,preferences.uiFont,preferences.weight].join(':');
+    if(loadedFont!==nextFont) {
+      loadedFont=nextFont;
+      void Promise.all([document.fonts.load(font(32)),document.fonts.load(`16px ${TERMINAL_FONTS[preferences.uiFont].family}`)])
+        .then(()=>{if(!disposed && !failed && nextFont===loadedFont)capture.refreshFont();}).catch(()=>{ /* System fallback remains usable. */ });
+    }
+    fx.clearRect(0,0,effects.width,effects.height);
+    lastPacket=0;
     schedule();
   };
-  const save = () => { try { browserStorage().setItem(KEY, JSON.stringify(preferences)); } catch { /* Session settings still work. */ } sync(); };
-  settings.addEventListener('change', () => { preferences = terminalPreferences(JSON.stringify({ palette: selects[0]!.value, glyphs: selects[1]!.value, size: Number(selects[2]!.value) })); save(); });
-  settings.querySelector('button')!.addEventListener('click', () => { preferences = { ...TERMINAL_DEFAULTS }; save(); });
-  const storage = (event: StorageEvent) => { if (event.key === KEY || event.key === null) { preferences = terminalPreferences(event.newValue); sync(); } };
+  const storage = (event: StorageEvent) => { if (event.key === TERMINAL_KEY || event.key === TERMINAL_LEGACY_KEY || event.key === null) { preferences=loadTerminal(browserStorage()); sync(); } };
   window.addEventListener('storage', storage);
+
+  function applyColours() {
+    if(failed)return;
+    const c=preferences.colours;
+    setDisplayColors({
+      '#4de7c4':c.advert,'#ffd15a':c.trace,'#ff75b5':c.text,'#78cfff':c.ack,'#a78bfa':c.control,'#9caebd':c.other,
+      '#73d9cf':c.advert,'#45c27f':c.repeater,'#53a7e8':c.companion,'#ab76dc':c.room,'#a2ad57':c.sensor,'#8794a6':c.sensor,
+      '#ffffff':c.core,'#eaffff':c.core,'#f2ffff':c.core,'#edfffd':c.core,'#e5fffc':c.core,
+      '#f3b844':c.selection,'#f2bd55':c.selection,'#fff0b8':c.selection,'#f5cf76':c.selection,
+      '#69d1ca':c.boundary,'#8ec5c1':c.places,'#f6d77f':c.labels,'#d2e0ef':c.labels,
+      '#02070b':c.background,'#061216':c.background,'#08272c':c.background,'#bce9e5':c.labels,'#48d5c7':c.repeater,'#32c8bb':c.repeater,
+    });
+    applyDisplayChrome();
+  }
+  const displayChanged=()=>{ applyColours(); style(); schedule(); };
+  window.addEventListener(DISPLAY_EVENT,displayChanged);
 
   function dimensions() {
     const width = host.clientWidth, height = host.clientHeight;
     // Bound raster work on very large screens without dropping any route data.
     let size = Math.max(preferences.size, Math.floor(Math.sqrt(width*height/16000)/.83)), cw = 0, ch = 0;
     do {
-      context.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+      context.font = font(size);
       cw = context.measureText('M').width; ch = size * 1.15;
       if (Math.ceil(width/cw)*Math.ceil(height/ch) <= 16000) break;
       size++;
@@ -79,10 +113,11 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     sample.width = Math.ceil(width / cw) * 2; sample.height = Math.ceil(height / ch) * 4;
     read.imageSmoothingEnabled = false;
     read.drawImage(source, 0, 0, sample.width, sample.height);
-    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii');
-    ctx.font = `bold ${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+    const colours=packetColours();
+    const cells = characterCells(read.getImageData(0, 0, sample.width, sample.height), preferences.glyphs === 'ascii', colours);
+    ctx.font = font(size);
     ctx.textBaseline = 'top';
-    const glow = prefersReducedMotion() ? 0 : effectStrength() * (source.dataset.qualityMode === 'low' ? 2 : source.dataset.qualityMode === 'balanced' ? 4 : 6);
+    const glow = prefersReducedMotion() ? 0 : preferences.liveGlow * effectStrength() * (source.dataset.qualityMode === 'low' ? 2 : source.dataset.qualityMode === 'balanced' ? 4 : 6);
     ctx.lineWidth=.5;
     // Batch colour/brightness runs. Bound decorative work before reducing cores.
     let visible = 0, blooms=0;
@@ -92,11 +127,11 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
       do { text += cells.glyphs[y * cells.columns + x]!; x++; } while (x < cells.columns && cells.colors[y * cells.columns + x] === color && cells.energy[y*cells.columns+x] === energy);
       if (!color) continue;
       ctx.globalAlpha=Math.min(1,energy/255*1.35);
-      ctx.fillStyle=ctx.strokeStyle=ctx.shadowColor=terminalColor(color,preferences.palette);
+      ctx.fillStyle=ctx.strokeStyle=ctx.shadowColor=colours[color as keyof typeof colours]??preferences.colours.core;
       ctx.shadowBlur=blooms++<120 ? glow : 0;
       ctx.strokeText(text,start*cw,y*ch); ctx.fillText(text,start*cw,y*ch); visible+=x-start;
     }
-    ctx.shadowBlur=0; ctx.fillStyle=terminalColor(2,preferences.palette);
+    ctx.shadowBlur=0; ctx.fillStyle=preferences.colours.core;
     for(let i=0;i<cells.hot.length;i++) if(cells.hot[i]!==' ') {
       ctx.globalAlpha=cells.energy[i]!/255;
       ctx.fillText(cells.hot[i]!,i%cells.columns*cw,Math.floor(i/cells.columns)*ch);
@@ -108,8 +143,8 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   }
 
   function labels() {
-    const { width, height } = dimensions(), size = preferences.size;
-    context.font = `${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+    const { width, height } = dimensions(), size = preferences.fontSize;
+    context.font = font(size);
     const cw = context.measureText('M').width, ch = size * 1.25;
     const occupied = new Set<string>();
     const features = map.queryRenderedFeatures(undefined, { layers: labelLayers.filter(id => map.getLayer(id)) });
@@ -121,7 +156,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     for (const feature of features) {
       if (feature.geometry.type !== 'Point') continue;
       const p = feature.properties, node = feature.layer.id === 'nodes', cluster = feature.layer.id === 'clusters';
-      context.font = `${node || cluster ? 'bold ' : ''}${size}px ui-monospace, "DejaVu Sans Mono", "Cascadia Mono", monospace`;
+      context.font = font(size);
       const text = cluster ? `[${p.point_count_abbreviated ?? p.point_count}]` : node ? (p.id === selected ? '@' : (ROLES[String(p.role)] ?? '?')) : String(p.label ?? p.name_en ?? p['name:en'] ?? p.name ?? '');
       if (!text) continue;
       const coordinate = feature.geometry.coordinates;
@@ -140,10 +175,11 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         for (let row=Math.floor((y-2)/ch);row<=Math.floor((y+ch+2)/ch);row++) for (let col=Math.floor((x-2)/cw);col<=Math.floor((x+w+2)/cw);col++) cells.push(`${col}:${row}`);
         if (cells.some(cell => occupied.has(cell))) continue;
         cells.forEach(cell => occupied.add(cell));
-        context.fillStyle = '#000'; context.fillRect(x-1,y,w+2,ch);
-        context.fillStyle = terminalColor(node ? (p.id === selected ? 2 : p.role === 'companion' ? 7 : p.role === 'room_server' ? 8 : 4) : cluster ? 4 : nodeLabel ? 2 : 5, preferences.palette);
+        context.fillStyle = preferences.colours.background; context.fillRect(x-1,y,w+2,ch);
+        const c=preferences.colours;
+        context.fillStyle = node ? (p.id===selected?c.selection:p.role==='companion'?c.companion:p.role==='room_server'?c.room:p.role==='repeater'?c.repeater:c.sensor) : cluster?c.repeater:nodeLabel?c.labels:shade(c.places,preferences.labelBrightness);
         context.shadowColor=String(context.fillStyle); context.shadowBlur=node || cluster ? 3*effectStrength() : 0;
-        context.globalAlpha=node || cluster || nodeLabel ? 1 : .65;
+        context.globalAlpha=1;
         context.fillText(text,x,y); context.shadowBlur=0; context.globalAlpha=1; drawn++; break;
       }
     }
@@ -155,6 +191,8 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     delete root.dataset.terminal;
     for (const item of originalPaint.values()) if (map.getLayer(item.layer)) map.setPaintProperty(item.layer, item.property as Parameters<typeof map.setPaintProperty>[1], item.value);
     originalPaint.clear();
+    setDisplayColors();
+    animator.setPresentationGlow(1);
     applyDisplayChrome(); view.setAppearance(undefined, true); animator.refreshAppearance();
     fx.clearRect(0, 0, effects.width, effects.height);
   }
@@ -185,7 +223,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     const setPaint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
       const current = map.getPaintProperty(layer, property as Parameters<typeof map.getPaintProperty>[1]);
       if (JSON.stringify(current) === JSON.stringify(value)) return;
-      originalPaint.set(`${layer}:${property}`, { layer, property, value: current });
+      if(!originalPaint.has(`${layer}:${property}`))originalPaint.set(`${layer}:${property}`, { layer, property, value: current });
       map.setPaintProperty(layer, property as Parameters<typeof map.setPaintProperty>[1], value);
     };
     // Public layer ordering includes custom layers and avoids serializing all
@@ -195,9 +233,16 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     for (const layer of layers) {
       if (layer.type === 'symbol') {
         setPaint(layer.id, 'text-opacity', 0);
+      } else if (['nodes','nodes-glow','node-core'].includes(layer.id)) {
+        setPaint(layer.id,'circle-opacity',0);
+        if(layer.id==='nodes')setPaint(layer.id,'circle-stroke-opacity',0);
+      } else if(layer.id==='building-footprints')setPaint(layer.id,'fill-color','#ffd15a');
+      else if(layer.id==='building-extrusions')setPaint(layer.id,'fill-extrusion-color','#ffd15a');
+      else if(layer.id==='terrain-hillshade') {
+        setPaint(layer.id,'hillshade-shadow-color','#030609');setPaint(layer.id,'hillshade-highlight-color','#72b89b');
       } else if (layer.id.startsWith('basemap-')) {
         const property = layer.type === 'background' ? 'background-color' : layer.type === 'fill' ? 'fill-color' : layer.type === 'line' ? 'line-color' : undefined;
-        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#526270' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#526270' : '#030609';
+        const color = layer.id.includes('water') ? '#08145a' : layer.id.includes('boundary') ? '#c184f6' : layer.id === 'basemap-landcover' ? '#124b24' : layer.id === 'basemap-landuse' ? '#383838' : layer.type === 'line' ? '#526270' : '#030609';
         if (property) setPaint(layer.id, property, layer.id === 'basemap-landcover' ? ['match', ['get','class'], ['wood','grass'], '#124b24', '#383838'] : color);
       }
     }
@@ -206,18 +251,21 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   }
   const capture = terminalGraphics(map, () => {
     const { width, height, cw, ch } = dimensions();
-    return { columns: Math.max(1,Math.ceil(width/cw)), rows: Math.max(1,Math.ceil(height/ch)), ascii: preferences.glyphs === 'ascii', colors: TERMINAL_COLORS.map((_,i) => terminalColor(i,preferences.palette)) };
+    const c=preferences.colours;
+    return { columns: Math.max(1,Math.ceil(width/cw)), rows: Math.max(1,Math.ceil(height/ch)), mode:['braille','ascii','blocks','cell'].indexOf(preferences.glyphs),
+      colors:[c.background,c.water,c.terrain,c.roads,c.terrain,c.buildings,c.boundary,c.shore,c.boundary,c.vegetation,c.urban,c.shore],brightness:preferences.mapBrightness,font:font(32) };
   }, paint, fail, () => !disposed && !failed && !document.hidden);
   const visibility = () => { if (document.hidden) capture.suspend(); else { style(); schedule(); } };
   // Appearance/terrain can finish loading while the camera or feed keeps the
   // map busy. Do not wait for idle to reapply the encoded cartographic colours.
   const ensureStyle = () => {
     if (map.getLayer('basemap-water') && (map.getPaintProperty('basemap-water','fill-color') !== '#08145a'
-      || (map.getLayer('node-labels') && map.getPaintProperty('node-labels','text-opacity') !== 0))) style();
+      || (map.getLayer('node-labels') && map.getPaintProperty('node-labels','text-opacity') !== 0)
+      || (map.getLayer('nodes') && map.getPaintProperty('nodes','circle-opacity') !== 0))) style();
   };
   const restored = () => {
     failed = false; root.dataset.terminal = 'true'; delete root.dataset.terminalFallback; notice.hidden = true;
-    applyDisplayChrome(); view.setAppearance(undefined, true); animator.refreshAppearance(); style(); schedule();
+    sync();
   };
   notice.querySelector('button')!.addEventListener('click', restored);
   map.on('load', style); map.on('idle', style);
@@ -229,7 +277,17 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     if (failed || document.hidden) return;
     const now = performance.now();
     if (now - lastPacket < 40 && (source.dataset.activeCount !== '0' || source.dataset.residueCount !== '0')) return;
-    try { draw(source, effects, fx); lastPacket = now; } catch { fail(); }
+    try {
+      if(preferences.traffic==='smooth') {
+        const {width,height}=dimensions(),dpr=Math.min(devicePixelRatio||1,2);
+        if(effects.width!==Math.ceil(width*dpr)||effects.height!==Math.ceil(height*dpr)){effects.width=Math.ceil(width*dpr);effects.height=Math.ceil(height*dpr);}
+        fx.setTransform(1,0,0,1,0,0);fx.clearRect(0,0,effects.width,effects.height);
+        // Copy the same timed frame. No second simulation, replay or hue guessing.
+        fx.drawImage(source,0,0,effects.width,effects.height);
+        effects.dataset.cells=source.dataset.activeCount??'0';effects.dataset.glow='0';
+      } else draw(source, effects, fx);
+      lastPacket = now;
+    } catch { fail(); }
   });
   sync(); style();
   const destroy = () => {
@@ -240,8 +298,10 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     map.off('webglcontextrestored', restored);
     map.off('remove', destroy);
     document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage);
+    window.removeEventListener(DISPLAY_EVENT,displayChanged);setDisplayColors();animator.setPresentationGlow(1);
     for (const element of [canvas, effects, status, notice, settings]) element.remove();
     delete root.dataset.terminal; delete root.dataset.terminalFallback; delete root.dataset.terminalPalette;
+    delete root.dataset.terminalTraffic;delete root.dataset.terminalFont;
   };
   map.on('remove', destroy);
   return destroy;
