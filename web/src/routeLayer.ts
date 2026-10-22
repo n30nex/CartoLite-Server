@@ -1,4 +1,4 @@
-import { LngLat, MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
+import { MercatorCoordinate, type CustomLayerInterface, type CustomRenderMethodInput, type Map as MapLibreMap } from 'maplibre-gl';
 import type { Feature, LineString } from 'geojson';
 import { splitWorldRoute, routeCoordinate, longitudeDelta, type Coordinate } from './worldGeometry';
 import { adaptiveSurfacePath, type SurfacePoint } from './terrainProjection';
@@ -405,41 +405,16 @@ export class HistoricalRouteLayer implements CustomLayerInterface {
 }
 
 interface ElevationMap {
-  getCenter(): { lng: number; lat: number };
   queryTerrainElevation(point: [number, number]): number | null;
-  terrain?: { getElevationForLngLatZoom?: (point: LngLat, zoom: number) => number } | null;
 }
 
 /**
- * MapLibre 6.4.1 repeats viewport coverage calculation in every public elevation
- * query. Capture its exact chosen level during one synchronous query, restore
- * the method immediately, and use the same native sampler for the whole batch.
- * A capability fallback keeps upgrades safe without copying the DEM decoder.
+ * MapLibre 6.15 samples the terrain actually drawn at each point, with a cheap
+ * fallback for unloaded tiles. Reuse that public path so mixed tile levels and
+ * arriving DEM data agree with packet projection; no private sampler override.
  */
 export function terrainBatchSampler(map: ElevationMap): (point: Coordinate) => number {
-  const fallback = (point: Coordinate): number => map.queryTerrainElevation([point[0], point[1]]) ?? 0;
-  const terrain = map.terrain;
-  if (!terrain || typeof terrain.getElevationForLngLatZoom !== 'function') return fallback;
-  const original = terrain.getElevationForLngLatZoom;
-  const descriptor = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
-  if ((descriptor && !descriptor.configurable) || (!descriptor && !Object.isExtensible(terrain))) return fallback;
-  let level: number | undefined;
-  try {
-    Object.defineProperty(terrain, 'getElevationForLngLatZoom', {
-      configurable: true, writable: true,
-      value: (point: LngLat, zoom: number): number => { level = zoom; return original.call(terrain, point, zoom); },
-    });
-    const center = map.getCenter();
-    map.queryTerrainElevation([center.lng, center.lat]);
-  } catch {
-    return fallback;
-  } finally {
-    if (descriptor) Object.defineProperty(terrain, 'getElevationForLngLatZoom', descriptor);
-    else delete terrain.getElevationForLngLatZoom;
-  }
-  if (level === undefined || !Number.isInteger(level) || level < 0 || level > 30) return fallback;
-  const zoom = level;
-  return point => original.call(terrain, new LngLat(point[0], point[1]), zoom);
+  return point => map.queryTerrainElevation([point[0], point[1]]) ?? 0;
 }
 
 /** Remove numerical subdivisions of straight 3D chords, preserving real relief. */

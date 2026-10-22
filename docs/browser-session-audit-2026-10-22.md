@@ -15,6 +15,9 @@ targets Canada 0.18.1 and Worldwide 0.9.1 without a new native APK or traffic sc
   [MapLibre #8400](https://github.com/maplibre/maplibre-gl-js/pull/8400).
 - Upgrade the pinned renderer to 6.15.0, including both fixes. The dependency
   lockfile is generated in Actions and reviewed before candidate validation.
+- Use its public terrain-elevation query for route samples. The old 6.4-specific
+  single-level adapter is unnecessary and bypasses the new per-point drawn-tile
+  choice. Retain the existing adaptive geometry and performance gates.
 - Hidden views stop animation/audio but previously kept consuming live events
   and updating topology/rendering sources. Close the shared feed when hidden,
   cancel its retries, and recover one fresh snapshot on return. Apply missed

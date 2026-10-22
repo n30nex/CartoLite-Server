@@ -3,33 +3,17 @@ import type { Feature, LineString } from 'geojson';
 import { collapseCollinearPositions, historicalRouteVertices, routeMayIntersectView, STROKE_VERTEX_FLOATS, terrainBatchSampler } from './routeLayer';
 
 describe('historical route WebGL geometry', () => {
-  it('reuses the native elevation level and restores the sampler descriptor', () => {
-    let coverageQueries = 0;
-    const terrain = { getElevationForLngLatZoom(point: { lng: number; lat: number }, zoom: number): number { return point.lng + point.lat + zoom * 100; } };
-    const descriptor = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
-    const map = {
-      terrain, getCenter: () => ({ lng: 0, lat: 0 }),
-      queryTerrainElevation: (point: [number, number]): number => { coverageQueries += 1; return terrain.getElevationForLngLatZoom({ lng: point[0], lat: point[1] }, 12); },
-    };
-    const sample = terrainBatchSampler(map);
-    for (let i = 0; i < 100; i++) expect(sample([i, 40])).toBe(i + 1240);
-    expect(coverageQueries).toBe(1);
-    expect(Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom')).toEqual(descriptor);
-  });
-  it('uses the public fallback if an elevation adapter is unavailable', () => {
-    const sample = terrainBatchSampler({ getCenter: () => ({ lng: 0, lat: 0 }), queryTerrainElevation: () => 75 });
-    expect(sample([0, 0])).toBe(75);
-  });
-  it('restores the native method when the calibration query fails', () => {
-    const terrain = { getElevationForLngLatZoom: () => 25 };
-    const original = Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom');
-    let failing = true;
+  it('samples the currently drawn terrain at each point and after DEM arrival', () => {
+    let loaded = false;
+    const queries: [number, number][] = [];
     const sample = terrainBatchSampler({
-      terrain, getCenter: () => ({ lng: 0, lat: 0 }),
-      queryTerrainElevation: () => { if (failing) { failing = false; throw new Error('not ready'); } return 25; },
+      queryTerrainElevation: point => { queries.push(point); return loaded ? point[0] * 10 : null; },
     });
-    expect(Object.getOwnPropertyDescriptor(terrain, 'getElevationForLngLatZoom')).toEqual(original);
-    expect(sample([0, 0])).toBe(25);
+    expect(sample([1, 40])).toBe(0);
+    loaded = true;
+    expect(sample([1, 40])).toBe(10);
+    expect(sample([2, 40])).toBe(20);
+    expect(queries).toEqual([[1, 40], [1, 40], [2, 40]]);
   });
   it('removes redundant straight subdivisions without flattening relief or reversing a path', () => {
     expect(collapseCollinearPositions([[0, 0, 0], [0.5, 0.5, 0.5], [1, 1, 1]])).toEqual([[0, 0, 0], [1, 1, 1]]);
