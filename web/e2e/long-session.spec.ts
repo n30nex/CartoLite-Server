@@ -8,6 +8,7 @@ test.use({ screenshot: 'off', trace: 'off' });
 
 test('long session releases completed source updates while newer work is queued', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop');
+  test.setTimeout(60_000);
   await visualFixture(page);
   await page.addInitScript(() => window.addEventListener('cartolite-map-ready', event => {
     (window as any).__sessionMap = (event as CustomEvent).detail.view.map;
@@ -29,23 +30,28 @@ test('long session releases completed source updates while newer work is queued'
     const refs: WeakRef<object>[] = [];
     (window as any).__sessionRefs = refs;
     let tick = 0;
+    (window as any).__sessionTicks = 0;
     (window as any).__sessionTimer = setInterval(() => {
       const data = { type: 'FeatureCollection', features: Array.from({ length: 400 }, (_, i) => ({
         type: 'Feature', id: i, properties: { label: `Update ${tick} node ${i}` },
         geometry: { type: 'Point', coordinates: [-80.4 + i * .0001, 43.45 + (tick % 10) * .00001] },
       })) };
       if (tick++ < 100) refs.push(new WeakRef(data));
+      (window as any).__sessionTicks = tick;
       void source.setData(data);
     }, 15);
   });
-  await page.waitForTimeout(4_000);
+  // Wait for work, not wall time: slow software rendering may execute fewer
+  // than 100 timer callbacks in four seconds. Exclude all current/in-flight
+  // payloads from the observed first 100 before checking completed work.
+  await expect.poll(() => page.evaluate(() => (window as any).__sessionTicks), { timeout: 40_000 }).toBeGreaterThanOrEqual(200);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('HeapProfiler.collectGarbage');
   const retained = await page.evaluate(() => (window as any).__sessionRefs.filter((ref: WeakRef<object>) => ref.deref()).length);
   await page.evaluate(() => clearInterval((window as any).__sessionTimer));
   await cdp.detach();
   console.log('COMPLETED_SOURCE_UPDATES_RETAINED', retained);
-  expect(retained, 'completed GeoJSON must be collectable before continuous updates stop').toBeLessThanOrEqual(2);
+  expect(retained, 'completed GeoJSON must be collectable before continuous updates stop').toBe(0);
 });
 
 for (const scene of ['map', 'terrain', 'terminal', 'netgraph'] as const) {
