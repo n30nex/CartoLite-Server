@@ -46,8 +46,82 @@ describe('LiveFeed recovery', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('suspends background ingestion and coalesces visibility/online recovery', async () => {
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const onPacket = vi.fn();
+    const recover = vi.fn(async () => ({ ...initial, seq: 40 }));
+    const feed = new LiveFeed(initial, handlers({ onPacket, recover }));
+    feed.start();
+    const first = MockEventSource.instances[0]!;
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(first.closed).toBe(true);
+    for (let seq = 8; seq < 40; seq++) first.send('packet', observerPacket(seq));
+    await feed.resume();
+    expect(onPacket).not.toHaveBeenCalled();
+    expect(recover).not.toHaveBeenCalled();
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await feed.resume();
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(MockEventSource.instances).toHaveLength(2);
+    const current = MockEventSource.instances[1]!;
+    expect(current.url).toBe('/api/events?bootId=boot-a&after=40');
+    current.send('hello', { bootId: 'boot-a', seq: 41 });
+    current.send('packet', observerPacket(41));
+    current.send('packet', observerPacket(42));
+    expect(onPacket.mock.calls.map(([packet, replay]) => [packet.seq, replay])).toEqual([[41, true], [42, false]]);
+    feed.stop();
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    expect(MockEventSource.instances).toHaveLength(2);
+  });
+
+  it('defers hidden startup and cancels retry work until the page is visible', async () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    const recover = vi.fn(async () => ({ ...initial, seq: 40 }));
+    const feed = new LiveFeed(initial, handlers({ recover }));
+    feed.start();
+    expect(MockEventSource.instances).toHaveLength(0);
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    const source = MockEventSource.instances[0]!;
+    source.readyState = MockEventSource.CLOSED;
+    source.onerror?.(new Event('error'));
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(MockEventSource.instances).toHaveLength(1);
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+    expect(recover).toHaveBeenCalledTimes(2);
+    expect(MockEventSource.instances).toHaveLength(2);
+    feed.stop();
+  });
+
+  it('does not reopen a stream if snapshot recovery finishes while hidden', async () => {
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    let resolve!: (snapshot: StateV2) => void;
+    const recover = vi.fn(() => new Promise<StateV2>(done => { resolve = done; }));
+    const feed = new LiveFeed(initial, handlers({ recover }));
+    feed.start();
+    const recovering = feed.resume();
+    await settle();
+    hidden.mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    resolve({ ...initial, seq: 40 });
+    await recovering;
+    expect(MockEventSource.instances).toHaveLength(1);
+    feed.stop();
   });
 
   it('closes the stream during recovery, ignores stale events, and reconnects from the snapshot cursor', async () => {

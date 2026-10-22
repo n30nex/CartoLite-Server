@@ -370,6 +370,7 @@ async function start(): Promise<void> {
       else if (selectedNodeID || selectedRouteIDs.length) { selectNode(null); stage.focus(); }
     });
     minuteTimer = window.setInterval(() => {
+      if (document.hidden) return;
       graph.refreshRouteWindow();
       updateSummary();
       if (selectedNodeID || selectedRouteIDs.length) renderInspector();

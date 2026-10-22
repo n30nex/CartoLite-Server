@@ -60,11 +60,13 @@ export class LiveFeed {
 
   start(): void {
     if (this.#source || this.#stopped || this.#recovering || this.#recoveryTimer !== undefined) return;
+    document.addEventListener('visibilitychange', this.#visibilityChanged);
     this.#connect();
   }
 
   stop(): void {
     this.#stopped = true;
+    document.removeEventListener('visibilitychange', this.#visibilityChanged);
     if (this.#recoveryTimer !== undefined) window.clearTimeout(this.#recoveryTimer);
     this.#recoveryTimer = undefined;
     this.#closeSource();
@@ -74,13 +76,25 @@ export class LiveFeed {
     return this.#requestRecovery();
   }
 
+  #visibilityChanged = (): void => {
+    if (!document.hidden) {
+      void this.#requestRecovery();
+      return;
+    }
+    // Rendering/audio are already paused by each view. Stop their data work as
+    // well: a fresh snapshot on return replaces the hidden interval, silently.
+    if (this.#recoveryTimer !== undefined) window.clearTimeout(this.#recoveryTimer);
+    this.#recoveryTimer = undefined;
+    this.#closeSource();
+  };
+
   #connect(): void {
-    if (this.#source || this.#stopped) return;
+    if (this.#source || this.#stopped || document.hidden) return;
     this.#replayThrough = this.#seq;
     const cursor = new URLSearchParams({ bootId: this.#bootId, after: String(this.#seq) });
     const source = new EventSource(`/api/events?${cursor.toString()}`, { withCredentials: true });
     this.#source = source;
-    const current = (): boolean => this.#source === source && !this.#recovering && !this.#stopped;
+    const current = (): boolean => this.#source === source && !this.#recovering && !this.#stopped && !document.hidden;
     source.onopen = () => {
       if (!current()) return;
       this.#recoveryFailures = 0;
@@ -162,7 +176,7 @@ export class LiveFeed {
   }
 
   #requestRecovery(): Promise<void> {
-    if (this.#stopped) return Promise.resolve();
+    if (this.#stopped || document.hidden) return Promise.resolve();
     if (this.#recovering) return this.#recovering;
     if (this.#recoveryTimer !== undefined) window.clearTimeout(this.#recoveryTimer);
     this.#recoveryTimer = undefined;
@@ -192,7 +206,7 @@ export class LiveFeed {
   }
 
   #scheduleRecovery(): void {
-    if (this.#stopped || this.#recoveryTimer !== undefined) return;
+    if (this.#stopped || document.hidden || this.#recoveryTimer !== undefined) return;
     const delay = Math.min(10_000, 500 * (2 ** Math.min(this.#recoveryFailures, 5)));
     this.#recoveryTimer = window.setTimeout(() => {
       this.#recoveryTimer = undefined;

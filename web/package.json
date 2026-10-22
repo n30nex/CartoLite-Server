@@ -1,6 +1,6 @@
 {
   "name": "cartolite-server-web",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "maplibre-gl": "6.4.1"
+    "maplibre-gl": "6.15.0"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
