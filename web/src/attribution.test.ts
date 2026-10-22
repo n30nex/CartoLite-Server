@@ -12,11 +12,12 @@ it('removes consecutive unsafe attribution attributes while keeping safe credit 
   } as unknown as MapLibreMap;
   const control = new AttributionControl({
     compact: false,
-    customAttribution: '<details open onload="void 0" ontoggle="void 0">Fixture attribution</details><a href="https://example.invalid">Credits</a>',
+    customAttribution: '<details open onload="void 0" ontoggle="void 0">Untrusted widget</details><span onload="void 0" onclick="void 0">Fixture attribution</span><a href="https://example.invalid">Credits</a>',
   });
   const element = control.onAdd(map);
   expect(element.textContent).toContain('Fixture attribution');
-  expect(element.querySelector('[onload], [ontoggle]')).toBeNull();
+  expect(element.querySelector('[onload], [ontoggle], [onclick]')).toBeNull();
+  expect(element.querySelector('.maplibregl-ctrl-attrib-inner details')).toBeNull();
   expect(element.querySelector('a')?.getAttribute('href')).toBe('https://example.invalid');
   control.onRemove();
 });
