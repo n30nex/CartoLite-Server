@@ -75,7 +75,7 @@ export function mountNetgraphDisplay(onOpen: () => void = () => {}): () => void 
   controls.prepend(host);
   const button = host.querySelector<HTMLButtonElement>('#display-button')!;
   const panel = host.querySelector<HTMLElement>('#display-panel')!;
-  const close = (restore = false): void => { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (restore) button.focus(); };
+  const close = (restore = false): void => { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (restore) (button.getClientRects().length ? button : document.getElementById('view-button'))?.focus(); };
   button.addEventListener('click', () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) onOpen(); });
   panel.querySelector('button')!.addEventListener('click', () => close(true));
   document.addEventListener('pointerdown', (event) => { if (event.target instanceof Node && !host.contains(event.target)) close(); });

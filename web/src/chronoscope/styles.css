@@ -1,4 +1,5 @@
 @import '../netgraph/styles.css';
+html:root .chronoscope-app .glass { transition:none; }
 .chronoscope-stage { position:absolute; inset:0; overflow:hidden; touch-action:none; cursor:grab; background:radial-gradient(ellipse at 52% 30%,rgba(29,78,101,.2),transparent 65%),var(--scene-background,#071319); }
 .chronoscope-stage:focus-visible { outline:2px solid var(--focus-ring); outline-offset:-3px; }
 #chrono-canvas,#chrono-effects { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
@@ -18,13 +19,15 @@
 .chrono-inspector { padding:14px; max-height:60dvh; overflow:auto; }.chrono-inspector header { display:flex;gap:12px;align-items:center;justify-content:space-between; }.chrono-inspector h2 { font-size:15px;margin:0;overflow-wrap:anywhere; }.chrono-inspector button,.chrono-inspector a { min-height:44px;padding:8px;border:1px solid var(--panel-border);border-radius:8px;color:var(--ink-strong);background:var(--field-bg);cursor:pointer;text-decoration:none;box-sizing:border-box; }.chrono-inspector p { font-size:12px;line-height:1.5;color:var(--muted); }.chrono-inspector .chrono-hop { display:flex;gap:8px;align-items:center;margin:8px 0; }.chrono-hop button { flex:1;min-width:0;overflow-wrap:anywhere;font:inherit;font-size:12px; }.chrono-links { display:flex;gap:8px; }.chrono-links a { flex:1;text-align:center;font-size:12px; }
 .chronoscope-app .view-title { display:none; }html:root[data-cinematic] .chronoscope-app #node-inspector-sheet { top:76px;right:14px;bottom:auto;max-height:calc(100dvh - 170px); }
 .chronoscope-app #legend { bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 10px);left:14px;width:max-content; }
+.chronoscope-app #regions-button[data-filtered] { box-shadow:inset 0 -2px var(--focus-ring); }
 [data-theme=light] .chrono-caption { text-shadow:0 1px 2px #fff; }
 html:root[data-cinematic]:has(.chronoscope-app .controls button[aria-expanded=true]) .chronoscope-app #node-inspector-sheet { visibility:hidden; }
 @media(max-width:900px),(pointer:coarse) {
  .chrono-caption { top:66px;left:12px;font-size:11px; }.chrono-caption strong { font-size:10px; }.chrono-caption small { max-width:260px;font-size:10px; }
- .chrono-panel { position:fixed;bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) - var(--keyboard-offset,0px) + 8px);left:8px;right:8px;width:auto;max-width:none; }
+ .chrono-panel { position:absolute;bottom:calc(100% + 8px);left:0;right:0;width:100%;max-width:none; }
  html:root[data-cinematic] .chronoscope-app #node-inspector-sheet { position:fixed;top:auto;left:8px;right:8px;bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 8px);width:auto;max-width:none;max-height:48dvh; }
  .chronoscope-app #legend { display:none; }.chronoscope-app #sound-state { display:none; }
+ html:root[data-mobile-dock=true] .chronoscope-app .display-disclosure { display:contents; }
  html:root[data-cinematic] .chronoscope-app .controls { max-width:calc(100vw - 12px);gap:0; }.chronoscope-app .control-button { padding-inline:7px; }
 }
 @media(max-height:480px) { .chrono-caption { display:none; }.chrono-panel { max-height:calc(var(--available-height,100dvh) - 90px); }.chrono-inspector { max-height:46dvh; } }

@@ -1,6 +1,6 @@
 import { canvasEffects } from '../gpuEffects';
 import { DISPLAY_EVENT, canvasColorWithAlpha as alpha, displayColor, displayPreferences, effectStrength, lightScene, lineDash, prefersReducedMotion } from '../displayPreferences';
-import { drawPacketSignature, routeMotion, segmentNearViewport } from '../packetAnimator';
+import { drawPacketSignature, packetTrail, routeMotion, segmentNearViewport } from '../packetAnimator';
 import { packetSignature, payloadColor } from '../trafficVisuals';
 import type { EndpointV2, NodeV2, PacketView, StateV2 } from '../types';
 import type { MapChanges } from '../state';
@@ -83,7 +83,10 @@ export class ChronoscopeRenderer {
   setMode(mode: ChronoscopeMode): void { this.#mode = mode; if (mode === 'slice') this.freeze(); this.reproject(); this.request(); }
   setWindow(seconds: number): void { this.#seconds = seconds; this.#slice = Math.min(this.#slice, seconds); this.reproject(); this.request(); }
   setSlice(seconds: number): void { this.freeze(); this.#slice = seconds; this.request(); }
-  setRegions(regions: string[] | null): void { this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.reproject(); this.request(); }
+  setRegions(regions: string[] | null): void {
+    if (regions === null && this.#regions === null || regions !== null && this.#regions?.size === regions.length && regions.every(code => this.#regions!.has(code))) return;
+    this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.reproject(); this.request();
+  }
   nodeInRegions(id: string): boolean { return !this.#regions || this.#regions.has(this.#layout.positions.get(id)?.areaCode ?? this.#assignments.get(id)?.code ?? ''); }
   selectNode(id: string | null): void { this.#selected = id; this.#selectedEvent = null; this.#dirty = true; this.request(); }
   selectPacket(record: Observation): void { this.#selectedEvent = record.packet.seq; this.#selected = null; this.#dirty = true; this.request(); }
@@ -165,17 +168,20 @@ export class ChronoscopeRenderer {
       const p = this.world(area), radius = Math.max(14, area.radius * this.#scale), ry = radius * (this.#mode === 'sculpture' ? .48 : 1);
       ctx.strokeStyle = alpha('#73d9cf', light ? .24 : .18); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.ellipse(p.x, p.y, radius, ry, 0, 0, Math.PI * 2); ctx.stroke();
-      const label = area.code, width = ctx.measureText(label).width, box = { x: p.x - width / 2, y: p.y - ry - 24, w: width, h: 18 };
+      const label = area.code, name = area.name.length > 30 ? area.name.slice(0,29)+'…' : area.name;
+      const width = Math.max(ctx.measureText(label).width,ctx.measureText(name).width), box = { x: p.x - width / 2, y: p.y - ry - 36, w: width, h: 30 };
       if (!boxes.some(b => box.x < b.x + b.w + 8 && box.x + box.w + 8 > b.x && box.y < b.y + b.h && box.y + box.h > b.y)) {
-        boxes.push(box); ctx.fillStyle = displayColor('#d2e0ef'); ctx.fillText(label, box.x, box.y + 9);
+        boxes.push(box); ctx.fillStyle = displayColor('#d2e0ef'); ctx.textAlign='center';ctx.fillText(label,p.x,box.y+9);
+        ctx.font='10px system-ui';ctx.fillStyle=alpha('#d2e0ef',.8);ctx.fillText(name,p.x,box.y+24);ctx.font=`${palette.textSize==='large'?14:12}px system-ui`;ctx.textAlign='left';
       }
     }
+    const detail = palette.detail === 'complete' ? 1 : Math.min(1, Math.sqrt(240 / Math.max(1, this.#nodes.size)) * Math.sqrt(this.#zoom));
     for (const [id, p] of this.#points) {
       if (!this.nodeInRegions(id) || p.x < 0 || p.x > this.#width || p.y < 0 || p.y > this.#height) continue;
       const node = this.#nodes.get(id); if (!node) continue;
       const selected = id === this.#selected;
-      ctx.fillStyle = alpha(ROLES[node.role], this.#selected && !selected ? .28 : .85);
-      ctx.beginPath(); ctx.arc(p.x, p.y, selected ? 5 : Math.max(1.4, Math.min(3.3, this.#zoom * 2)), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = alpha(ROLES[node.role], this.#selected && !selected ? .2 : .25 + .6 * detail);
+      ctx.beginPath(); ctx.arc(p.x, p.y, selected ? 5 : Math.min(3.3, .8 + detail * 1.4 * Math.sqrt(this.#zoom)), 0, Math.PI * 2); ctx.fill();
       if (selected) { ctx.strokeStyle = displayColor('#f5cf76'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.stroke();
         ctx.fillStyle = displayColor('#d2e0ef'); ctx.fillText(node.label.slice(0, 40), p.x + 14, p.y); }
     }
@@ -199,6 +205,7 @@ export class ChronoscopeRenderer {
     const b = this.#bounds;
     const corners = [{x:b.minX,y:b.minY},{x:b.maxX,y:b.minY},{x:b.maxX,y:b.maxY},{x:b.minX,y:b.maxY}].map(p => this.world(p));
     if (this.#layout.positions.size && this.#mode === 'sculpture') {
+      for (const [index,p] of corners.entries()) this.stroke(ctx,[p,{x:p.x,y:p.y+this.#depth}],'#73d9cf',index===0?.32:.1,1);
       for (const part of [1, 2 / 3, 1 / 3, 0]) {
         const polygon = corners.map(p => ({ x: p.x, y: p.y + part * this.#depth }));
         ctx.beginPath(); ctx.moveTo(polygon[0]!.x, polygon[0]!.y); for (const p of polygon.slice(1)) ctx.lineTo(p.x, p.y); ctx.closePath();
@@ -209,6 +216,7 @@ export class ChronoscopeRenderer {
     }
     this.#records = this.visibleRecords().filter(record => this.#mode !== 'slice' || Math.abs((at-record.started)/1_000-this.#slice)<=2); this.#hits = [];
     const live: Observation[] = [];
+    const background = prefs.detail === 'complete' ? 1 : Math.max(.2,Math.min(1,Math.sqrt(60 / Math.max(1,this.#records.length))));
     const decorative = !reduced && prefs.quality !== 'economy' && (prefs.quality === 'high' || this.#drawMS < 12) && effectStrength() > 0;
     ctx.setLineDash(lineDash());
     for (const record of this.#records) {
@@ -217,7 +225,7 @@ export class ChronoscopeRenderer {
       const packet = record.packet, highlighted = this.#selectedEvent === packet.seq || Boolean(this.#selected && (packet.mode === 'observer' ? packet.observer.id === this.#selected : packet.segments.some(s => s.from.id === this.#selected || s.to.id === this.#selected)));
       const dimmed = (this.#selected || this.#selectedEvent !== null) && !highlighted;
       const offset = this.#mode === 'sculpture' && !isLive ? age / (this.#seconds * 1_000) * this.#depth : 0;
-      const opacity = dimmed ? .08 : highlighted ? .95 : isLive ? .68 : Math.max(.12, .6 * (1 - age / (this.#seconds * 1_000)));
+      const opacity = dimmed ? .04 : highlighted ? .95 : isLive ? .68 : background * Math.max(.12, .6 * (1 - age / (this.#seconds * 1_000)));
       const color = payloadColor(packet.payloadType);
       if (packet.mode === 'observer') {
         if (!this.nodeInRegions(packet.observer.id)) continue;
@@ -241,17 +249,18 @@ export class ChronoscopeRenderer {
       const from = path[0]!, to = path[1]!, t = reduced ? .5 : motion.localProgress;
       const head = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
       const color = payloadColor(record.packet.payloadType), signature = packetSignature(record.packet.payloadType), size = prefs.packetSize;
+      const trail = packetTrail(from,head,48*prefs.trailLength);
       if (!reduced) {
-        const tail = Math.max(0, t - .16 * prefs.trailLength);
-        this.stroke(fx, [{x:from.x+(to.x-from.x)*tail,y:from.y+(to.y-from.y)*tail},head], color, .95, 2.2 * size, decorative);
+        this.stroke(fx, [trail.tail,head], color, .95, 2.2 * size, decorative);
       }
-      if (!this.#gpu.batch.packet([from, head], head, color, signature)) {
+      if (!this.#gpu.batch.packet([trail.tail, head], head, color, signature)) {
         fx.fillStyle = displayColor(color); fx.beginPath(); fx.arc(head.x, head.y, 3.5 * size, 0, Math.PI * 2); fx.fill();
         fx.fillStyle = displayColor('#ffffff'); fx.beginPath(); fx.arc(head.x, head.y, 1.1 * size, 0, Math.PI * 2); fx.fill();
       }
       drawPacketSignature(fx, head, {x:to.x-from.x,y:to.y-from.y}, color, signature, reduced ? 0 : now-record.started);
       const age = now - record.started;
-      for (const [point, phase] of [[from, age / 300], [to, (age - record.duration) / 440]] as const) {
+      const segmentStart=record.weights.slice(0,motion.segmentIndex).reduce((sum,weight)=>sum+weight,0)*record.duration;
+      for (const [point, phase] of [[from, (age-segmentStart) / 260], [to, (age - record.duration) / 440]] as const) {
         if (phase < 0 || phase > 1) continue;
         fx.strokeStyle = alpha(color, 1 - phase); fx.lineWidth = 1.5; fx.beginPath(); fx.ellipse(point.x,point.y,5+phase*15,(5+phase*15)*(this.#mode==='sculpture'?.48:1),0,0,Math.PI*2); fx.stroke();
       }

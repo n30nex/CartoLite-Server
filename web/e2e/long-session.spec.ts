@@ -54,7 +54,7 @@ test('long session releases completed source updates while newer work is queued'
   expect(retained, 'completed GeoJSON must be collectable before continuous updates stop').toBe(0);
 });
 
-for (const scene of ['map', 'terrain', 'terminal', 'netgraph'] as const) {
+for (const scene of ['map', 'terrain', 'terminal', 'netgraph', 'chronoscope'] as const) {
   test(`long session resource sampling: ${scene}`, async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop');
     test.setTimeout(150_000);
@@ -93,9 +93,9 @@ for (const scene of ['map', 'terrain', 'terminal', 'netgraph'] as const) {
         (window as any).__sessionMap = (event as CustomEvent).detail.view.map;
       }, { once: true });
     });
-    const path = scene === 'terminal' ? '/terminal/' : scene === 'netgraph' ? '/netgraph/' : '/';
+    const path = scene === 'terminal' ? '/terminal/' : scene === 'netgraph' ? '/netgraph/' : scene === 'chronoscope' ? '/chronoscope/' : '/';
     await page.goto(path);
-    const stage = page.locator(scene === 'netgraph' ? '#netgraph-stage' : '#map');
+    const stage = page.locator(scene === 'netgraph' ? '#netgraph-stage' : scene === 'chronoscope' ? '#chronoscope-stage' : '#map');
     await expect(stage).toHaveAttribute('data-render-state', 'idle', { timeout: 15_000 });
     if (scene === 'terrain') {
       await page.locator('#terrain-shortcut').click();
@@ -135,7 +135,7 @@ for (const scene of ['map', 'terrain', 'terminal', 'netgraph'] as const) {
       const dom = await cdp.send('Memory.getDOMCounters');
       samples.push({ sample, dom, heap: metrics.find(metric => metric.name === 'JSHeapUsedSize')?.value,
         ...await page.evaluate(() => ({ resources: (window as any).__sessionResources, timing: (window as any).__sessionTiming,
-          performanceEntries: performance.getEntries().length, stage: { ...document.querySelector<HTMLElement>('#map, #netgraph-stage')!.dataset } })) });
+          performanceEntries: performance.getEntries().length, stage: { ...document.querySelector<HTMLElement>('#map, #netgraph-stage, #chronoscope-stage')!.dataset } })) });
     }
     await page.evaluate(() => clearInterval((window as any).__sessionTimer));
     await info.attach(`session-${scene}`, { body: JSON.stringify(samples), contentType: 'application/json' });
@@ -150,7 +150,7 @@ for (const scene of ['map', 'terrain', 'terminal', 'netgraph'] as const) {
 
 test('long session background tabs close their feed and refresh once on return', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop');
-  for (const path of ['/', '/terminal/', '/netgraph/']) {
+  for (const path of ['/', '/terminal/', '/netgraph/', '/chronoscope/']) {
     let snapshots = 0;
     const countSnapshot = (request: import('@playwright/test').Request) => { if (new URL(request.url()).pathname === '/api/state') snapshots++; };
     page.on('request', countSnapshot);

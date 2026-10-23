@@ -61,7 +61,10 @@ function sync() {
   const records=renderer.visibleRecords(),frozen=renderer.frozen;
   freeze.setAttribute('aria-pressed',String(frozen));freeze.textContent=frozen?'View frozen':'Freeze view';
   sonifier?.setPaused(document.hidden||frozen);
-  caption.textContent=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length===0?'No regions selected':records.length?`${records.length.toLocaleString()} observed events · ${settings.seconds}s window${renderer.timeline.trimmed?' · oldest trails capped':''}`:'Waiting for activity');
+  required('regions-button').toggleAttribute('data-filtered',settings.regions!==null);
+  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':records.length?`${records.length.toLocaleString()} observed events · ${settings.seconds}s window${renderer.timeline.trimmed?' · oldest trails capped':''}`:'Waiting for activity');
+  if(caption.textContent!==copy)caption.textContent=copy;
+  const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase();if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
   if(!required('time-panel').hidden)updateRecent();
 }
 function updateRecent() {
@@ -87,7 +90,8 @@ function filterRegions() {const query=required<HTMLInputElement>('region-search'
 function selectNode(id: string | null) {
   if(!renderer||!store)return;
   selected=id;rememberNode(id);renderer.selectNode(id);
-  if(!id){inspector.hidden=true;return;}
+  if(!id){inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;return;}
+  required('chronoscope-app').dataset.followInspect='true';
   if(!renderer.nodeInRegions(id)){settings.regions=null;renderer.setRegions(null);save();renderRegions();}
   const model=buildNodeInspectorModel(id,renderer.nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
   replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:next=>selectNode(next)}));
@@ -96,13 +100,14 @@ function selectNode(id: string | null) {
 }
 function inspectPacket(record: Observation) {
   if(!renderer)return;renderer.freeze();renderer.selectPacket(record);selected=null;rememberNode(null);
+  required('chronoscope-app').dataset.followInspect='true';
   const packet=record.packet,card=document.createElement('article');card.className='chrono-inspector';
-  const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(packet.payloadType)} · observed activity`;close.type='button';close.textContent='×';close.className='node-inspector-close';close.setAttribute('aria-label','Close activity details');close.addEventListener('click',()=>{inspector.hidden=true;renderer!.selectNode(null);stage.focus();});header.append(title,close);
+  const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(packet.payloadType)} · observed activity`;close.type='button';close.textContent='×';close.className='node-inspector-close';close.setAttribute('aria-label','Close activity details');close.addEventListener('click',()=>{inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;renderer!.selectNode(null);stage.focus();});header.append(title,close);
   const detail=document.createElement('p');detail.textContent=`${Math.max(0,Math.round((renderer.frameTime-record.started)/1_000))} seconds ago in this view · ${packet.mode==='observer'?'Observer-only reception':`${packet.segments.length} confirmed segments`}`;card.append(header,detail);
   const nodeButton=(id:string,label:string)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.nodeId=id;button.addEventListener('click',()=>selectNode(id));return button;};
   if(packet.mode==='observer'){card.append(nodeButton(packet.observer.id,packet.observer.label));const p=document.createElement('p');p.textContent='A receiver heard this packet. No public route was confirmed.';card.append(p);}
   else for(const segment of packet.segments){const row=document.createElement('div');row.className='chrono-hop';const arrow=document.createElement('span');arrow.textContent='→';arrow.setAttribute('aria-hidden','true');row.append(nodeButton(segment.from.id,segment.from.label),arrow,nodeButton(segment.to.id,segment.to.label));card.append(row);}
-  const live=document.createElement('button');live.type='button';live.textContent='Return to live';live.addEventListener('click',()=>{inspector.hidden=true;renderer!.live();if(settings.mode==='slice'){settings.mode='sculpture';applySettings();save();}stage.focus();});card.append(live);
+  const live=document.createElement('button');live.type='button';live.textContent='Return to live';live.addEventListener('click',()=>{inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;renderer!.live();if(settings.mode==='slice'){settings.mode='sculpture';applySettings();save();}stage.focus();});card.append(live);
   replaceInspector(inspector,card);inspector.setAttribute('aria-label','Selected packet details');inspector.hidden=false;
 }
 function dispose() {disposed=true;feed?.stop();store?.destroy();sonifier?.destroy();director?.destroy();renderer?.destroy();resolver?.destroy();}
@@ -121,14 +126,23 @@ async function start() {
     required<HTMLSelectElement>('sound-scene').addEventListener('change',event=>sound.setScene((event.target as HTMLSelectElement).value as SoundScene));
     required<HTMLInputElement>('sound-volume').addEventListener('input',event=>sound.setVolume(Number((event.target as HTMLInputElement).value)/100));
     updateSoundChrome(sound.status(),sound.getVolume(),sound.getScene());
-    const updateStatus=()=>{const state=activityLabel(liveStore.snapshot,connected);required('status').dataset.state=state.state;required('status-text').textContent=state.text;sync();};
+    const updateStatus=()=>{const state=activityLabel(liveStore.snapshot,connected);required('status').dataset.state=state.state;if(required('status-text').textContent!==state.text)required('status-text').textContent=state.text;sync();};
+    let resolving=false,areasDirty=false;
+    const refreshAreas=async()=>{
+      if(resolving)return;resolving=true;
+      try{while(areasDirty&&!disposed){areasDirty=false;const nodes=liveStore.snapshot.nodes;const assignments=await areas.resolve(nodes);if(disposed)return;
+        // A newer coordinate update gets another bounded pass; no worker queue grows.
+        if(nodes.some(node=>{const current=scene.nodes.get(node.id);return current&& (current.lng!==node.lng||current.lat!==node.lat);})){areasDirty=true;continue;}
+        scene.setAssignments(assignments);scene.render(liveStore.snapshot,{reset:true});renderRegions();
+      }}catch{/* Keep coordinate-derived fallback until the next update. */}finally{resolving=false;}
+    };
     liveStore.subscribe((state,changes)=>{scene.render(state,changes);renderRegions();refreshSearch();updateStatus();});
     applySettings();
     refreshSearch=wireNodeSearch({input:required<HTMLInputElement>('node-search'),results:required('node-search-results'),metrics:stage,search:q=>searchNodes(scene.nodes.values(),q),select:id=>{selectNode(id);closePanels();inspector.querySelector<HTMLButtonElement>('button')?.focus();},dismiss:()=>{closePanels();required('find-button').focus();}});
     const following=mountGraphFollow({holdView(){},selectedNode:()=>selected,captureFollowArea(){const ids=new Set([...scene.nodes.values()].filter(n=>{const p=scene.projectEndpoint(n);return p.x>=0&&p.y>=0&&p.x<=stage.clientWidth&&p.y<=stage.clientHeight;}).map(n=>n.id));return id=>ids.has(id);},nodeInRegions:id=>scene.nodeInRegions(id),projectEndpoint:endpoint=>scene.projectEndpoint(endpoint),followPacket:packet=>{if(!scene.frozen)scene.focusNode(packet.mode==='observer'?packet.observer.id:packet.segments[0]!.from.id);}},id=>selectNode(id),stage);director=following;
     const liveFeed=new LiveFeed(initial,{
       onConnection(value){connected=value;updateStatus();},
-      onNode(event){liveStore.upsertNode(event.node,event.seq);},
+      onNode(event){const previous=scene.nodes.get(event.node.id);liveStore.upsertNode(event.node,event.seq);if(!previous||previous.lat!==event.node.lat||previous.lng!==event.node.lng){areasDirty=true;void refreshAreas();}},
       onPacket(event,replayed){const packet=liveStore.applyPacket(event);if(!packet||replayed||document.hidden)return;scene.addPacket(packet);if(!scene.frozen){sound.play(packet);following.offer(packet);}sync();},
       onStatus:event=>liveStore.updateStatus(event.status,event.seq),
       async recover(){const snapshot=await fetchState();if(disposed)return snapshot;if(snapshot.bootId!==liveStore.snapshot.bootId)scene.clear();try{scene.setAssignments(await areas.resolve(snapshot.nodes));}catch{/* Keep public coordinate fallback. */}if(!disposed)liveStore.replace(snapshot);return snapshot;},

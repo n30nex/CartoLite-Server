@@ -1,7 +1,32 @@
 import { expect, test } from '@playwright/test';
 import { visualFixture } from './visualFixtures';
-import { openViewMenu } from './dockControls';
+import { openViewMenu, openDisplay } from './dockControls';
 import type { StateV2, PacketView } from '../src/types';
+
+test('Chronoscope presents regional time depth in a reproducible showcase',async({page},info)=>{
+  await visualFixture(page);const now=Date.now();
+  const anchors=[[-80.35,43.45],[-79.38,43.65],[-75.69,45.42],[-73.57,45.5]];
+  const names=['Waterloo','Toronto','Ottawa','Montreal'];
+  const nodes=anchors.flatMap(([lng,lat],group)=>Array.from({length:8},(_,i)=>({id:`show-${group}-${i}`,label:`${names[group]} ${i+1}`,lng:lng!+i*.001,lat:lat!+i*.001,role:'repeater' as const,observer:false,lastSeen:now})));
+  const links=nodes.map((node,i)=>({id:`local-${i}`,fromId:node.id,toId:nodes[Math.floor(i/8)*8+(i+1)%8]!.id,packetCount:4,lastHeard:now,intensity:2 as const,lastKind:'Text' as const,traffic:4}));
+  const crosses=[0,1,2].map(i=>({id:`cross-${i}`,fromId:nodes[i*8]!.id,toId:nodes[(i+1)*8]!.id,packetCount:4,lastHeard:now,intensity:2 as const,lastKind:'Text' as const,traffic:4}));
+  const state:StateV2={schemaVersion:2,bootId:'visual-fixture',seq:0,serverTime:now,status:{feed:'connected',activity:'active',dropped:0,version:'test',gitSha:'synthetic'},map:{center:[-78,44],zoom:8},nodes,routes:[...links,...crosses]};
+  await page.route('**/api/state',route=>route.fulfill({json:state}));
+  await page.addInitScript(()=>window.addEventListener('cartolite-chronoscope-ready',event=>{(window as any).__chrono=(event as CustomEvent).detail.scene;}));
+  await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  await page.evaluate(({nodes,links,crosses})=>{
+    const scene=(window as any).__chrono,at=performance.now();
+    const segments=(routes:typeof links)=>routes.map(r=>({routeId:r.id,from:nodes.find(n=>n.id===r.fromId)!,to:nodes.find(n=>n.id===r.toId)!}));
+    for(let i=1;i<=24;i++)scene.timeline.add({seq:i,id:`history-${i}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK'][i%4],mode:'route',segments:segments(i%4===0?crosses:[links[i%links.length]!])},at-55_000+i*1_500);
+    scene.addPacket({seq:25,id:'current',at:Date.now(),payloadType:'Text',mode:'route',segments:segments(crosses)});
+  },{nodes,links,crosses});
+  await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-active-count','1');
+  await page.screenshot({path:info.outputPath('chronoscope-sculpture.png')});
+  await page.locator('#time-button').click();await page.locator('#freeze-button').click();await page.getByLabel('Chronoscope view').selectOption('slice');await page.getByLabel('Moment to inspect').fill('30');await page.keyboard.press('Escape');
+  await page.screenshot({path:info.outputPath('chronoscope-slice.png')});
+  await page.locator('#time-button').click();await page.getByLabel('Chronoscope view').selectOption('flat');await page.keyboard.press('Escape');
+  await page.screenshot({path:info.outputPath('chronoscope-flat.png')});
+});
 
 test('Chronoscope keeps live time, frozen slices, regions and selection separate', async ({page},info) => {
   await visualFixture(page);
@@ -44,12 +69,25 @@ test('Chronoscope exposes clear themes and a quiet observer-only fallback',async
   await expect(page.locator('.chrono-hop')).toHaveCount(0);
   await page.keyboard.press('Escape');
   for(const theme of ['dark','light','streets']){
-    await page.locator('#display-button').click();await page.getByLabel('Scene style',{exact:true}).selectOption(theme);await page.keyboard.press('Escape');
+    await openDisplay(page);await page.getByLabel('Scene style',{exact:true}).selectOption(theme);await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveAttribute('data-basemap',theme);
     await page.screenshot({path:info.outputPath(`chronoscope-${theme}.png`)});
   }
   await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-motion-mode','static');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('Chronoscope phone controls fit one row and panels restore focus',async({page},info)=>{
+  test.skip(info.project.name==='desktop');await visualFixture(page);await page.setViewportSize({width:320,height:720});
+  await page.goto('/chronoscope/');await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-render-state','idle');
+  const boxes=await page.locator('.controls > button,.controls > div > button').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};}));
+  expect(boxes).toHaveLength(6);expect(Math.max(...boxes.map(r=>r.y))-Math.min(...boxes.map(r=>r.y))).toBeLessThan(2);
+  for(const box of boxes){expect(box.w).toBeGreaterThanOrEqual(44);expect(box.h).toBeGreaterThanOrEqual(44);expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.w).toBeLessThanOrEqual(320);}
+  await openDisplay(page);await expect(page.locator('#display-panel')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('#view-button')).toBeFocused();
+  await page.locator('#time-button').click();await expect(page.locator('#time-panel')).toBeVisible();
+  const box=await page.locator('#time-panel').boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(320);expect(box!.y).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press('Escape');await expect(page.locator('#time-button')).toBeFocused();
+  await page.screenshot({path:info.outputPath('chronoscope-phone-320.png')});
 });
 
 test('Chronoscope retains 7000 links and bounds live geometry without fetching a basemap',async({page},info)=>{

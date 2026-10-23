@@ -185,3 +185,17 @@ describe('netgraph layout', () => {
     expect(routesInWindow(routes, 2_000_000, '24h')).toHaveLength(7_000);
   });
 });
+
+it('includes isolated radios for Chronoscope without creating connections', () => {
+  const nodes = [node('a'), node('b'), node('alone')];
+  const routes = [route('ab', 'a', 'b')];
+  const normal = buildNetgraphLayout(nodes, routes);
+  const time = buildNetgraphLayout(nodes, routes, new Map(), true);
+  expect(normal.positions.has('alone')).toBe(false);
+  expect(time.positions.has('alone')).toBe(true);
+  expect(time.connectedNodeIDs).toEqual(new Set(['a', 'b']));
+  const after = extendNetgraphLayout(time, [...nodes, node('new')], routes, new Map(), true);
+  expect(after.positions.get('alone')).toEqual(time.positions.get('alone'));
+  expect(after.positions.has('new')).toBe(true);
+  expect(after.connectedNodeIDs).toEqual(time.connectedNodeIDs);
+});
