@@ -165,6 +165,21 @@ jobs:
           path: |
             web/session-test-results/
             web/session-playwright-report/
+      - name: Chronoscope live time, interaction and scale
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: chrono-playwright-report
+        run: npm run test:e2e -- chronoscope.spec.ts --retries 0 --output chrono-test-results
+      - name: Preserve Chronoscope evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-chronoscope-review
+          retention-days: 7
+          path: |
+            web/chrono-test-results/
+            web/chrono-playwright-report/
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -217,7 +232,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          npm run test:e2e -- --grep-invert 'long session|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          npm run test:e2e -- --grep-invert 'long session|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

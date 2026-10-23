@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Chronoscope delivery (0.10.0)
+
+In implementation and release qualification. See [the scoped plan](chronoscope-plan.md). Includes the pending long-session reliability fixes; existing audit items remain in their recorded states.
+
 Updated 22 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
 The [older roadmap](roadmap-archive-2026-09.md) is preserved as a dated record;
 its Planned labels and build-size caps are not current instructions.

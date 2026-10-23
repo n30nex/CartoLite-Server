@@ -189,8 +189,8 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 		return
 	}
-	if r.URL.Path == "/terminal" {
-		target := "/terminal/"
+	if r.URL.Path == "/terminal" || r.URL.Path == "/chronoscope" {
+		target := r.URL.Path + "/"
 		if r.URL.RawQuery != "" {
 			target += "?" + r.URL.RawQuery
 		}

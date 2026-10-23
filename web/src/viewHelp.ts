@@ -1,4 +1,4 @@
-type View = 'Map' | 'Netgraph' | 'Terminal' | 'Labs';
+type View = 'Map' | 'Netgraph' | 'Terminal' | 'Chronoscope' | 'Labs';
 
 export function closeHelpBackdrop(dialog: HTMLDialogElement, event: MouseEvent): void {
   if (event.target !== dialog) return;
@@ -10,6 +10,10 @@ export function closeHelpBackdrop(dialog: HTMLDialogElement, event: MouseEvent):
 export function addViewGuide(dialog: HTMLDialogElement, view: View): void {
   dialog.classList.add('view-help');
   const guide = document.createElement('section'); guide.className = 'view-guide';
+  if (view === 'Chronoscope') {
+    guide.innerHTML = '<h2>Reading Chronoscope</h2><p>The top plane is Now. Depth is seconds since this page observed an event. Bright packets are new live activity; lower traces are earlier observations from this session.</p><p>Sculpture shows time as depth. Flat keeps a top-down picture. Slice freezes the view and shows a four-second interval around the chosen moment. Freeze view keeps a bounded still snapshot while new events arrive silently. Return to live does not replay missed packets.</p><p>Observer-only pulses stay local. Separate confirmed segments remain separate, including gaps in a journey. Empty time means no activity was observed here, including while the tab was hidden or disconnected.</p><p>Drag or use arrow keys to pan, scroll or pinch to zoom, and Home to fit. Shift-left/right rotates Sculpture. Find selects nodes; Time lists recent packets for keyboard inspection. Escape or Back closes the current sheet. Sound is opt-in; M mutes outside text fields.</p>';
+    dialog.append(guide); return;
+  }
   guide.innerHTML = `<h2>Reading ${view}</h2>
     <p>${view === 'Labs' ? 'Live activity drives each scene. These are artistic interpretations, not radio coverage or measured signal paths.' : 'Standing routes are previously heard, confirmed connections. Moving packets are new activity. Hiding routes leaves live packets available.'}</p>
     <p>Observer-only activity means a receiver heard a packet without a confirmed public route. A local pulse does not imply a connection to another node.</p>
@@ -30,7 +34,7 @@ export function mountNetworkHelp(view: Exclude<View, 'Labs'>): void {
   if (!dialog) {
     dialog = document.createElement('dialog'); dialog.id = 'about-dialog'; dialog.className = 'glass';
     dialog.setAttribute('aria-labelledby', 'about-title');
-    dialog.innerHTML = '<header><h1 id="about-title">Netgraph help</h1><button type="button" aria-label="Close help">×</button></header>';
+    dialog.innerHTML = `<header><h1 id="about-title">${view} help</h1><button type="button" aria-label="Close help">×</button></header>`;
     document.querySelector('main')!.append(dialog);
     const created = dialog;
     created.querySelector('button')!.addEventListener('click', () => created.close());
@@ -58,7 +62,7 @@ export function mountNetworkHelp(view: Exclude<View, 'Labs'>): void {
     if (brand) brand.click(); else { dialog!.showModal(); dialog!.scrollTop = 0; }
   });
   dialog.addEventListener('close', () => {
-    if (restore) document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' ? 'display-button' : 'display-shortcut')?.focus({ preventScroll: true });
+    if (restore) document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' || view === 'Chronoscope' ? 'display-button' : 'display-shortcut')?.focus({ preventScroll: true });
     restore = false;
   });
 }
