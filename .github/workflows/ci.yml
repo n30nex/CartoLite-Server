@@ -73,7 +73,7 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
@@ -150,6 +150,21 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
+      - name: Long-session resource and background checks
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: session-playwright-report
+        run: npm run test:e2e -- long-session.spec.ts --project desktop --retries 0 --output session-test-results
+      - name: Preserve long-session diagnostics
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-session-review
+          retention-days: 3
+          path: |
+            web/session-test-results/
+            web/session-playwright-report/
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -202,7 +217,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          npm run test:e2e -- --grep-invert 'UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          npm run test:e2e -- --grep-invert 'long session|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

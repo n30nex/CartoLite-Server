@@ -175,6 +175,7 @@ export function terminalGraphics(map: LibreMap, config: () => { columns: number;
     refreshFont() { atlasFont='';lastLabels=0;if(!disposed && enabled())map.triggerRepaint(); },
     request() { lastLabels=0; if (!disposed && enabled()) map.triggerRepaint(); },
     suspend: release,
+    detach() { if (map.getLayer(layer.id)) map.removeLayer(layer.id); else release(); },
     destroy() { disposed=true; map.off('webglcontextlost',release); if (map.getLayersOrder().includes(layer.id)) map.removeLayer(layer.id); release(); },
   };
 }

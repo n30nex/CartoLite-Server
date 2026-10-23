@@ -166,6 +166,9 @@ test('Terminal stays compact and keeps selection when switching views', async ({
 test('unavailable Terminal graphics falls back without stopping the feed', async ({page}) => {
   await visualFixture(page);
   await page.addInitScript(() => {
+    window.addEventListener('cartolite-map-ready', event => {
+      (window as any).__terminalRecoveryMap = (event as CustomEvent).detail.view.map;
+    }, { once: true });
     const original = WebGL2RenderingContext.prototype.getShaderParameter;
     WebGL2RenderingContext.prototype.getShaderParameter = function (...args: Parameters<typeof original>) {
       if (args[1] === this.COMPILE_STATUS && this.getShaderSource(args[0])?.includes('terminal_scene') && !document.documentElement.dataset.shaderFailedOnce) {
@@ -180,7 +183,17 @@ test('unavailable Terminal graphics falls back without stopping the feed', async
   expect(await page.locator('.maplibregl-canvas').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
   await page.getByRole('button',{name:'Retry Terminal',exact:true}).click();
   await expect(page.locator('.terminal-notice')).toBeHidden();
-  await expect.poll(() => blueGlyphPixels(page)).toBeGreaterThan(100);
+  try { await expect.poll(() => blueGlyphPixels(page)).toBeGreaterThan(100); }
+  catch (error) {
+    console.log('Terminal retry diagnostic', await page.evaluate(() => {
+      const map = (window as any).__terminalRecoveryMap;
+      return { root: {...document.documentElement.dataset}, stage: {...document.querySelector<HTMLElement>('#map')!.dataset},
+        loaded: map.isStyleLoaded(), background: map.getPaintProperty('basemap-background','background-color'),
+        water: map.getPaintProperty('basemap-water','fill-color'), waterVisible: map.getLayoutProperty('basemap-water','visibility'),
+        layers: map.getLayersOrder() };
+    }));
+    throw error;
+  }
 });
 
 test('Map and Netgraph never download the optional Terminal renderer', async ({page}) => {

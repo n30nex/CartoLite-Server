@@ -1,6 +1,6 @@
 # CartoLite delivery roadmap
 
-Updated 18 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
+Updated 22 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
 The [older roadmap](roadmap-archive-2026-09.md) is preserved as a dated record;
 its Planned labels and build-size caps are not current instructions.
 
@@ -122,3 +122,12 @@ UI identifiers. [The follow-up](visual-audit-followup-2026-10-18.md) prioritizes
 measured selected-node/inspector layout and complete duration labels after the
 Terminal package, then scope handoff, overview/selection clarity and control copy.
 These findings remain planned until reproduced and verified on current code.
+
+## Long-session browser reliability
+
+Active: [22 October browser-session audit](browser-session-audit-2026-10-22.md).
+Target Canada **0.18.1** and Worldwide **0.9.1**. Address retained GeoJSON
+updates and terrain textures through the upstream renderer fixes; suspend hidden
+feeds and refresh once on return. Synthetic resource/recovery checks and the
+existing full Actions gates must pass before exact-image release and deployment.
+Canada 0.18.0 / Worldwide 0.9.0 are the preceding Terminal customization releases.
