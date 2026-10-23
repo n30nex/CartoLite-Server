@@ -1,9 +1,19 @@
+import type { NodeV2 } from '../types';
+
 export interface NetgraphAreaAnchor {
   code: string;
   name: string;
   lat: number;
   lng: number;
   aliases?: readonly string[];
+}
+
+/** Same resolver contract as Canada; worldwide grouping needs no worker or data download. */
+export class NetgraphRegionResolver {
+  async resolve(nodes: readonly NodeV2[]): Promise<Map<string, NetgraphAreaAnchor>> {
+    return new Map(nodes.map(node => [node.id, nearestNetgraphArea(node.lat, node.lng)]));
+  }
+  destroy(): void { /* No retained resources. */ }
 }
 
 // Four-character Maidenhead squares: 2 degrees longitude by 1 degree latitude.

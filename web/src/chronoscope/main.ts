@@ -89,8 +89,8 @@ function selectNode(id: string | null) {
   selected=id;rememberNode(id);renderer.selectNode(id);
   if(!id){inspector.hidden=true;return;}
   if(!renderer.nodeInRegions(id)){settings.regions=null;renderer.setRegions(null);save();renderRegions();}
-  const model=buildNodeInspectorModel(id,store.snapshot.nodes,store.snapshot.routes,15*60_000);if(!model){inspector.hidden=true;return;}
-  replaceInspector(inspector,createNodeInspectorContent(model,document,{onClose:()=>selectNode(null),onSelectNeighbor:next=>selectNode(next)}));
+  const model=buildNodeInspectorModel(id,renderer.nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
+  replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:next=>selectNode(next)}));
   const links=document.createElement('div');links.className='chrono-links';for(const [label,path]of [['Open Map','/'],['Open Netgraph','/netgraph/']]as const){const a=document.createElement('a');a.textContent=label;a.href=`${path}?node=${encodeURIComponent(id)}`;links.append(a);}inspector.append(links);
   inspector.setAttribute('aria-label','Selected node details');inspector.hidden=false;renderer.focusNode(id);stage.dispatchEvent(new Event('graphnavigate'));
 }
