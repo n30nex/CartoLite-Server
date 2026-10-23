@@ -104,7 +104,7 @@ export class ChronoscopeRenderer {
   clear(): void { this.timeline.clear(); this.#selectedEvent = null; this.request(); }
   addPacket(packet: PacketView): Observation | undefined {
     if (document.hidden) return;
-    const record = this.timeline.add(packet, performance.now()); this.request(); return record;
+    const record = this.timeline.add(packet, performance.now()); if (!this.frozen) this.request(); return record;
   }
   visibleRecords(): readonly Observation[] { return this.timeline.visible(performance.now(), this.#seconds).filter(r => this.matches(r)); }
   matches(record: Observation): boolean {
@@ -220,30 +220,31 @@ export class ChronoscopeRenderer {
     const decorative = !reduced && prefs.quality !== 'economy' && (prefs.quality === 'high' || this.#drawMS < 12) && effectStrength() > 0;
     ctx.setLineDash(lineDash());
     for (const record of this.#records) {
-      const age = Math.max(0, at - record.started), isLive = !this.frozen && age < record.duration + 440;
+      const age = Math.max(0, at - record.started), inFlight = age < record.duration + 440;
       if (this.#mode === 'slice' && Math.abs(age / 1_000 - this.#slice) > 2) continue;
       const packet = record.packet, highlighted = this.#selectedEvent === packet.seq || Boolean(this.#selected && (packet.mode === 'observer' ? packet.observer.id === this.#selected : packet.segments.some(s => s.from.id === this.#selected || s.to.id === this.#selected)));
       const dimmed = (this.#selected || this.#selectedEvent !== null) && !highlighted;
-      const offset = this.#mode === 'sculpture' && !isLive ? age / (this.#seconds * 1_000) * this.#depth : 0;
-      const opacity = dimmed ? .04 : highlighted ? .95 : isLive ? .68 : background * Math.max(.12, .6 * (1 - age / (this.#seconds * 1_000)));
+      const settle = Math.min(1,Math.max(0,(age-record.duration)/440));
+      const offset = this.#mode === 'sculpture' ? settle * age / (this.#seconds * 1_000) * this.#depth : 0;
+      const opacity = dimmed ? .04 : highlighted ? .95 : inFlight ? .68 : background * Math.max(.12, .6 * (1 - age / (this.#seconds * 1_000)));
       const color = payloadColor(packet.payloadType);
       if (packet.mode === 'observer') {
         if (!this.nodeInRegions(packet.observer.id)) continue;
-        const p = this.projectEndpoint(packet.observer), r = isLive && !reduced ? 6 + age / 80 : 4;
+        const p = this.projectEndpoint(packet.observer), r = inFlight && !reduced ? 6 + age / 80 : 4;
         ctx.strokeStyle = alpha(color, opacity); ctx.lineWidth = highlighted ? 2.5 : 1.5; ctx.beginPath(); ctx.ellipse(p.x, p.y + offset, r, this.#mode === 'sculpture' ? r * .48 : r, 0, 0, Math.PI * 2); ctx.stroke();
         this.#hits.push({record, path:[{x:p.x-8,y:p.y+offset},{x:p.x+8,y:p.y+offset}]});
       } else for (const segment of packet.segments) {
         const path = this.projectSegment(segment).map(p => ({...p, y:p.y + offset}));
         if (path.length < 2 || !segmentNearViewport(path[0]!, path[1]!, this.#width, this.#height, 20)) continue;
-        this.stroke(ctx, path, color, opacity * prefs.opacity, highlighted ? prefs.width + 1 : prefs.width, decorative && (highlighted || isLive));
+        this.stroke(ctx, path, color, opacity * prefs.opacity, highlighted ? prefs.width + 1 : prefs.width, decorative && (highlighted || inFlight));
         this.#hits.push({record, path});
       }
-      if (isLive && !dimmed) live.push(record);
+      if (inFlight && !dimmed) live.push(record);
     }
     ctx.setLineDash([]); ctx.drawImage(this.#base, 0, 0, this.#width, this.#height);
     for (const record of live.slice(-32)) {
       if (record.packet.mode !== 'route') continue;
-      const motion = routeMotion(record.weights, Math.max(0, now - record.started), record.duration);
+      const motion = routeMotion(record.weights, Math.max(0, at - record.started), record.duration);
       const segment = record.packet.segments[motion.segmentIndex]; if (!segment) continue;
       const path = this.projectSegment(segment); if (path.length < 2) continue;
       const from = path[0]!, to = path[1]!, t = reduced ? .5 : motion.localProgress;
@@ -257,8 +258,8 @@ export class ChronoscopeRenderer {
         fx.fillStyle = displayColor(color); fx.beginPath(); fx.arc(head.x, head.y, 3.5 * size, 0, Math.PI * 2); fx.fill();
         fx.fillStyle = displayColor('#ffffff'); fx.beginPath(); fx.arc(head.x, head.y, 1.1 * size, 0, Math.PI * 2); fx.fill();
       }
-      drawPacketSignature(fx, head, {x:to.x-from.x,y:to.y-from.y}, color, signature, reduced ? 0 : now-record.started);
-      const age = now - record.started;
+      drawPacketSignature(fx, head, {x:to.x-from.x,y:to.y-from.y}, color, signature, reduced ? 0 : at-record.started);
+      const age = at - record.started;
       const segmentStart=record.weights.slice(0,motion.segmentIndex).reduce((sum,weight)=>sum+weight,0)*record.duration;
       for (const [point, phase] of [[from, (age-segmentStart) / 260], [to, (age - record.duration) / 440]] as const) {
         if (phase < 0 || phase > 1) continue;
@@ -268,7 +269,7 @@ export class ChronoscopeRenderer {
     this.#gpu.flush(this.#width, this.#height, this.#dpr);
     this.#drawMS = this.#drawMS * .85 + (performance.now() - start) * .15;
     Object.assign(this.stage.dataset, { mode:this.#mode, frozen:String(this.frozen), eventCount:String(this.timeline.records.length), segmentCount:String(this.timeline.segmentCount),
-      visibleEvents:String(this.#records.length), activeCount:String(live.length), motionMode:reduced?'static':'animated', renderer:this.#gpu.batch.ready?'webgl2':'canvas2d', drawMs:this.#drawMS.toFixed(2), windowSeconds:String(this.#seconds) });
+      visibleEvents:String(this.#records.length), activeCount:String(this.frozen?0:live.length), motionMode:reduced?'static':'animated', renderer:this.#gpu.batch.ready?'webgl2':'canvas2d', drawMs:this.#drawMS.toFixed(2), windowSeconds:String(this.#seconds) });
     if (now - this.#lastStats > 500) { this.#lastStats = now; this.callbacks.change?.(); }
     if (this.#records.length && !this.frozen) this.#timer = window.setTimeout(() => { this.#timer = 0; this.request(); }, reduced ? 1_000 : prefs.quality === 'economy' || this.#drawMS > 12 ? 50 : 16);
   };

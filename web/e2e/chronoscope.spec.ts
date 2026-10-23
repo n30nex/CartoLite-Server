@@ -21,6 +21,7 @@ test('Chronoscope presents regional time depth in a reproducible showcase',async
     scene.addPacket({seq:25,id:'current',at:Date.now(),payloadType:'Text',mode:'route',segments:segments(crosses)});
   },{nodes,links,crosses});
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-active-count','1');
+  await expect(page.locator('#chrono-status')).toContainText('25 observed events');
   await page.screenshot({path:info.outputPath('chronoscope-sculpture.png')});
   await page.locator('#time-button').click();await page.locator('#freeze-button').click();await page.getByLabel('Chronoscope view').selectOption('slice');await page.getByLabel('Moment to inspect').fill('30');await page.keyboard.press('Escape');
   await page.screenshot({path:info.outputPath('chronoscope-slice.png')});

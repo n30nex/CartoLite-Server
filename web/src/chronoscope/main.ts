@@ -27,6 +27,7 @@ const soundPanel=required('sound-panel');
 let renderer: ChronoscopeRenderer | undefined, sonifier: RouteSonifier | undefined, store: LiveStore | undefined;
 let feed: LiveFeed | undefined, resolver: NetgraphRegionResolver | undefined, director: ReturnType<typeof mountGraphFollow> | undefined;
 let connected=false, disposed=false, selected: string | null=null, recentSignature='', regionSignature='', refreshSearch=()=>{};
+let minuteTimer: number | undefined;
 let settings=load();
 initializeDisplay();
 const closeDisplay=mountNetgraphDisplay(()=>closePanels());
@@ -93,10 +94,15 @@ function selectNode(id: string | null) {
   if(!id){inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;return;}
   required('chronoscope-app').dataset.followInspect='true';
   if(!renderer.nodeInRegions(id)){settings.regions=null;renderer.setRegions(null);save();renderRegions();}
-  const model=buildNodeInspectorModel(id,renderer.nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
+  if(!renderNodeDetails(id)){selected=null;renderer.selectNode(null);rememberNode(null);return;}
+  renderer.focusNode(id);stage.dispatchEvent(new Event('graphnavigate'));
+}
+function renderNodeDetails(id: string): boolean {
+  if(!renderer||!store)return false;
+  const model=buildNodeInspectorModel(id,renderer.nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return false;}
   replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:next=>selectNode(next)}));
   const links=document.createElement('div');links.className='chrono-links';for(const [label,path]of [['Open Map','/'],['Open Netgraph','/netgraph/']]as const){const a=document.createElement('a');a.textContent=label;a.href=`${path}?node=${encodeURIComponent(id)}`;links.append(a);}inspector.append(links);
-  inspector.setAttribute('aria-label','Selected node details');inspector.hidden=false;renderer.focusNode(id);stage.dispatchEvent(new Event('graphnavigate'));
+  inspector.setAttribute('aria-label','Selected node details');inspector.hidden=false;return true;
 }
 function inspectPacket(record: Observation) {
   if(!renderer)return;renderer.freeze();renderer.selectPacket(record);selected=null;rememberNode(null);
@@ -110,7 +116,7 @@ function inspectPacket(record: Observation) {
   const live=document.createElement('button');live.type='button';live.textContent='Return to live';live.addEventListener('click',()=>{inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;renderer!.live();if(settings.mode==='slice'){settings.mode='sculpture';applySettings();save();}stage.focus();});card.append(live);
   replaceInspector(inspector,card);inspector.setAttribute('aria-label','Selected packet details');inspector.hidden=false;
 }
-function dispose() {disposed=true;feed?.stop();store?.destroy();sonifier?.destroy();director?.destroy();renderer?.destroy();resolver?.destroy();}
+function dispose() {disposed=true;if(minuteTimer!==undefined)clearInterval(minuteTimer);feed?.stop();store?.destroy();sonifier?.destroy();director?.destroy();renderer?.destroy();resolver?.destroy();}
 
 async function start() {
   try {
@@ -136,7 +142,7 @@ async function start() {
         scene.setAssignments(assignments);scene.render(liveStore.snapshot,{reset:true});renderRegions();
       }}catch{/* Keep coordinate-derived fallback until the next update. */}finally{resolving=false;}
     };
-    liveStore.subscribe((state,changes)=>{scene.render(state,changes);renderRegions();refreshSearch();updateStatus();});
+    liveStore.subscribe((state,changes)=>{scene.render(state,changes);renderRegions();refreshSearch();updateStatus();if(selected&&(changes?.reset||changes?.nodes?.some(n=>n.id===selected)||changes?.routes?.some(r=>r.fromId===selected||r.toId===selected)))if(!renderNodeDetails(selected))selectNode(null);});
     applySettings();
     refreshSearch=wireNodeSearch({input:required<HTMLInputElement>('node-search'),results:required('node-search-results'),metrics:stage,search:q=>searchNodes(scene.nodes.values(),q),select:id=>{selectNode(id);closePanels();inspector.querySelector<HTMLButtonElement>('button')?.focus();},dismiss:()=>{closePanels();required('find-button').focus();}});
     const following=mountGraphFollow({holdView(){},selectedNode:()=>selected,captureFollowArea(){const ids=new Set([...scene.nodes.values()].filter(n=>{const p=scene.projectEndpoint(n);return p.x>=0&&p.y>=0&&p.x<=stage.clientWidth&&p.y<=stage.clientHeight;}).map(n=>n.id));return id=>ids.has(id);},nodeInRegions:id=>scene.nodeInRegions(id),projectEndpoint:endpoint=>scene.projectEndpoint(endpoint),followPacket:packet=>{if(!scene.frozen)scene.focusNode(packet.mode==='observer'?packet.observer.id:packet.segments[0]!.from.id);}},id=>selectNode(id),stage);director=following;
@@ -149,6 +155,7 @@ async function start() {
       onError(){connected=false;updateStatus();},
     });feed=liveFeed;liveFeed.start();
     if(requestedNode())selectNode(requestedNode());
+    minuteTimer=window.setInterval(()=>{if(!document.hidden&&selected)renderNodeDetails(selected);},60_000);
     window.dispatchEvent(new CustomEvent('cartolite-chronoscope-ready',{detail:{scene}}));
   } catch {dispose();required('fatal').hidden=false;required('status').dataset.state='offline';required('status-text').textContent='Unavailable';}
 }

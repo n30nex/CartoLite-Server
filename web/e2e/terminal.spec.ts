@@ -164,6 +164,7 @@ test('Terminal stays compact and keeps selection when switching views', async ({
 });
 
 test('unavailable Terminal graphics falls back without stopping the feed', async ({page}) => {
+  test.setTimeout(60_000);
   await visualFixture(page);
   await page.addInitScript(() => {
     window.addEventListener('cartolite-map-ready', event => {
@@ -177,6 +178,8 @@ test('unavailable Terminal graphics falls back without stopping the feed', async
       return original.apply(this,args);
     };
   });
+  // Exercise fresh native layers repeatedly: this failure was intermittent.
+  for (let attempt = 0; attempt < 3; attempt++) {
   await page.goto('/terminal/');
   await expect(page.locator('.terminal-notice')).toBeVisible();
   await expect(page.locator('#fatal')).toBeHidden();
@@ -193,6 +196,7 @@ test('unavailable Terminal graphics falls back without stopping the feed', async
         layers: map.getLayersOrder() };
     }));
     throw error;
+  }
   }
 });
 
