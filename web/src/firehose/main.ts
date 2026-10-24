@@ -75,12 +75,12 @@ function acceptPacket(packet:PacketView){if(!ready||effectivePause||disposed)ret
 function workerMessage(message:Output){if(disposed)return;
  if(message.type==='ready'){ready=true;for(let i=0;i<3;i++){const buffer=new ArrayBuffer(frameSize(message.capacity)*4);post({type:'recycle',buffer},[buffer]);}stage.dataset.capacity=String(message.capacity);stage.dataset.renderState='ready';pause();sync();window.dispatchEvent(new CustomEvent('cartolite-firehose-ready',{detail:{scene:renderer}}));return;}
  if(message.type==='frame'){const old=renderer?.accept(message.buffer);if(old)post({type:'recycle',buffer:old},[old]);sync();return;}
- if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots);if(!effectivePause)sonifier?.play(entry.packet);}return;}
+ if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots,message.slots.filter((_,i)=>entry.shape.nodes[i]===selectedNode));if(!effectivePause)sonifier?.play(entry.packet);}return;}
  if(message.type==='rejected'){if(pending.delete(message.id)&&!effectivePause)omitted++;sync();return;}
  if(message.type==='removed'){for(const id of message.ids){const entry=events.get(id);if(entry)for(const slot of entry.slots)if(owners[slot]===id)owners[slot]=-1;events.delete(id);}return;}
  fail('The physics scene stopped. Reload to start a fresh box.');
 }
-function fail(message:string){required('fatal-message').textContent=message;required('fatal').hidden=false;stage.dataset.renderState='unavailable';dispose();}
+function fail(message:string){required('fatal-message').textContent=message;required('fatal').hidden=false;required('graphics-notice').hidden=true;required('feed-notice').hidden=true;stage.dataset.renderState='unavailable';dispose();}
 function dispose(){if(disposed)return;disposed=true;if(retryTimer!==undefined)clearTimeout(retryTimer);if(inspectorTimer!==undefined)clearInterval(inspectorTimer);feed?.stop();store?.destroy();sonifier?.destroy();post({type:'dispose'});worker?.terminate();renderer?.destroy();events.clear();pending.clear();}
 async function connect(){
  if(connecting||disposed||store)return;connecting=true;
@@ -94,16 +94,17 @@ async function connect(){
  }catch{if(!disposed){required('feed-notice').hidden=false;required('status').dataset.state='offline';required('status-text').textContent='Reconnecting';retryTimer=window.setTimeout(()=>{if(!document.hidden)void connect();},5000);}}
  finally{connecting=false;}
 }
-function start(){try{
+function start(){let phase='graphics';try{
  const capacity=capacityFor(matchMedia('(pointer:coarse)').matches,displayPreferences().quality);owners=new Int32Array(capacity).fill(-1);
  renderer=new FirehoseRenderer(stage,required<HTMLCanvasElement>('firehose-canvas'),capacity);renderer.onRotation=rotation=>post({type:'rotation',rotation});renderer.onPick=slot=>{const id=owners[slot];if(id!==undefined&&id>=0)inspect(id);};
  renderer.onContext=lost=>{required('graphics-notice').hidden=!lost;pause();};
- worker=new Worker(new URL('./firehose.worker.ts',import.meta.url),{type:'module'});worker.onmessage=event=>workerMessage(event.data as Output);worker.onerror=()=>fail('The physics worker could not start. Reload to try again.');worker.onmessageerror=()=>fail('The physics worker lost its connection. Reload to start a fresh box.');post({type:'init',capacity});
+ phase='worker';worker=new Worker(new URL('./firehose.worker.ts',import.meta.url),{type:'module'});worker.onmessage=event=>workerMessage(event.data as Output);worker.onerror=()=>fail('The physics worker could not start. Reload to try again.');worker.onmessageerror=()=>fail('The physics worker lost its connection. Reload to start a fresh box.');post({type:'init',capacity});
+ phase='sound-controls';
  const sound=new RouteSonifier(renderer,stage);sonifier=sound;const panel=required('sound-panel');mountSoundPreview(sound,panel);sound.setStatusListener(status=>updateSoundChrome(status,sound.getVolume(),sound.getScene()));
  required('sound-toggle').addEventListener('click',()=>void sound.setEnabled(sound.status()!=='on'));required<HTMLSelectElement>('sound-scene').addEventListener('change',e=>sound.setScene((e.target as HTMLSelectElement).value as SoundScene));required<HTMLInputElement>('sound-volume').addEventListener('input',e=>sound.setVolume(Number((e.target as HTMLInputElement).value)/100));
  updateSoundChrome(sound.status(),sound.getVolume(),sound.getScene());if(!sound.supported()){for(const id of ['sound-button','sound-toggle','sound-scene','sound-volume'])required<HTMLButtonElement>(id).disabled=true;required('sound-state').textContent='Unavailable';}
  pause();setMode('tilt');void connect();
- }catch{fail('Firehose needs WebGL2 graphics. Try reloading, or use Netgraph’s Canvas fallback.');}}
+ }catch(error){console.error(`Firehose ${phase} initialization failed`,error);stage.dataset.failurePhase=phase;fail(phase==='graphics'?'Firehose needs working WebGL2 graphics. Try reloading, or use Netgraph’s Canvas fallback.':'Firehose could not initialize. Reload to start a fresh box, or open Netgraph.');}}
 
 mountCinematicDock();
 required('tilt-mode').addEventListener('click',()=>setMode('tilt'));required('orbit-mode').addEventListener('click',()=>setMode('orbit'));

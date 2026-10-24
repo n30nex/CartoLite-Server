@@ -147,7 +147,7 @@ export class FirehoseRenderer {
     this.stage.dataset.omitted=String(data[5]);this.stage.dataset.drained=String(data[6]);this.stage.dataset.accepted=String(data[7]);this.stage.dataset.queue=String(data[14]);
     this.#changed();return old;
   }
-  born(slots:readonly number[]){const now=performance.now()/1000;for(const slot of slots)this.#born.setX(slot,now);this.#born.needsUpdate=true;this.#changed();}
+  born(slots:readonly number[],selected:readonly number[]=[]){const now=performance.now()/1000;for(const slot of slots){this.#born.setX(slot,now);this.#selected.setX(slot,0);}for(const slot of selected)this.#selected.setX(slot,1);this.#born.needsUpdate=true;this.#selected.needsUpdate=true;this.#changed();}
   highlight(slots:readonly number[]){(this.#selected.array as Float32Array).fill(0);for(const slot of slots)this.#selected.setX(slot,1);this.#selected.needsUpdate=true;this.#changed();}
   setLinks(visible:boolean){this.#links.visible=visible;this.#changed();}
   setMode(mode:'tilt'|'orbit'){this.mode=mode;this.controls.enableRotate=mode==='orbit'||this.paused;this.stage.dataset.controlMode=mode;this.stage.style.cursor=mode==='tilt'&&!this.paused?'grab':'move';}

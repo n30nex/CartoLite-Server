@@ -1,4 +1,4 @@
-import RAPIER, { type RigidBody } from '@dimforge/rapier3d-compat';
+import RAPIER, { type RigidBody, type World } from '@dimforge/rapier3d-compat';
 import { BOX, HEADER, MAX_PACKET_BEADS, MAX_PACKET_LINKS, MAX_PENDING, PIT_Y, SPOUT, UPRIGHT,
   approachRotation, frameSize, normalizedRotation, particleRadius, type PhysicalPacket, type Rotation } from './model';
 
@@ -7,7 +7,7 @@ export const initializePhysics = () => RAPIER.init();
 
 /** One bounded worker-owned world. Sleeping settled beads still have real collisions. */
 export class FirehosePhysics {
-  readonly world = new RAPIER.World({ x:0, y:-9.81, z:0 });
+  readonly world:World;
   readonly radius: number;
   readonly groups = new Map<number, Group>();
   readonly box: RigidBody;
@@ -31,6 +31,7 @@ export class FirehosePhysics {
 
   constructor(readonly capacity: number) {
     if (!Number.isInteger(capacity) || capacity < 128 || capacity > 4096 || capacity % 128) throw new Error('Invalid physical capacity');
+    this.world=new RAPIER.World({ x:0, y:-9.81, z:0 });
     this.radius=particleRadius(capacity); this.free=Array.from({length:capacity},(_,i)=>capacity-1-i); this.generations=new Uint32Array(capacity);
     this.world.timestep=1/60;this.world.numSolverIterations=4;this.world.maxCcdSubsteps=1;
     this.box=this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,BOX.centerY,0));

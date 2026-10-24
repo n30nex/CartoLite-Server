@@ -1,4 +1,5 @@
 @import '../chronoscope/styles.css';
+.firehose-app [hidden] { display:none!important; }
 #firehose-stage { position:absolute;inset:0;overflow:hidden;touch-action:none;outline-offset:-4px; }
 #firehose-canvas { display:block;width:100%;height:100%;touch-action:none; }
 .firehose-app .glass { transition:none; }

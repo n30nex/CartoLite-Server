@@ -26,7 +26,7 @@ port.onmessage=event=>{const message=event.data;
       post({type:'ready',capacity:physics.capacity,radius:physics.radius});last=performance.now();schedule();
     }).catch(fail);return;
   }
-  if(message.type==='recycle'){if(physics&&message.buffer.byteLength===frameSize(physics.capacity)*4&&pool.length<3)pool.push(message.buffer);return;}
+  if(message.type==='recycle'){if(physics&&message.buffer.byteLength===frameSize(physics.capacity)*4&&pool.length<3){pool.push(message.buffer);if(lastFrame===0)publish();}return;}
   if(message.type==='pause'){paused=message.paused;physics?.discardPending();if(timer)clearTimeout(timer);timer=undefined;accumulator=0;last=performance.now();schedule();return;}
   if(message.type==='packet'){if(physics&&!paused)physics.enqueue(message.packet);else post({type:'rejected',id:message.packet.id});return;}
   if(message.type==='rotation'){physics?.setRotation(message.rotation);return;}

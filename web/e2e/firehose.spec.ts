@@ -3,6 +3,15 @@ import { visualFixture } from './visualFixtures';
 import { openDisplay, openViewMenu } from './dockControls';
 import type { StateV2 } from '../src/types';
 
+const diagnostics=new WeakMap<Page,string[]>();
+test.beforeEach(async({page})=>{
+ const lines:string[]=[];diagnostics.set(page,lines);
+ const add=(value:string)=>{if(lines.length<80)lines.push(value.slice(0,2500).replace(/([?&](?:key|api_key|token)=)[^&#\s]+/gi,'$1[redacted]'));};
+ page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')add(m.text());});page.on('pageerror',e=>add(e.stack??e.message));
+ page.on('response',r=>{if(r.status()>=400)add(`${r.status()} ${new URL(r.url()).pathname}`);});
+});
+test.afterEach(async({page},info)=>{if(info.status!==info.expectedStatus)await info.attach('firehose-diagnostics',{body:JSON.stringify({messages:diagnostics.get(page),state:await page.locator('#firehose-stage').evaluate(el=>({...((el as HTMLElement).dataset)})).catch(()=>null)},null,2),contentType:'application/json'});});
+
 async function setup(page:Page) {
   await visualFixture(page);
   await page.addInitScript(()=>window.addEventListener('cartolite-firehose-ready',event=>{(window as any).__hose=(event as CustomEvent).detail.scene;}));

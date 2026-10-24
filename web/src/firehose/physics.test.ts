@@ -38,6 +38,18 @@ describe('Firehose public topology and real physics',()=>{
      expect(sim.world.bodies.len()).toBe(1);expect(sim.world.impulseJoints.len()).toBe(0);
    }finally{sim.destroy();}
  });
+ it('fills an upright box and naturally overflows into the pit, recycling drained slots',()=>{
+   const sim=new FirehosePhysics(256);let peak=0;try{
+     for(let i=0;i<1800;i++){
+       if(i%2===0)sim.enqueue({id:i+1,kind:i%6,beads:1,links:[]});
+       sim.step();peak=Math.max(peak,sim.count);
+       if(sim.drained>16&&sim.accepted>280)break;
+     }
+     expect(peak).toBeGreaterThan(128);expect(peak).toBeLessThanOrEqual(256);
+     expect(sim.drained).toBeGreaterThan(16);expect(sim.accepted).toBeGreaterThan(256);
+     expect(sim.rotation).toEqual({x:0,y:0,z:0,w:1});
+   }finally{sim.destroy();}
+ },15000);
  it('limits box angular speed without losing full upside-down rotation',()=>{
    let q={x:0,y:0,z:0,w:1};const target={x:0,y:0,z:1,w:0};
    q=approachRotation(q,target,.04);expect(2*Math.acos(q.w)).toBeCloseTo(.04);
