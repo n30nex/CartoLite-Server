@@ -28,6 +28,7 @@ export class ChronoscopeRenderer {
   #assignments = new Map<string, NetgraphAreaAnchor>();
   #layout = buildNetgraphLayout([], []);
   #bounds = this.#layout.bounds;
+  #framed = false;
   #topology = new Map<string, string>();
   #records: readonly Observation[] = [];
   #hits: Array<{ record: Observation; path: readonly SurfacePoint[] }> = [];
@@ -85,7 +86,7 @@ export class ChronoscopeRenderer {
   setSlice(seconds: number): void { this.freeze(); this.#slice = seconds; this.request(); }
   setRegions(regions: string[] | null): void {
     if (regions === null && this.#regions === null || regions !== null && this.#regions?.size === regions.length && regions.every(code => this.#regions!.has(code))) return;
-    this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.#zoom=1;
+    this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.#zoom=1; this.#framed=false;
     if (this.#selectedEvent!==null || this.#selected&&!this.nodeInRegions(this.#selected)) this.callbacks.node(null);
     this.reproject(); this.request();
   }
@@ -97,7 +98,7 @@ export class ChronoscopeRenderer {
     if (p) { this.#pan = { x: this.#width * .5 - p.x, y: (this.#height - this.#depth) * .5 - p.y }; this.reproject(); }
     this.request();
   }
-  home(): void { this.#pan = { x: 0, y: 0 }; this.#zoom = 1; this.#angle = -.12; this.reproject(); this.request(); }
+  home(): void { this.#pan = { x: 0, y: 0 }; this.#zoom = 1; this.#angle = -.12; this.#framed=false; this.reproject(); this.request(); }
   panBy(x: number, y: number): void { this.#pan.x += x; this.#pan.y += y; this.reproject(); this.request(); }
   zoomBy(factor: number): void { this.#zoom = Math.max(.2, Math.min(12, this.#zoom * factor)); this.reproject(); this.request(); }
   rotateBy(delta: number): void { this.#angle += delta; this.reproject(); this.request(); }
@@ -137,7 +138,12 @@ export class ChronoscopeRenderer {
   }
   private reproject(): void {
     const areas = this.#regions ? this.#layout.areas.filter(a => this.#regions!.has(a.code)) : [];
-    this.#bounds = areas.length ? {minX:Math.min(...areas.map(a=>a.x-a.radius)),maxX:Math.max(...areas.map(a=>a.x+a.radius)),minY:Math.min(...areas.map(a=>a.y-a.radius)),maxY:Math.max(...areas.map(a=>a.y+a.radius))} : this.#layout.bounds;
+    // New regions may arrive off-screen. Only the first frame, Fit, or an explicit
+    // region change reframes the scene; incoming traffic never moves the camera.
+    if(!this.#framed){
+      this.#bounds = areas.length ? {minX:Math.min(...areas.map(a=>a.x-a.radius)),maxX:Math.max(...areas.map(a=>a.x+a.radius)),minY:Math.min(...areas.map(a=>a.y-a.radius)),maxY:Math.max(...areas.map(a=>a.y+a.radius))} : this.#layout.bounds;
+      this.#framed=this.#layout.positions.size>0;
+    }
     const b = this.#bounds;
     this.#depth = this.#mode === 'sculpture' ? Math.max(30, this.#height - 190) * .43 : 0;
     const angle = this.#mode === 'sculpture' ? this.#angle : 0, c = Math.abs(Math.cos(angle)), s = Math.abs(Math.sin(angle));
@@ -147,15 +153,21 @@ export class ChronoscopeRenderer {
     this.#dirty = true;
   }
   private resize = (): void => {
+    if (document.hidden) { this.#dirty=true; return; }
     this.#width = Math.max(1, this.stage.clientWidth); this.#height = Math.max(1, this.stage.clientHeight);
     this.#dpr = Math.min(devicePixelRatio || 1, displayPreferences().quality === 'economy' ? 1 : 2);
-    for (const canvas of [this.canvas, this.effects, this.#base]) { canvas.width = Math.round(this.#width * this.#dpr); canvas.height = Math.round(this.#height * this.#dpr); }
+    const width=Math.round(this.#width*this.#dpr),height=Math.round(this.#height*this.#dpr);
+    for (const canvas of [this.canvas, this.effects, this.#base]) if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
     this.reproject(); this.request();
   };
-  private appearance = (): void => { this.resize(); };
+  private appearance = (): void => {
+    this.#dirty=true;if(document.hidden)return;
+    const dpr=Math.min(devicePixelRatio||1,displayPreferences().quality==='economy'?1:2);
+    if(dpr!==this.#dpr)this.resize();else this.request();
+  };
   private visibility = (): void => {
     cancelAnimationFrame(this.#frame); clearTimeout(this.#timer); this.#frame = this.#timer = 0;
-    if (!document.hidden) { this.timeline.prune(performance.now()); this.request(); }
+    if (!document.hidden) { this.timeline.prune(performance.now()); this.resize(); }
   };
   private request(): void {
     if (!this.#disposed && !document.hidden && !this.#frame) { clearTimeout(this.#timer); this.#timer = 0; this.#frame = requestAnimationFrame(this.draw); }
@@ -174,7 +186,7 @@ export class ChronoscopeRenderer {
       const width = Math.max(ctx.measureText(label).width,ctx.measureText(name).width), box = { x: p.x - width / 2, y: p.y - ry - 36, w: width, h: 30 };
       if (!boxes.some(b => box.x < b.x + b.w + 8 && box.x + box.w + 8 > b.x && box.y < b.y + b.h && box.y + box.h > b.y)) {
         boxes.push(box); ctx.fillStyle = displayColor('#d2e0ef'); ctx.textAlign='center';ctx.fillText(label,p.x,box.y+9);
-        ctx.font='10px system-ui';ctx.fillStyle=alpha('#d2e0ef',.8);ctx.fillText(name,p.x,box.y+24);ctx.font=`${palette.textSize==='large'?14:12}px system-ui`;ctx.textAlign='left';
+        ctx.font=`${palette.textSize==='large'?12:10}px system-ui`;ctx.fillStyle=alpha('#d2e0ef',.8);ctx.fillText(name,p.x,box.y+24);ctx.font=`${palette.textSize==='large'?14:12}px system-ui`;ctx.textAlign='left';
       }
     }
     const count = this.#regions ? this.#layout.areas.reduce((sum,a)=>sum+(this.#regions!.has(a.code)?a.nodeCount:0),0) : this.#nodes.size;
@@ -206,14 +218,18 @@ export class ChronoscopeRenderer {
     this.#gpu.batch.setEnabled(!reduced && prefs.quality !== 'economy');
     if (this.#dirty) this.base();
     const b = this.#bounds;
-    const corners = [{x:b.minX,y:b.minY},{x:b.maxX,y:b.minY},{x:b.maxX,y:b.maxY},{x:b.minX,y:b.maxY}].map(p => this.world(p));
+    const corners = [{x:b.minX,y:b.minY},{x:b.maxX,y:b.minY},{x:b.maxX,y:b.maxY},{x:b.minX,y:b.maxY}].map(p => {
+      const q=this.world(p),cx=this.#width/2,cy=(this.#height-this.#depth)/2;
+      // The time ruler stays readable while the spatial view pans and zooms.
+      return {x:cx+(q.x-cx-this.#pan.x)/this.#zoom,y:cy+(q.y-cy-this.#pan.y)/this.#zoom};
+    });
     if (this.#layout.positions.size && this.#mode === 'sculpture') {
       for (const [index,p] of corners.entries()) this.stroke(ctx,[p,{x:p.x,y:p.y+this.#depth}],'#73d9cf',index===0?.32:.1,1);
       for (const part of [1, 2 / 3, 1 / 3, 0]) {
         const polygon = corners.map(p => ({ x: p.x, y: p.y + part * this.#depth }));
         ctx.beginPath(); ctx.moveTo(polygon[0]!.x, polygon[0]!.y); for (const p of polygon.slice(1)) ctx.lineTo(p.x, p.y); ctx.closePath();
         ctx.fillStyle = alpha('#73d9cf', part === 0 ? .035 : .008); ctx.fill(); ctx.strokeStyle = alpha('#73d9cf', part === 0 ? .3 : .12); ctx.lineWidth = 1; ctx.stroke();
-        const p = polygon[0]!; ctx.font = '11px system-ui'; ctx.fillStyle = displayColor('#d2e0ef'); ctx.textAlign = 'right';
+        const p = polygon[0]!; ctx.font = `${prefs.textSize==='large'?13:11}px system-ui`; ctx.fillStyle = displayColor('#d2e0ef'); ctx.textAlign = 'right';
         ctx.fillText(part ? `${Math.round(part * this.#seconds)}s ago` : 'NOW', Math.max(56, p.x - 10), p.y + 4); ctx.textAlign = 'left';
       }
     }

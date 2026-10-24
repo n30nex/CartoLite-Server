@@ -8,6 +8,7 @@ html:root .chronoscope-app .glass { transition:none; }
 .chrono-caption strong { color:var(--ink-strong); font-size:12px; letter-spacing:.2em; }.chrono-caption small { color:var(--muted);font-size:11px; }
 .chrono-panel { position:absolute; bottom:calc(100% + 10px); right:0; width:340px; max-width:calc(100vw - 24px); max-height:calc(var(--available-height,100dvh) - var(--dock-height,60px) - 90px); padding:14px; box-sizing:border-box; overflow:auto; overscroll-behavior:contain; }
 .chrono-panel header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.chrono-panel header { position:sticky;top:-14px;z-index:2;background:var(--panel-solid); }
 .chrono-panel label { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0; font-size:12px; }
 .chrono-panel :is(button,select,input) { min-height:44px; min-width:44px; border:1px solid var(--panel-border); border-radius:8px; background:var(--field-bg);color:var(--ink-strong);padding:7px 10px;font:inherit; }
 .chrono-panel button { cursor:pointer; }.chrono-panel header button { font-size:20px; }
@@ -21,6 +22,8 @@ html:root .chronoscope-app .glass { transition:none; }
 .chronoscope-app #legend { bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 10px);left:14px;width:max-content; }
 .chronoscope-app #regions-button[data-filtered] { box-shadow:inset 0 -2px var(--focus-ring); }
 [data-theme=light] .chrono-caption { text-shadow:0 1px 2px #fff; }
+:root[data-text-size=large] :is(.chrono-panel label,.chrono-panel p,.chrono-inspector p,.chrono-hop button,.chrono-caption span) { font-size:15px; }
+:root[data-text-size=large] .chrono-caption :is(strong,small) { font-size:12px; }
 html:root[data-cinematic]:has(.chronoscope-app .controls button[aria-expanded=true]) .chronoscope-app #node-inspector-sheet { visibility:hidden; }
 @media(max-width:900px),(pointer:coarse) {
  .chrono-caption { top:66px;left:12px;font-size:11px; }.chrono-caption strong { font-size:10px; }.chrono-caption small { max-width:260px;font-size:10px; }

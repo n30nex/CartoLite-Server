@@ -111,6 +111,17 @@ test('Chronoscope shares preferences across tabs without losing frozen inspectio
   await page.locator('#regions-button').click();await page.locator('#regions-none').click();expect(new URL(page.url()).searchParams.has('node')).toBe(false);await expect(page.locator('#node-inspector-sheet')).toBeHidden();
 });
 
+test('Chronoscope keeps the camera still when a distant region appears',async({page},info)=>{
+  test.skip(info.project.name!=='desktop');await visualFixture(page);
+  await page.addInitScript(()=>window.addEventListener('cartolite-chronoscope-ready',event=>{(window as any).__chrono=(event as CustomEvent).detail.scene;}));
+  await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  const before=await page.evaluate(()=>{const scene=(window as any).__chrono;return scene.projectEndpoint(scene.nodes.get('visual-a'));});
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-node',{detail:{seq:1,node:{id:'new-region',label:'New region radio',lat:-17.7,lng:179.8,role:'repeater',observer:false,lastSeen:Date.now()}}})));
+  await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-total-nodes','4');
+  expect(await page.evaluate(()=>{const scene=(window as any).__chrono;return scene.projectEndpoint(scene.nodes.get('visual-a'));})).toEqual(before);
+  await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-event-count','0');
+});
+
 test('Chronoscope retains 7000 links and bounds live geometry without fetching a basemap',async({page},info)=>{
   test.skip(info.project.name!=='desktop');
   await visualFixture(page);const now=Date.now();
