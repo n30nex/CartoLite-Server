@@ -98,3 +98,12 @@ void main(){if(abs(vLocal.x)>2.4||abs(vLocal.y)>1.6)discard;float r=length(vUV),
  float alpha=ring*pow(max(0.0,1.0-vAge/1.15),2.0)*uMotion*.65;if(alpha<.005)discard;
  outColor=vec4(srgb(ink(vKind,0.0)*1.25),alpha);}
 `;
+export const wellVertex=`
+out vec2 vUV;void main(){vUV=uv*2.0-1.0;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}
+`;
+export const wellFragment=`
+uniform float uDrainEnergy,uTime,uMotion;in vec2 vUV;out vec4 outColor;
+void main(){float r=length(vUV);float ring=pow(.5+.5*cos(r*46.0-uTime*4.0*uMotion),16.0);
+ vec3 light=vec3(.015,.24,.32)*(pow(r,4.0)*.14+ring*uDrainEnergy*.24);
+ outColor=vec4(pow(vec3(.001,.004,.008)+light,vec3(1.0/2.2)),1.0);}
+`;

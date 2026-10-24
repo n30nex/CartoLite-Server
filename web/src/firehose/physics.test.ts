@@ -64,7 +64,13 @@ describe('Firehose public topology and real physics',()=>{
      expect(sim.groups.size).toBe(20);expect(sim.drained).toBe(0);expect(sim.sleeping).toBeGreaterThan(10);
      sim.setRotation({x:0,y:0,z:Math.sin(.5),w:Math.cos(.5)});sim.step();expect(sim.sleeping).toBe(0);
      for(let i=0;i<600&&sim.count;i++)sim.step();
-     expect(sim.drained).toBeGreaterThan(0);
+     // A half-full tray need not spill at 57 degrees: it should slide into
+     // the low corner. Turning past vertical then empties it through the mouth.
+     const points=[...sim.groups.values()].flatMap(g=>g.slots.map(slot=>sim.position(slot)));
+     const localX=points.reduce((sum,p)=>sum+Math.cos(1)*p.x+Math.sin(1)*(p.y-.45),0)/points.length;
+     expect(localX).toBeLessThan(-1.5);
+     sim.setRotation({x:0,y:0,z:1,w:0});for(let i=0;i<480&&sim.count;i++)sim.step();
+     expect(sim.count).toBe(0);expect(sim.drained).toBe(20);
    }finally{sim.destroy();}
  },15000);
 });

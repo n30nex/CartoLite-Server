@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { displayPreferences, lightScene, packetPalette } from '../displayPreferences';
 import { NetgraphQuality } from '../netgraph/quality';
 import { BOX, HEADER, KINDS, SPOUT, TEXTURE_WIDTH, particleRadius, type Rotation } from './model';
-import { beadVertex, beadFragment, dotVertex, dotFragment, trailVertex, trailFragment, linkVertex, linkFragment, rippleVertex, rippleFragment } from './shaders';
+import { beadVertex, beadFragment, dotVertex, dotFragment, trailVertex, trailFragment, linkVertex, linkFragment, rippleVertex, rippleFragment, wellVertex, wellFragment } from './shaders';
 
 export class FirehoseRenderer {
   readonly scene=new THREE.Scene();
@@ -77,7 +77,7 @@ export class FirehoseRenderer {
     this.#birthTexture=new THREE.DataTexture(this.#births,TEXTURE_WIDTH,capacity/TEXTURE_WIDTH,THREE.RedFormat,THREE.FloatType);this.#birthTexture.needsUpdate=true;
     this.#uniforms={uPrevious:{value:this.#textures[0]},uCurrent:{value:this.#textures[1]},uBirth:{value:this.#birthTexture},uBlend:{value:1},uRadius:{value:this.radius},
       uHeight:{value:1},uDpr:{value:1},uResolution:{value:new THREE.Vector2(1,1)},uPalette:{value:KINDS.map(()=>new THREE.Color())},uDarkPalette:{value:KINDS.map(()=>new THREE.Color())},
-      uTime:{value:0},uMotion:{value:1},uTrail:{value:1},uGlow:{value:0},uCore:{value:1},uLight:{value:0},uWidth:{value:1.5},uOpacity:{value:.8},uPattern:{value:0}};
+      uTime:{value:0},uDrainEnergy:{value:0},uMotion:{value:1},uTrail:{value:1},uGlow:{value:0},uCore:{value:1},uLight:{value:0},uWidth:{value:1.5},uOpacity:{value:.8},uPattern:{value:0}};
     this.#selectedSlots=new Float32Array(capacity);
     this.#selected=new THREE.BufferAttribute(this.#selectedSlots,1).setUsage(THREE.DynamicDrawUsage);
     const slots=Float32Array.from({length:capacity},(_,i)=>i);
@@ -124,7 +124,7 @@ export class FirehoseRenderer {
     // The pit is open: overflow and tipped chains disappear down its dark throat.
     const pit=this.#mesh(new THREE.CylinderGeometry(3.9,2.9,2.1,64,1,true),dark,this.scene,0,-2.7,0);(pit.material as THREE.MeshStandardMaterial).side=THREE.DoubleSide;
     const ring=this.#mesh(new THREE.TorusGeometry(3.92,.11,8,80),rim,this.scene,0,-1.65,0);ring.rotation.x=Math.PI/2;
-    const well=this.#mesh(new THREE.CircleGeometry(2.95,64),new THREE.MeshBasicMaterial({color:0x01070b}),this.scene,0,-3.76,0);well.rotation.x=-Math.PI/2;
+    const well=this.#mesh(new THREE.CircleGeometry(2.95,64),new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:wellVertex,fragmentShader:wellFragment,uniforms:this.#uniforms,toneMapped:false}),this.scene,0,-3.76,0);well.rotation.x=-Math.PI/2;
     const marks=new THREE.InstancedMesh(new THREE.BoxGeometry(.045,.012,.15),rim,40),dummy=new THREE.Object3D();
     for(let i=0;i<40;i++){const a=i*Math.PI/20;dummy.position.set(Math.cos(a)*4.15,-1.65,Math.sin(a)*4.15);dummy.rotation.y=-a;dummy.updateMatrix();marks.setMatrixAt(i,dummy.matrix);}this.scene.add(marks);
     const nozzle=new THREE.Group();nozzle.position.set(SPOUT.x,SPOUT.y+.4,SPOUT.z);this.scene.add(nozzle);
@@ -239,6 +239,7 @@ export class FirehoseRenderer {
     const effects=!this.paused&&now<this.#effectUntil&&displayPreferences().effects!=='minimal';
     if(this.#nozzleLight)this.#nozzleLight.opacity=.2+Math.max(0,1-(time/1000-this.#emitTime)/.7)*.8*this.#uniforms.uMotion!.value;
     if(this.#pitLight)this.#pitLight.opacity=.16+Math.max(0,1-(time/1000-this.#drainTime)/1.2)*.7*this.#uniforms.uMotion!.value;
+    this.#uniforms.uDrainEnergy!.value=Math.max(0,1-(time/1000-this.#drainTime)/1.4)*this.#uniforms.uMotion!.value;
     if(this.#previous&&this.#current){this.#poseA.set(this.#previous[8]!,this.#previous[9]!,this.#previous[10]!,this.#previous[11]!);this.#poseB.set(this.#current[8]!,this.#current[9]!,this.#current[10]!,this.#current[11]!);this.box.quaternion.copy(this.#poseA).slerp(this.#poseB,blend);}
     const moved=this.controls.update();
     if(this.#dirty||moved||blend<1||effects){const started=performance.now();this.gpu.render(this.scene,this.camera);this.#drawMs=performance.now()-started;this.#visualFrames++;const frameMs=this.#lastDraw?now-this.#lastDraw:0;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,frameMs);this.#lastDraw=now;this.#dirty=false;
@@ -249,7 +250,7 @@ export class FirehoseRenderer {
         &&this.#quality.sample(frameMs,this.#drawMs))this.#resized();}
     if(moved||(!this.paused&&blend<1)||effects)this.#request();
   };
-  get metrics(){return{frames:this.#visualFrames,maxFrameGap:this.#maxFrameGap,drawCalls:this.gpu.info.render.calls,geometries:this.gpu.info.memory.geometries,textures:this.gpu.info.memory.textures,capacity:this.capacity};}
+  get metrics(){return{frames:this.#visualFrames,maxFrameGap:this.#maxFrameGap,drawCalls:this.gpu.info.render.calls,geometries:this.gpu.info.memory.geometries,textures:this.gpu.info.memory.textures,capacity:this.capacity,impacts:this.#impactIndex};}
   destroy(){this.#disposed=true;if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#resize.disconnect();this.controls.removeEventListener('change',this.#changed);this.controls.dispose();
     this.canvas.removeEventListener('pointerdown',this.#down);this.canvas.removeEventListener('pointermove',this.#move);this.canvas.removeEventListener('pointerup',this.#release);this.canvas.removeEventListener('pointercancel',this.#cancel);
     this.canvas.removeEventListener('webglcontextlost',this.#contextLost);this.canvas.removeEventListener('webglcontextrestored',this.#contextRestored);this.stage.removeEventListener('keydown',this.#key);document.removeEventListener('visibilitychange',this.#visibility);

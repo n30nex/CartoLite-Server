@@ -122,6 +122,17 @@ test('Firehose navigation is available alongside the existing views',async({page
  test.skip(info.project.name!=='desktop');await setup(page);await page.goto('/chronoscope/');await openViewMenu(page);await page.getByRole('link',{name:'Open CartoLite Firehose',exact:true}).click();await expect(page.locator('#firehose-stage')).toHaveAttribute('data-render-state','ready');
 });
 
+test('Firehose luminous arrivals keep floor effects bounded and freeze with Pause',async({page},info)=>{
+ await setup(page);await open(page);
+ await page.evaluate(()=>{let seq=0;(window as any).__arrivalTimer=setInterval(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:++seq,id:`arrival-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:[{routeId:'visual-hop',fromId:'visual-a',toId:'visual-b'}]}})),100);});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__hose.metrics.impacts)).toBeGreaterThan(2);
+ await page.screenshot({path:info.outputPath('firehose-active-flow.png')});
+ await page.evaluate(()=>clearInterval((window as any).__arrivalTimer));
+ await page.locator('#pause-button').click();await page.waitForTimeout(100);
+ const before=await page.locator('#firehose-stage').getAttribute('data-render-frames');await page.waitForTimeout(160);
+ expect(await page.locator('#firehose-stage').getAttribute('data-render-frames')).toBe(before);
+});
+
 test('Firehose suspends hidden physics and resumes only fresh packets',async({page},info)=>{
  test.skip(info.project.name!=='desktop');const state=await setup(page);let snapshots=0;page.on('request',r=>{if(new URL(r.url()).pathname==='/api/state')snapshots++;});await open(page);
  await packet(page,1);const stage=page.locator('#firehose-stage');await expect(stage).toHaveAttribute('data-events','1');
