@@ -20,6 +20,7 @@ async function setup(page:Page) {
   return state;
 }
 async function open(page:Page){await page.goto('/firehose/');await expect(page.locator('#firehose-stage')).toHaveAttribute('data-render-state','ready',{timeout:20000});await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');}
+async function sameCamera(page:Page,position:number[]){const current:number[]=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());for(let i=0;i<3;i++)expect(current[i]).toBeCloseTo(position[i]!,10);}
 async function packet(page:Page,seq:number,observer=false){await page.evaluate(({seq,observer})=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`firehose-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],...(observer?{mode:'observer',observer:{id:'visual-a',label:'Visual Alpha',lat:43.45,lng:-80.35}}:{mode:'route',segments:[{routeId:'visual-hop',fromId:'visual-a',toId:'visual-b'}]})}})),{seq,observer});}
 
 test('Firehose starts empty, preserves links and never refills paused time',async({page},info)=>{
@@ -43,10 +44,10 @@ test('Firehose settles a real pile, tilts and pours it into the pit',async({page
  await page.waitForTimeout(1700);await page.screenshot({path:info.outputPath('firehose-settling.png')});
  const before=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());
  await stage.focus();await page.keyboard.press('ArrowRight');await page.waitForTimeout(180);
- expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).toEqual(before);
+ await sameCamera(page,before);
  expect(await page.evaluate(()=>Math.abs((window as any).__hose.box.quaternion.y)+Math.abs((window as any).__hose.box.quaternion.z))).toBeGreaterThan(.01);
  await page.locator('#box-button').click();await page.locator('#orbit-mode').click();await page.keyboard.press('Escape');await stage.focus();await page.keyboard.press('ArrowRight');
- expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).not.toEqual(before);
+ const orbited:number[]=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());expect(Math.hypot(...orbited.map((v,i)=>v-before[i]))).toBeGreaterThan(.1);
  await page.locator('#pour-button').click();await expect.poll(async()=>Number(await stage.getAttribute('data-drained')),{timeout:12000}).toBeGreaterThan(0);
  await expect(stage).toHaveAttribute('data-beads','0',{timeout:12000});await page.screenshot({path:info.outputPath('firehose-poured.png')});
  await page.locator('#box-button').click();await page.locator('#upright-button').click();await page.keyboard.press('Escape');
@@ -55,10 +56,11 @@ test('Firehose settles a real pile, tilts and pours it into the pit',async({page
 
 test('Firehose scene themes preserve the pile and camera',async({page},info)=>{
  await setup(page);await open(page);await packet(page,1);await expect(page.locator('#firehose-stage')).toHaveAttribute('data-beads','2');
+ await page.locator('#box-button').click();await page.locator('#orbit-mode').click();await page.keyboard.press('Escape');await page.locator('#firehose-stage').focus();await page.keyboard.press('ArrowRight');
  const camera=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());
  for(const theme of ['dark','light','streets']){await openDisplay(page);await page.getByLabel('Scene style',{exact:true}).selectOption(theme);await page.keyboard.press('Escape');
    await expect(page.locator('html')).toHaveAttribute('data-basemap',theme);await expect(page.locator('#firehose-stage')).toHaveAttribute('data-events','1');
-   expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).toEqual(camera);
+   await sameCamera(page,camera);
    const contrast=await page.evaluate(()=>{
      const luminance=(color:string)=>{const [r,g,b]=(color.match(/[\d.]+/g)??[]).slice(0,3).map(c=>{const n=Number(c)/255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;});return .2126*r!+.7152*g!+.0722*b!;};
      return ['#topbar','.controls'].map(selector=>{const panel=document.querySelector(selector)!;const ink=getComputedStyle(panel.querySelector('button,a')!),back=getComputedStyle(panel);const a=luminance(ink.color),b=luminance(back.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);});
