@@ -36,7 +36,7 @@ const closeDisplay=mountNetgraphDisplay(()=>closePanels());
 populateSoundScenes(required<HTMLSelectElement>('sound-scene'));
 
 function load() { try { const value=normalizeChronoscope(JSON.parse(localStorage.getItem(KEY)??'null'));if(value.mode==='slice')value.mode='sculpture';return value; } catch { return normalizeChronoscope(null); } }
-function save() { try { localStorage.setItem(KEY,JSON.stringify({...settings,mode:settings.mode==='slice'?liveMode:settings.mode})); } catch { /* Storage is optional. */ } }
+function save() { try { localStorage.setItem(KEY,JSON.stringify({...settings,mode :settings.mode==='slice'?liveMode:settings.mode})); } catch { /* Storage is optional. */ } }
 function returnLive() {
   if(settings.mode==='slice'){settings.mode=liveMode;mode.value=liveMode;renderer?.setMode(liveMode);required('slice-control').hidden=true;save();}
   if(!selected){inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;}
@@ -73,17 +73,17 @@ function sync() {
   const missing=settings.regions?.length&&!renderer.regions.some(area=>settings.regions!.includes(area.code));
   const time=settings.mode==='slice'?`around ${renderer.sliceSeconds}s ago (±2s)`:`${settings.seconds}s window`;
   if(settings.mode==='slice'){slice.value=String(renderer.sliceSeconds);required<HTMLOutputElement>('slice-output').value=`${renderer.sliceSeconds===0?'Now':`${renderer.sliceSeconds}s ago`} · ±2s`;}
-  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${time}${renderer.timeline.trimmed?' · oldest trails capped':''}`:settings.mode==='slice'?`No observed events ${time}`:'Waiting for activity');
+  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${time}${renderer.timeline.trimmed?' · oldest trails capped':''}` :settings.mode==='slice'?`No observed events ${time}`:(frozen?'No events in this frozen window':'Waiting for activity'));
   if(caption.textContent!==copy)caption.textContent=copy;
   const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase();if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
   if(!required('time-panel').hidden)updateRecent();
 }
 function updateRecent() {
   if(!renderer)return;
-  const records=[...renderer.inspectionRecords()].slice(-8).reverse(),signature=records.map(r=>r.packet.seq).join(',');
+  const records=[...renderer.inspectionRecords()].slice(-8).reverse(),signature=settings.mode+':'+renderer.sliceSeconds+':'+String(renderer.frozen)+':'+records.map(r=>r.packet.seq).join(',');
   if(signature===recentSignature)return;recentSignature=signature;
   const host=required('recent-events');host.replaceChildren();
-  if(!records.length){const p=document.createElement('p');p.textContent=settings.mode==='slice'?'No events in this slice.':'Waiting for activity.';host.append(p);}
+  if(!records.length){const p=document.createElement('p');p.textContent=settings.mode==='slice'?'No events in this slice.':renderer.frozen?'No events in this frozen window.':'Waiting for activity.';host.append(p);}
   for(const record of records){const button=document.createElement('button'),dot=document.createElement('i'),text=document.createElement('span');button.type='button';
     const packet=record.packet,kind=normalizePacketKind(packet.payloadType);dot.style.setProperty('--packet-color',packetPalette()[kind]);dot.setAttribute('aria-hidden','true');
     text.textContent=`${kind} · ${packet.mode==='observer'?packet.observer.label:packet.segments[0]?.from.label??'Observed link'}${packet.mode==='observer'?' · heard only':` · ${packet.segments.length} confirmed segments`}`;
