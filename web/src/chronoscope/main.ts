@@ -66,22 +66,24 @@ function applySettings() {
 }
 function sync() {
   if(!renderer)return;
-  const records=renderer.visibleRecords(),frozen=renderer.frozen;
+  const records=renderer.inspectionRecords(),frozen=renderer.frozen;
   freeze.setAttribute('aria-pressed',String(frozen));
   sonifier?.setPaused(document.hidden||frozen);
   required('regions-button').toggleAttribute('data-filtered',settings.regions!==null);
   const missing=settings.regions?.length&&!renderer.regions.some(area=>settings.regions!.includes(area.code));
-  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${settings.seconds}s window${renderer.timeline.trimmed?' · oldest trails capped':''}`:'Waiting for activity');
+  const time=settings.mode==='slice'?`around ${renderer.sliceSeconds}s ago (±2s)`:`${settings.seconds}s window`;
+  if(settings.mode==='slice'){slice.value=String(renderer.sliceSeconds);required<HTMLOutputElement>('slice-output').value=`${renderer.sliceSeconds===0?'Now':`${renderer.sliceSeconds}s ago`} · ±2s`;}
+  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${time}${renderer.timeline.trimmed?' · oldest trails capped':''}`:settings.mode==='slice'?`No observed events ${time}`:'Waiting for activity');
   if(caption.textContent!==copy)caption.textContent=copy;
   const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase();if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
   if(!required('time-panel').hidden)updateRecent();
 }
 function updateRecent() {
   if(!renderer)return;
-  const records=[...renderer.visibleRecords()].slice(-8).reverse(),signature=records.map(r=>r.packet.seq).join(',');
+  const records=[...renderer.inspectionRecords()].slice(-8).reverse(),signature=records.map(r=>r.packet.seq).join(',');
   if(signature===recentSignature)return;recentSignature=signature;
   const host=required('recent-events');host.replaceChildren();
-  if(!records.length){const p=document.createElement('p');p.textContent='Waiting for activity.';host.append(p);}
+  if(!records.length){const p=document.createElement('p');p.textContent=settings.mode==='slice'?'No events in this slice.':'Waiting for activity.';host.append(p);}
   for(const record of records){const button=document.createElement('button'),dot=document.createElement('i'),text=document.createElement('span');button.type='button';
     const packet=record.packet,kind=normalizePacketKind(packet.payloadType);dot.style.setProperty('--packet-color',packetPalette()[kind]);dot.setAttribute('aria-hidden','true');
     text.textContent=`${kind} · ${packet.mode==='observer'?packet.observer.label:packet.segments[0]?.from.label??'Observed link'}${packet.mode==='observer'?' · heard only':` · ${packet.segments.length} confirmed segments`}`;

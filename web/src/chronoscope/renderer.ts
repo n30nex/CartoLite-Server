@@ -64,6 +64,7 @@ export class ChronoscopeRenderer {
   get selected(): string | null { return this.#selected; }
   get mode(): ChronoscopeMode { return this.#mode; }
   get seconds(): number { return this.#seconds; }
+  get sliceSeconds(): number { return this.#slice; }
   get frozen(): boolean { return this.timeline.frozen; }
   get frameTime(): number { return this.timeline.clock(performance.now()); }
   setAssignments(areas: Map<string, NetgraphAreaAnchor>): void { this.#assignments = areas; }
@@ -83,7 +84,7 @@ export class ChronoscopeRenderer {
   }
   setMode(mode: ChronoscopeMode): void { this.#mode = mode; if (mode === 'slice') this.freeze(); this.reproject(); this.request(); }
   setWindow(seconds: number): void { this.#seconds = seconds; this.#slice = Math.min(this.#slice, seconds); this.reproject(); this.request(); }
-  setSlice(seconds: number): void { this.freeze(); this.#slice = seconds; this.request(); }
+  setSlice(seconds: number): void { this.#slice = seconds; this.freeze(); this.request(); }
   setRegions(regions: string[] | null): void {
     if (regions === null && this.#regions === null || regions !== null && this.#regions?.size === regions.length && regions.every(code => this.#regions!.has(code))) return;
     this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.#zoom=1; this.#framed=false;
@@ -110,6 +111,10 @@ export class ChronoscopeRenderer {
     const record = this.timeline.add(packet, performance.now()); if (!this.frozen) this.request(); return record;
   }
   visibleRecords(): readonly Observation[] { return this.timeline.visible(performance.now(), this.#seconds).filter(r => this.matches(r)); }
+  inspectionRecords(): readonly Observation[] {
+    const at=this.frameTime;
+    return this.visibleRecords().filter(record=>this.#mode!=='slice'||Math.abs((at-record.started)/1_000-this.#slice)<=2);
+  }
   matches(record: Observation): boolean {
     const packet = record.packet;
     return packet.mode === 'observer' ? this.nodeInRegions(packet.observer.id)
@@ -233,7 +238,7 @@ export class ChronoscopeRenderer {
         ctx.fillText(part ? `${Math.round(part * this.#seconds)}s ago` : 'NOW', Math.max(56, p.x - 10), p.y + 4); ctx.textAlign = 'left';
       }
     }
-    this.#records = this.visibleRecords().filter(record => this.#mode !== 'slice' || Math.abs((at-record.started)/1_000-this.#slice)<=2); this.#hits = [];
+    this.#records = this.inspectionRecords(); this.#hits = [];
     const live: Observation[] = [];
     const background = prefs.detail === 'complete' ? 1 : Math.max(.2,Math.min(1,Math.sqrt(60 / Math.max(1,this.#records.length))));
     const decorative = !reduced && prefs.quality !== 'economy' && (prefs.quality === 'high' || this.#drawMS < 12) && effectStrength() > 0;

@@ -46,6 +46,7 @@ test('Chronoscope keeps live time, frozen slices, regions and selection separate
   await page.getByLabel('Chronoscope view').selectOption('slice');
   await page.getByLabel('Moment to inspect').fill('40');
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-visible-events','0');
+  await expect(page.locator('#recent-events button')).toHaveCount(0);await expect(page.locator('#chrono-status')).toContainText('40s ago');
   await page.locator('#live-button').click();await page.keyboard.press('Escape');
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-frozen','false');
   await page.locator('#regions-button').click();await page.locator('#regions-none').click();await page.keyboard.press('Escape');
