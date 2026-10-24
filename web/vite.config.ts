@@ -18,6 +18,7 @@ export default defineConfig({
         codeSplitting: { groups: [
           { name: 'terminal', test: /[\\/]src[\\/]terminal(?:Grid|Graphics)?\.ts$/, priority: 20, includeDependenciesRecursively: false },
           { name: 'chronoscope', test: /[\\/]src[\\/]chronoscope[\\/]/, priority: 20, includeDependenciesRecursively: false },
+          { name: 'firehose', test: /[\\/]src[\\/]firehose[\\/]/, priority: 20, includeDependenciesRecursively: false },
           { name: 'shared', test: /[\\/]src[\\/]/, minShareCount: 2 },
         ] },
       },
@@ -25,7 +26,8 @@ export default defineConfig({
         main: inputPath('index.html'),
         terminal: inputPath('src/terminal.ts'),
         netgraph: inputPath('netgraph/index.html'),
-        chronoscope: inputPath('chronoscope/index.html')
+        chronoscope: inputPath('chronoscope/index.html'),
+        firehose: inputPath('firehose/index.html')
       }
     }
   },

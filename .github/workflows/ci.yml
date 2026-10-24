@@ -165,6 +165,21 @@ jobs:
           path: |
             web/session-test-results/
             web/session-playwright-report/
+      - name: Firehose physics, GPU presentation and recovery
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: firehose-playwright-report
+        run: bash ../scripts/browser-ci.sh firehose.spec.ts --retries 0 --output firehose-test-results
+      - name: Preserve Firehose evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-firehose-review
+          retention-days: 7
+          path: |
+            web/firehose-test-results/
+            web/firehose-playwright-report/
       - name: Chronoscope live time, interaction and scale
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -232,7 +247,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          bash ../scripts/browser-ci.sh --grep-invert 'long session|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'long session|Firehose|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

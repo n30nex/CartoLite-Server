@@ -1,8 +1,12 @@
 # CartoLite delivery roadmap
 
+## Firehose delivery (0.11.0)
+
+Implementation and release qualification: [physical packet box plan](firehose-plan.md).
+
 ## Chronoscope delivery (0.10.0)
 
-In implementation and release qualification. See [the scoped plan](chronoscope-plan.md). Includes the pending long-session reliability fixes; existing audit items remain in their recorded states.
+Delivered in the tagged Chronoscope release, including the long-session reliability fixes. See [the scoped plan](chronoscope-plan.md); unrelated audit items retain their recorded status.
 
 Updated 22 October 2026. Current audit: [end-to-end UI/UX review](ui-ux-audit-2026-10-17.md).
 The [older roadmap](roadmap-archive-2026-09.md) is preserved as a dated record;
