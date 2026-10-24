@@ -16,17 +16,22 @@ Pause stops physics, new beads and sound. Resume collects fresh activity only;
 paused, hidden and disconnected intervals are not backfilled. Reduced motion
 starts paused, with an explicit Resume available. Find inspects public nodes;
 click a bead to inspect its packet. Sound remains opt-in and plays new packets,
-never collisions. Display changes colours, link styles, glow, core size and
+never collisions. Display changes colours, link styles, glow, point size, trail length and
 graphics resolution while preserving the pile and camera.
 
 Auto graphics measures the scene as it runs. When frames become expensive it
 reduces surface detail, glow and pixel density, then restores them after sustained
 headroom. It never removes a retained bead or confirmed link to meet a frame budget.
 
-Rendering is GPU-batched WebGL2. Rapier physics runs in a dedicated worker with
+Rendering is GPU-batched WebGL2. A specialized particle solver runs in a worker with
 sleeping bodies, fixed steps and three reusable snapshot buffers. Graphics mode
 and device class determine a finite session budget. Whole packet graphs are
 admitted or omitted, never cut into misleading partial chains; very large graphs
 or a full queue/detail cap are disclosed as omitted events. Drained groups free
 space. The scene does not accumulate an unlimited history or fill during hidden
 tabs. A WebGL2 or worker failure provides recovery and a link to Netgraph.
+
+The luminous view uses crisp points, brief arrival pulses, motion trails and
+landing rings. Sleeping, contacts and rope constraints keep the pile reactive
+without calculating invisible angular motion. See [the performance and visual
+update](firehose-spectacle.md).

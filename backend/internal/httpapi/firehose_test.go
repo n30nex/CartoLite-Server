@@ -8,7 +8,7 @@ import (
 	"testing/fstest"
 )
 
-func TestFirehosePageAndScopedWasmPolicy(t *testing.T) {
+func TestFirehosePageRetainsStrictScriptPolicy(t *testing.T) {
 	server := &Server{static: fstest.MapFS{
 		"firehose/index.html": {Data: []byte("<title>CartoLite Firehose</title>")},
 		"assets/firehose.worker-synthetic.js": {Data: []byte("/* synthetic worker */")},
@@ -37,7 +37,7 @@ func TestFirehosePageAndScopedWasmPolicy(t *testing.T) {
 		if response.Code != http.StatusOK || strings.Contains(csp, "'unsafe-eval'") || strings.Contains(csp, "script-src 'unsafe-inline'") {
 			t.Fatalf("Unsafe script policy for %s", target)
 		}
-		if strings.Contains(csp, "'wasm-unsafe-eval'") != strings.Contains(target, "firehose.worker") {
+		if strings.Contains(csp, "'wasm-unsafe-eval'") {
 			t.Fatalf("Wrong worker WebAssembly scope for %s", target)
 		}
 	}

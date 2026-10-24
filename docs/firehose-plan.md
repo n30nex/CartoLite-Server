@@ -1,5 +1,8 @@
 # Firehose delivery
 
+This is the original release plan. The current solver and luminous rendering
+are described in [the spectacle update](firehose-spectacle.md).
+
 Add a session-local physical sculpture to Canada 0.20.0 and Worldwide 0.11.0.
 Newly observed public packets fall from a labelled 3D spout into an open box.
 Confirmed segments become flexible chains; observer-only receptions are single

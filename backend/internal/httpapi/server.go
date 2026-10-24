@@ -304,10 +304,6 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		w.Header().Set("Permissions-Policy", "accelerometer=(), bluetooth=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), serial=(), usb=()")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.basemaps.cartocdn.com https://tiles.mapterhorn.com https://tiles.openfreemap.org; worker-src 'self' blob:; child-src blob:")
-		// Only the dedicated physics worker may compile WebAssembly; JS eval stays blocked.
-		if strings.HasPrefix(r.URL.Path, "/assets/firehose") && strings.HasSuffix(r.URL.Path, ".js") {
-			w.Header().Set("Content-Security-Policy", w.Header().Get("Content-Security-Policy")+"; script-src 'self' 'wasm-unsafe-eval'")
-		}
 		next.ServeHTTP(w, r)
 	})
 }

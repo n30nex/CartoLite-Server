@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { displayPreferences, lightScene, packetPalette } from '../displayPreferences';
 import { NetgraphQuality } from '../netgraph/quality';
 import { BOX, HEADER, KINDS, SPOUT, TEXTURE_WIDTH, particleRadius, type Rotation } from './model';
-import { beadVertex, beadFragment, solidVertex, solidFragment, dotVertex, dotFragment, linkVertex, linkFragment } from './shaders';
+import { beadVertex, beadFragment, dotVertex, dotFragment, trailVertex, trailFragment, linkVertex, linkFragment, rippleVertex, rippleFragment } from './shaders';
 
 export class FirehoseRenderer {
   readonly scene=new THREE.Scene();
@@ -26,16 +26,24 @@ export class FirehoseRenderer {
   #disposed=false;
   #resize:ResizeObserver;
   #textures:[THREE.DataTexture,THREE.DataTexture];
-  #points:THREE.Mesh<THREE.InstancedBufferGeometry,THREE.ShaderMaterial>;
   #dots:THREE.Points;
   #halos:THREE.Points;
   #links:THREE.Mesh<THREE.InstancedBufferGeometry,THREE.ShaderMaterial>;
-  #born:THREE.BufferAttribute;
+  #births:Float32Array;
+  #birthTexture:THREE.DataTexture;
+  #trails:THREE.Mesh;
+  #ripples:THREE.Mesh;
+  #impactData=new Float32Array(24*4);
+  #impactIndex=0;
+  #effectUntil=0;
+  #pauseTime=0;
+  #frameSpan=1000/30;
+  #emitTime=-100;
+  #drainTime=-100;
+  #nozzleLight?:THREE.MeshBasicMaterial;
+  #pitLight?:THREE.MeshBasicMaterial;
   #selected:THREE.BufferAttribute;
   #selectedSlots:Float32Array;
-  #order:Float32Array;
-  #depth:Float32Array;
-  #sortDirty=true;
   #uniforms:Record<string,THREE.IUniform>;
   #materials=new Set<THREE.Material>();
   #floorMaterial?:THREE.MeshStandardMaterial;
@@ -47,7 +55,6 @@ export class FirehoseRenderer {
   #lastDraw=0;
   #maxFrameGap=0;
   #drawMs=0;
-  #sortMs=0;
   #quality=new NetgraphQuality();
   #vector=new THREE.Vector3();
   #right=new THREE.Vector3();
@@ -66,33 +73,32 @@ export class FirehoseRenderer {
     const empty=new Float32Array(capacity*4);
     const texture=()=>{const t=new THREE.DataTexture(empty,TEXTURE_WIDTH,capacity/TEXTURE_WIDTH,THREE.RGBAFormat,THREE.FloatType);t.needsUpdate=true;return t;};
     this.#textures=[texture(),texture()];
-    this.#uniforms={uPrevious:{value:this.#textures[0]},uCurrent:{value:this.#textures[1]},uBlend:{value:1},uRadius:{value:this.radius},
+    this.#births=new Float32Array(capacity).fill(-100);
+    this.#birthTexture=new THREE.DataTexture(this.#births,TEXTURE_WIDTH,capacity/TEXTURE_WIDTH,THREE.RedFormat,THREE.FloatType);this.#birthTexture.needsUpdate=true;
+    this.#uniforms={uPrevious:{value:this.#textures[0]},uCurrent:{value:this.#textures[1]},uBirth:{value:this.#birthTexture},uBlend:{value:1},uRadius:{value:this.radius},
       uHeight:{value:1},uDpr:{value:1},uResolution:{value:new THREE.Vector2(1,1)},uPalette:{value:KINDS.map(()=>new THREE.Color())},uDarkPalette:{value:KINDS.map(()=>new THREE.Color())},
-      uTime:{value:0},uGlow:{value:0},uCore:{value:1},uLight:{value:0},uWidth:{value:1.5},uOpacity:{value:.8},uPattern:{value:0}};
-    this.#order=new Float32Array(capacity);this.#depth=new Float32Array(capacity);this.#selectedSlots=new Float32Array(capacity);
-    // Small beads need fewer surface triangles under pressure, not fewer events.
-    // Both levels share one GPU buffer, so adapting never churns GPU resources.
-    const coarse=new THREE.IcosahedronGeometry(1,0),fine=new THREE.IcosahedronGeometry(1,1),geometry=new THREE.InstancedBufferGeometry();
-    const positions=new Float32Array(900);positions.set(coarse.getAttribute('position').array);positions.set(fine.getAttribute('position').array,180);
-    geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setDrawRange(60,240);geometry.instanceCount=0;
-    coarse.dispose();fine.dispose();
-    geometry.setAttribute('aSlot',new THREE.InstancedBufferAttribute(this.#order,1).setUsage(THREE.DynamicDrawUsage));
-    this.#selected=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1).setUsage(THREE.DynamicDrawUsage);geometry.setAttribute('aSelected',this.#selected);
-    this.#points=new THREE.Mesh(geometry,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:solidVertex,fragmentShader:solidFragment,uniforms:this.#uniforms,depthWrite:true,toneMapped:false}));this.#points.frustumCulled=false;this.#points.renderOrder=1;
+      uTime:{value:0},uMotion:{value:1},uTrail:{value:1},uGlow:{value:0},uCore:{value:1},uLight:{value:0},uWidth:{value:1.5},uOpacity:{value:.8},uPattern:{value:0}};
+    this.#selectedSlots=new Float32Array(capacity);
+    this.#selected=new THREE.BufferAttribute(this.#selectedSlots,1).setUsage(THREE.DynamicDrawUsage);
+    const slots=Float32Array.from({length:capacity},(_,i)=>i);
     const dots=new THREE.BufferGeometry();dots.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(capacity*3),3));
-    dots.setAttribute('aSlot',new THREE.BufferAttribute(this.#order,1).setUsage(THREE.DynamicDrawUsage));
-    dots.setAttribute('aSelected',new THREE.BufferAttribute(this.#selected.array,1).setUsage(THREE.DynamicDrawUsage));dots.setDrawRange(0,0);
+    dots.setAttribute('aSlot',new THREE.BufferAttribute(slots,1));dots.setAttribute('aSelected',this.#selected);
     this.#dots=new THREE.Points(dots,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:dotVertex,fragmentShader:dotFragment,uniforms:this.#uniforms,depthWrite:true,toneMapped:false}));this.#dots.frustumCulled=false;this.#dots.renderOrder=1;
-    const haloGeometry=new THREE.BufferGeometry();haloGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(capacity*3),3));
-    haloGeometry.setAttribute('aSlot',new THREE.Float32BufferAttribute(Float32Array.from({length:capacity},(_,i)=>i),1));
-    this.#born=new THREE.BufferAttribute(new Float32Array(capacity).fill(-100),1).setUsage(THREE.DynamicDrawUsage);haloGeometry.setAttribute('aBorn',this.#born);
-    this.#halos=new THREE.Points(haloGeometry,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:beadVertex,fragmentShader:beadFragment,
-      uniforms:this.#uniforms,transparent:true,depthWrite:false,toneMapped:false}));this.#halos.frustumCulled=false;this.#halos.renderOrder=4;
+    const halos=new THREE.BufferGeometry();halos.setAttribute('position',dots.getAttribute('position'));halos.setAttribute('aSlot',dots.getAttribute('aSlot'));
+    this.#halos=new THREE.Points(halos,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:beadVertex,fragmentShader:beadFragment,uniforms:this.#uniforms,transparent:true,depthWrite:false,toneMapped:false}));this.#halos.frustumCulled=false;this.#halos.renderOrder=4;
+    const trails=new THREE.InstancedBufferGeometry();trails.setAttribute('position',new THREE.Float32BufferAttribute([0,-1,0,1,-1,0,1,1,0,0,-1,0,1,1,0,0,1,0],3));
+    trails.setAttribute('aSlot',new THREE.InstancedBufferAttribute(slots,1));trails.instanceCount=capacity;
+    this.#trails=new THREE.Mesh(trails,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:trailVertex,fragmentShader:trailFragment,uniforms:this.#uniforms,transparent:true,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true,toneMapped:false}));this.#trails.frustumCulled=false;this.#trails.renderOrder=2;
+    const ripples=new THREE.InstancedBufferGeometry();ripples.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,1,-1,0,1,1,0,-1,-1,0,1,1,0,-1,1,0],3));
+    for(let i=0;i<24;i++)this.#impactData[i*4+2]=-100;
+    ripples.setAttribute('aImpact',new THREE.InstancedBufferAttribute(this.#impactData,4).setUsage(THREE.DynamicDrawUsage));ripples.instanceCount=24;
+    this.#ripples=new THREE.Mesh(ripples,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:rippleVertex,fragmentShader:rippleFragment,uniforms:this.#uniforms,transparent:true,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true,toneMapped:false}));this.#ripples.frustumCulled=false;this.#ripples.renderOrder=3;this.box.add(this.#ripples);
     const links=new THREE.InstancedBufferGeometry();links.setAttribute('position',new THREE.Float32BufferAttribute([0,-1,0,1,-1,0,1,1,0,0,-1,0,1,1,0,0,1,0],3));
     links.setAttribute('aEnds',new THREE.InstancedBufferAttribute(new Float32Array(capacity*4),2).setUsage(THREE.DynamicDrawUsage));links.instanceCount=0;
     this.#links=new THREE.Mesh(links,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:linkVertex,fragmentShader:linkFragment,
       uniforms:this.#uniforms,transparent:true,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true,toneMapped:false}));this.#links.frustumCulled=false;this.#links.renderOrder=2;
-    this.scene.add(this.#points,this.#dots,this.#halos,this.#links);
+    this.scene.add(this.#dots,this.#halos,this.#links,this.#trails);
+    this.stage.dataset.visualProfile='luminous';this.stage.dataset.sortMs='0';
     this.#buildStage();this.applyDisplay();this.home();
     canvas.addEventListener('pointerdown',this.#down);canvas.addEventListener('pointermove',this.#move);canvas.addEventListener('pointerup',this.#release);canvas.addEventListener('pointercancel',this.#cancel);
     canvas.addEventListener('webglcontextlost',this.#contextLost);canvas.addEventListener('webglcontextrestored',this.#contextRestored);
@@ -122,13 +128,19 @@ export class FirehoseRenderer {
     const marks=new THREE.InstancedMesh(new THREE.BoxGeometry(.045,.012,.15),rim,40),dummy=new THREE.Object3D();
     for(let i=0;i<40;i++){const a=i*Math.PI/20;dummy.position.set(Math.cos(a)*4.15,-1.65,Math.sin(a)*4.15);dummy.rotation.y=-a;dummy.updateMatrix();marks.setMatrixAt(i,dummy.matrix);}this.scene.add(marks);
     const nozzle=new THREE.Group();nozzle.position.set(SPOUT.x,SPOUT.y+.4,SPOUT.z);this.scene.add(nozzle);
-    this.#mesh(new THREE.CylinderGeometry(.36,.55,.8,32,1,true),pipe,nozzle);
-    const lip=this.#mesh(new THREE.TorusGeometry(.55,.055,8,40),rim,nozzle,0,-.4);lip.rotation.x=Math.PI/2;
-    this.#mesh(new THREE.CylinderGeometry(.36,.36,.85,24),pipe,nozzle,0,.8);
+    const funnel=new THREE.MeshBasicMaterial({color:0x45cdd7,transparent:true,opacity:.14,side:THREE.DoubleSide,forceSinglePass:true,depthWrite:false});this.#materials.add(funnel);
+    this.#mesh(new THREE.CylinderGeometry(.36,.7,.8,24,1,true),funnel,nozzle);
+    const cage=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(.36,.7,.8,12,1,true)),new THREE.LineBasicMaterial({color:0x52bccb,transparent:true,opacity:.55}));nozzle.add(cage);
+    const lip=this.#mesh(new THREE.TorusGeometry(.7,.035,8,40),rim,nozzle,0,-.4);lip.rotation.x=Math.PI/2;
+    this.#mesh(new THREE.CylinderGeometry(.36,.36,.85,24),funnel,nozzle,0,.8);
+    this.#nozzleLight=new THREE.MeshBasicMaterial({color:0x4bead4,transparent:true,opacity:.3});this.#materials.add(this.#nozzleLight);
+    const sourceRing=this.#mesh(new THREE.TorusGeometry(.63,.014,6,48),this.#nozzleLight,nozzle,0,-.405);sourceRing.rotation.x=Math.PI/2;
+    this.#pitLight=new THREE.MeshBasicMaterial({color:0x40cbe0,transparent:true,opacity:.16});this.#materials.add(this.#pitLight);
+    const drainRing=this.#mesh(new THREE.TorusGeometry(3.72,.025,6,80),this.#pitLight,this.scene,0,-1.69);drainRing.rotation.x=Math.PI/2;
     const supply=this.#mesh(new THREE.CylinderGeometry(.3,.3,2.5,24),pipe,nozzle,-1.18,1.25);supply.rotation.z=Math.PI/2;
     for(const y of [.4,.65]){const collar=this.#mesh(new THREE.TorusGeometry(.37,.03,8,32),rim,nozzle,0,y);collar.rotation.x=Math.PI/2;}
     this.#label('FIREHOSE','LIVE / OBSERVED PACKETS',new THREE.Vector3(SPOUT.x,5.05,SPOUT.z),2.25,.56);
-    this.#label('THE PIT','SPILL · TILT · START AGAIN',new THREE.Vector3(0,-2.3,3.65),1.6,.42);
+    this.#label('THE PIT','LIVE OVERFLOW',new THREE.Vector3(0,-2.3,3.65),1.6,.42);
   }
   #label(title:string,subtitle:string,position:THREE.Vector3,width:number,height:number){
     const canvas=document.createElement('canvas');canvas.width=640;canvas.height=160;const c=canvas.getContext('2d')!;
@@ -138,7 +150,7 @@ export class FirehoseRenderer {
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;this.#canvasTextures.push(texture);
     const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,depthWrite:false,depthTest:false}));label.renderOrder=5;label.position.copy(position);label.scale.set(width,height,1);this.scene.add(label);
   }
-  #changed=()=>{this.#dirty=true;this.#sortDirty=true;this.#request();};
+  #changed=()=>{this.#dirty=true;this.#request();};
   #resized=()=>{if(this.#disposed||document.hidden)return;const w=this.stage.clientWidth,h=this.stage.clientHeight;if(w<1||h<1)return;
     const p=displayPreferences(),coarse=matchMedia('(pointer:coarse)').matches;
     const quality=p.quality==='economy'?'low':p.quality==='high'?'full':this.#quality.mode;
@@ -148,34 +160,41 @@ export class FirehoseRenderer {
     this.camera.aspect=w/h;this.camera.zoom=Math.min(1,this.camera.aspect/.85);this.camera.updateProjectionMatrix();this.#uniforms.uHeight!.value=h*dpr;this.#uniforms.uDpr!.value=dpr;this.#uniforms.uResolution!.value.set(w*dpr,h*dpr);this.#changed();
     this.#uniforms.uWidth!.value=Math.max(1.4,p.width)*dpr;
     this.#halos.visible=p.effects!=='minimal'&&quality!=='low';this.stage.dataset.quality=quality;this.stage.dataset.pixelRatio=dpr.toFixed(2);
-    this.#points.geometry.setDrawRange(quality==='full'?60:0,quality==='full'?240:60);
+    this.#trails.visible=p.effects!=='minimal';this.#ripples.visible=p.effects!=='minimal'&&quality!=='low';
   };
   applyDisplay(){const p=displayPreferences(),light=lightScene(),palette=packetPalette();
     this.scene.background=new THREE.Color(light?(p.basemap==='streets'?'#e7dfc9':'#e7eff0'):'#06121b');
     this.#floorMaterial?.color.set(light?(p.basemap==='streets'?'#e1d7ba':'#d5e3e7'):'#09222c');
     this.#uniforms.uPalette!.value=KINDS.map(kind=>new THREE.Color(palette[kind]));const dark=packetPalette(false);this.#uniforms.uDarkPalette!.value=KINDS.map(kind=>new THREE.Color(dark[kind]));this.#uniforms.uLight!.value=light?1:0;
-    this.#uniforms.uGlow!.value=(p.effects==='minimal'?0:p.effects==='calm'?.3:.9)*(.3+.7*p.glow);this.#uniforms.uCore!.value=p.packetSize;
+    this.#uniforms.uGlow!.value=(p.effects==='minimal'?0:p.effects==='calm'?.45:1)*(.5+.5*p.glow);this.#uniforms.uCore!.value=p.packetSize;
+    this.#uniforms.uMotion!.value=this.paused?0:p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.#uniforms.uTrail!.value=p.trailLength;
     this.#uniforms.uWidth!.value=Math.max(1.4,p.width)*(this.gpu.getPixelRatio()||1);this.#uniforms.uOpacity!.value=p.opacity;
     this.#uniforms.uPattern!.value=p.pattern==='dashed'?1:p.pattern==='dotted'?2:0;
     this.#quality.resetSamples();this.#resized();this.#changed();
   }
   accept(buffer:ArrayBuffer):ArrayBuffer|undefined{
     const data=new Float32Array(buffer),old=this.#previous&&this.#previous!==this.#current?this.#previous.buffer as ArrayBuffer:undefined;
-    this.#previous=this.#current??data;this.#current=data;this.#received=performance.now();
+    const now=performance.now(),gap=now-this.#received;if(this.#current&&gap>8&&gap<250)this.#frameSpan=this.#frameSpan*.65+gap*.35;
+    this.#previous=this.#current??data;this.#current=data;this.#received=now;
     this.#textures[0].image.data=new Float32Array(this.#previous.buffer,HEADER*4,this.capacity*4);
     this.#textures[1].image.data=new Float32Array(data.buffer,HEADER*4,this.capacity*4);this.#textures.forEach(t=>t.needsUpdate=true);
     const ends=this.#links.geometry.getAttribute('aEnds') as THREE.InstancedBufferAttribute;
     ends.array=new Float32Array(data.buffer,(HEADER+this.capacity*4)*4,this.capacity*4);ends.needsUpdate=true;this.#links.geometry.instanceCount=data[1]!;
     this.stage.dataset.beads=String(data[0]);this.stage.dataset.links=String(data[1]);this.stage.dataset.events=String(data[2]);this.stage.dataset.sleeping=String(data[3]);
     this.stage.dataset.physicsMs=data[4]!.toFixed(2);this.stage.dataset.physicsMaxMs=data[15]!.toFixed(2);this.stage.dataset.steps=String(data[13]);
+    if(Number(this.stage.dataset.drained??0)<data[6]!){this.#drainTime=now/1000;this.#effectUntil=now+1400;}
     this.stage.dataset.omitted=String(data[5]);this.stage.dataset.drained=String(data[6]);this.stage.dataset.accepted=String(data[7]);this.stage.dataset.queue=String(data[14]);
     this.#changed();return old;
   }
-  born(slots:readonly number[],selected:readonly number[]=[]){const now=performance.now()/1000;for(const slot of slots){this.#born.setX(slot,now);this.#selectedSlots[slot]=0;}for(const slot of selected)this.#selectedSlots[slot]=1;this.#born.needsUpdate=true;this.#changed();}
-  highlight(slots:readonly number[]){this.#selectedSlots.fill(0);for(const slot of slots)this.#selectedSlots[slot]=1;this.#changed();}
+  born(slots:readonly number[],selected:readonly number[]=[],kind=0){const now=performance.now();for(const slot of slots){this.#births[slot]=now/1000;this.#selectedSlots[slot]=0;}for(const slot of selected)this.#selectedSlots[slot]=1;
+    this.#birthTexture.needsUpdate=true;this.#selected.needsUpdate=true;this.#emitTime=now/1000;this.#effectUntil=now+3200;this.#nozzleLight?.color.copy(this.#uniforms.uPalette!.value[kind]);this.#changed();}
+  impact(x:number,z:number,kind:number){if(this.paused)return;const now=performance.now();this.#impactData.set([x,z,now/1000,kind],(this.#impactIndex++%24)*4);this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;this.#effectUntil=Math.max(this.#effectUntil,now+1200);this.#changed();}
+  clearEffects(){this.#births.fill(-100);this.#birthTexture.needsUpdate=true;for(let i=0;i<24;i++)this.#impactData[i*4+2]=-100;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;this.#effectUntil=0;this.#emitTime=this.#drainTime=-100;this.#changed();}
+  highlight(slots:readonly number[]){this.#selectedSlots.fill(0);for(const slot of slots)this.#selectedSlots[slot]=1;this.#selected.needsUpdate=true;this.#changed();}
   setLinks(visible:boolean){this.#links.visible=visible;this.#changed();}
   setMode(mode:'tilt'|'orbit'){this.mode=mode;this.controls.enableRotate=mode==='orbit'||this.paused;this.stage.dataset.controlMode=mode;this.stage.style.cursor=mode==='tilt'&&!this.paused?'grab':'move';}
-  setPaused(value:boolean){this.paused=value;this.controls.enableRotate=this.mode==='orbit'||value;this.#changed();}
+  setPaused(value:boolean){if(value!==this.paused){const now=performance.now();if(value)this.#pauseTime=now;else{const gap=now-this.#pauseTime;for(let i=0;i<this.capacity;i++)if(this.#births[i]!>=0)this.#births[i]!+=gap/1000;for(let i=0;i<24;i++)if(this.#impactData[i*4+2]!>=0)this.#impactData[i*4+2]!+=gap/1000;this.#emitTime+=gap/1000;this.#drainTime+=gap/1000;this.#received+=gap;this.#effectUntil+=gap;this.#birthTexture.needsUpdate=true;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;}}
+    this.paused=value;const p=displayPreferences();this.#uniforms.uMotion!.value=value?0:p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.controls.enableRotate=this.mode==='orbit'||value;this.#changed();}
   home(){this.camera.position.set(8,10,10);this.controls.target.set(0,.7,0);this.controls.update();this.#changed();}
   upright(){this.target.set(0,0,0,1);this.#sendRotation();}
   pour(){this.target.setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI);this.#sendRotation();}
@@ -184,7 +203,8 @@ export class FirehoseRenderer {
     this.#delta.setFromAxisAngle(this.#right,y);this.target.premultiply(this.#delta);this.#delta.setFromAxisAngle(this.#up,x);this.target.premultiply(this.#delta).normalize();this.#sendRotation();}
   projectWorld(x:number,y:number,z:number){this.#vector.set(x,y,z).project(this.camera);return{x:(this.#vector.x+1)*this.stage.clientWidth/2,y:(1-this.#vector.y)*this.stage.clientHeight/2,z:this.#vector.z};}
   project(){return this.projectWorld(SPOUT.x,SPOUT.y,SPOUT.z);}
-  position(slot:number){const data=this.#current,at=HEADER+slot*4;if(!data||!data[at+3])return;return{x:data[at]!,y:data[at+1]!,z:data[at+2]!};}
+  position(slot:number){const b=this.#current,at=HEADER+slot*4;if(!b||!b[at+3])return;const a=this.#previous&&Math.floor(this.#previous[at+3]!/8)===Math.floor(b[at+3]!/8)?this.#previous:b,t=this.#uniforms.uBlend!.value;
+    return{x:a[at]!+(b[at]!-a[at]!)*t,y:a[at+1]!+(b[at+1]!-a[at+1]!)*t,z:a[at+2]!+(b[at+2]!-a[at+2]!)*t};}
   #pick(x:number,y:number){if(!this.#current)return;let best=-1,distance=100,depth=Infinity;
     for(let slot=0;slot<this.capacity;slot++){const p=this.position(slot);if(!p)continue;const q=this.projectWorld(p.x,p.y,p.z),d=(q.x-x)**2+(q.y-y)**2;
       if(q.z>=-1&&q.z<=1&&d<=distance&&(d<distance*.65||q.z<depth)){best=slot;distance=d;depth=q.z;}}
@@ -211,29 +231,23 @@ export class FirehoseRenderer {
   #pan(x:number,y:number){const scale=this.camera.position.distanceTo(this.controls.target)*.035;this.#right.set(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar(x*scale);this.#up.set(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar(y*scale);this.#right.add(this.#up);this.camera.position.add(this.#right);this.controls.target.add(this.#right);this.controls.update();this.#changed();}
   zoom(scale:number){this.camera.position.sub(this.controls.target).multiplyScalar(scale).clampLength(3,45).add(this.controls.target);this.controls.update();this.#changed();}
   #contextLost=(e:Event)=>{e.preventDefault();this.lost=true;if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;this.onContext(true);};
-  #contextRestored=()=>{if(this.#disposed)return;this.lost=false;this.#textures.forEach(t=>t.needsUpdate=true);this.#born.needsUpdate=true;this.#selected.needsUpdate=true;this.onContext(false);this.#changed();};
+  #contextRestored=()=>{if(this.#disposed)return;this.lost=false;this.#textures.forEach(t=>t.needsUpdate=true);this.#birthTexture.needsUpdate=true;this.#selected.needsUpdate=true;this.onContext(false);this.#changed();};
   #visibility=()=>{this.#quality.resetSamples();if(document.hidden){if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;}else{this.#lastDraw=0;this.#resized();this.#changed();}};
   #request(){if(this.#frame===undefined&&!this.#disposed&&!this.lost&&!document.hidden)this.#frame=requestAnimationFrame(this.#draw);}
-  #sortBeads(){if(!this.#current)return;this.camera.updateMatrixWorld();const m=this.camera.matrixWorldInverse.elements,data=this.#current;let count=0;
-    for(let slot=0;slot<this.capacity;slot++){const at=HEADER+slot*4;if(!data[at+3])continue;this.#order[count++]=slot;this.#depth[slot]=-(m[2]!*data[at]!+m[6]!*data[at+1]!+m[10]!*data[at+2]!+m[14]!);}
-    this.#order.subarray(0,count).sort((a,b)=>this.#depth[a]!-this.#depth[b]!);
-    for(let i=0;i<count;i++)this.#selected.setX(i,this.#selectedSlots[this.#order[i]!]!);
-    const economy=this.stage.dataset.quality==='low';
-    this.#selected.needsUpdate=true;this.#points.geometry.getAttribute('aSlot').needsUpdate=true;this.#points.geometry.instanceCount=economy?0:count;
-    this.#dots.geometry.getAttribute('aSlot').needsUpdate=true;this.#dots.geometry.getAttribute('aSelected').needsUpdate=true;this.#dots.geometry.setDrawRange(0,economy?count:0);this.#sortDirty=false;
-  }
   #draw=(now:number)=>{this.#frame=undefined;if(this.#disposed||this.lost||document.hidden)return;
-    const blend=Math.min(1,(now-this.#received)/(1000/30));this.#uniforms.uBlend!.value=blend;this.#uniforms.uTime!.value=now/1000;
+    const time=this.paused?this.#pauseTime:now,blend=Math.min(1,Math.max(0,(time-this.#received)/this.#frameSpan));this.#uniforms.uBlend!.value=blend;this.#uniforms.uTime!.value=time/1000;
+    const effects=!this.paused&&now<this.#effectUntil&&displayPreferences().effects!=='minimal';
+    if(this.#nozzleLight)this.#nozzleLight.opacity=.2+Math.max(0,1-(time/1000-this.#emitTime)/.7)*.8*this.#uniforms.uMotion!.value;
+    if(this.#pitLight)this.#pitLight.opacity=.16+Math.max(0,1-(time/1000-this.#drainTime)/1.2)*.7*this.#uniforms.uMotion!.value;
     if(this.#previous&&this.#current){this.#poseA.set(this.#previous[8]!,this.#previous[9]!,this.#previous[10]!,this.#previous[11]!);this.#poseB.set(this.#current[8]!,this.#current[9]!,this.#current[10]!,this.#current[11]!);this.box.quaternion.copy(this.#poseA).slerp(this.#poseB,blend);}
     const moved=this.controls.update();
-    if(this.#sortDirty){const started=performance.now();this.#sortBeads();this.#sortMs=performance.now()-started;}
-    if(this.#dirty||moved||blend<1){const started=performance.now();this.gpu.render(this.scene,this.camera);this.#drawMs=performance.now()-started;this.#visualFrames++;const frameMs=this.#lastDraw?now-this.#lastDraw:0;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,frameMs);this.#lastDraw=now;this.#dirty=false;
-      this.stage.dataset.drawMs=this.#drawMs.toFixed(2);this.stage.dataset.sortMs=this.#sortMs.toFixed(2);
+    if(this.#dirty||moved||blend<1||effects){const started=performance.now();this.gpu.render(this.scene,this.camera);this.#drawMs=performance.now()-started;this.#visualFrames++;const frameMs=this.#lastDraw?now-this.#lastDraw:0;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,frameMs);this.#lastDraw=now;this.#dirty=false;
+      this.stage.dataset.drawMs=this.#drawMs.toFixed(2);this.stage.dataset.frameSpanMs=this.#frameSpan.toFixed(2);
       this.stage.dataset.renderFrames=String(this.#visualFrames);this.stage.dataset.drawCalls=String(this.gpu.info.render.calls);this.stage.dataset.geometries=String(this.gpu.info.memory.geometries);this.stage.dataset.textures=String(this.gpu.info.memory.textures);
       // Idle/paused snapshots are intentionally infrequent, not slow frames.
-      if(displayPreferences().quality==='auto'&&!this.paused&&this.#current&&this.#current[0]!>this.#current[3]!
-        &&this.#quality.sample(frameMs,this.#drawMs+this.#sortMs))this.#resized();}
-    if(moved||(!this.paused&&blend<1))this.#request();
+      if(displayPreferences().quality==='auto'&&!this.paused&&(moved||effects||(this.#current&&this.#current[0]!>this.#current[3]!))
+        &&this.#quality.sample(frameMs,this.#drawMs))this.#resized();}
+    if(moved||(!this.paused&&blend<1)||effects)this.#request();
   };
   get metrics(){return{frames:this.#visualFrames,maxFrameGap:this.#maxFrameGap,drawCalls:this.gpu.info.render.calls,geometries:this.gpu.info.memory.geometries,textures:this.gpu.info.memory.textures,capacity:this.capacity};}
   destroy(){this.#disposed=true;if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#resize.disconnect();this.controls.removeEventListener('change',this.#changed);this.controls.dispose();
@@ -241,6 +255,6 @@ export class FirehoseRenderer {
     this.canvas.removeEventListener('webglcontextlost',this.#contextLost);this.canvas.removeEventListener('webglcontextrestored',this.#contextRestored);this.stage.removeEventListener('keydown',this.#key);document.removeEventListener('visibilitychange',this.#visibility);
     const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();
     this.scene.traverse(object=>{if(object instanceof THREE.Mesh||object instanceof THREE.Points||object instanceof THREE.LineSegments){geometries.add(object.geometry);for(const m of Array.isArray(object.material)?object.material:[object.material])materials.add(m);}else if(object instanceof THREE.Sprite)materials.add(object.material);});
-    geometries.forEach(g=>g.dispose());this.#materials.forEach(m=>materials.add(m));materials.forEach(m=>m.dispose());this.#textures.forEach(t=>t.dispose());this.#canvasTextures.forEach(t=>t.dispose());this.gpu.dispose();this.gpu.forceContextLoss();this.#previous=undefined;this.#current=undefined;
+    geometries.forEach(g=>g.dispose());this.#materials.forEach(m=>materials.add(m));materials.forEach(m=>m.dispose());this.#textures.forEach(t=>t.dispose());this.#birthTexture.dispose();this.#canvasTextures.forEach(t=>t.dispose());this.gpu.dispose();this.gpu.forceContextLoss();this.#previous=undefined;this.#current=undefined;
   }
 }

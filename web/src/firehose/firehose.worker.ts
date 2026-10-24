@@ -13,7 +13,8 @@ function schedule(){if(!paused&&!disposed&&physics&&timer===undefined)timer=setT
 function publish(){if(physics&&pool.length){const buffer=pool.pop()!;physics.snapshot(buffer);post({type:'frame',buffer},[buffer]);lastFrame=performance.now();}}
 function tick(){timer=undefined;if(!physics||paused||disposed)return;try{
   const now=performance.now();accumulator=Math.min(accumulator+(now-last)/1000,1/30);last=now;
-  while(accumulator>=1/60){physics.step();accumulator-=1/60;}
+  const started=performance.now();
+  if(idle()){accumulator=0;}else while(accumulator>=1/60){physics.step();accumulator-=1/60;if(performance.now()-started>10)break;}
   if(pool.length&&now-lastFrame>=(idle()?500:1000/30))publish();
   schedule();
 }catch{fail();}}
@@ -23,6 +24,7 @@ port.onmessage=event=>{const message=event.data;
     if(initializing||physics)return;initializing=true;
     void initializePhysics().then(()=>{if(disposed)return;physics=new FirehosePhysics(message.capacity);
       physics.onAccepted=(id,slots)=>post({type:'accepted',id,slots});physics.onRejected=id=>post({type:'rejected',id});physics.onRemoved=ids=>post({type:'removed',ids});
+      physics.onImpact=(x,z,kind)=>post({type:'impact',x,z,kind});
       post({type:'ready',capacity:physics.capacity,radius:physics.radius});last=performance.now();schedule();
     }).catch(fail);return;
   }

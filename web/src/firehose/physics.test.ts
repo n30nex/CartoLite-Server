@@ -19,7 +19,8 @@ describe('Firehose public topology and real physics',()=>{
      for(let i=0;i<420;i++)sim.step();
      expect(sim.count).toBe(4);expect(sim.linkCount).toBe(3);
      const group=sim.groups.get(1)!;
-     for(const body of group.bodies){const p=body.translation();expect(p.y).toBeGreaterThan(-.02);expect(p.y).toBeLessThan(.7);}
+     for(const slot of group.slots){const p=sim.position(slot);expect(p.y).toBeGreaterThan(-.02);expect(p.y).toBeLessThan(.7);}
+     expect(sim.sleeping).toBeGreaterThan(0);
      sim.setRotation({x:0,y:0,z:1,w:0});
      for(let i=0;i<480&&sim.count;i++)sim.step();
      expect(sim.count).toBe(0);expect(sim.drained).toBe(1);expect(sim.linkCount).toBe(0);
@@ -35,7 +36,7 @@ describe('Firehose public topology and real physics',()=>{
      const target={...sim.target};sim.setRotation({x:NaN,y:0,z:0,w:1});expect(sim.target).toEqual(target);
      sim.clear();expect(sim.count).toBe(0);expect(sim.linkCount).toBe(0);expect(sim.queue).toHaveLength(0);
      expect(sim.snapshot(frame.buffer as ArrayBuffer).slice(HEADER).every(v=>v===0)).toBe(true);
-     expect(sim.world.bodies.len()).toBe(1);expect(sim.world.impulseJoints.len()).toBe(0);
+     expect(sim.groups.size).toBe(0);expect(sim.free).toHaveLength(128);
    }finally{sim.destroy();}
  });
  it('fills an upright box and naturally overflows into the pit, recycling drained slots',()=>{
