@@ -7,7 +7,7 @@ export const visualCenter: [number, number] = [-80.35, 43.45];
 const cors = { 'access-control-allow-origin': '*' };
 const layers = ['landcover', 'landuse', 'water', 'waterway', 'boundary', 'transportation', 'water_name', 'place', 'building'];
 
-export async function visualFixture(page: Page, zoom = 10.2, detail = false): Promise<void> {
+export async function visualFixture(page: Page, zoom = 10.2, detail = false): Promise<StateV2> {
   const now = Date.now();
   const nodes = [
     { id: 'visual-a', label: detail ? 'Visual Alpha 🌲 Wide name' : 'Visual Alpha', lng: visualCenter[0], lat: visualCenter[1] },
@@ -55,6 +55,7 @@ export async function visualFixture(page: Page, zoom = 10.2, detail = false): Pr
   await page.route('https://tiles.mapterhorn.com/tilejson.json', (route) => route.fulfill({ headers: cors, json: { tilejson: '3.0.0', tiles: ['https://tiles.mapterhorn.com/fixture/{z}/{x}/{y}.webp'], encoding: 'terrarium' } }));
   const dem = flatTerrain();
   await page.route('https://tiles.mapterhorn.com/fixture/**', (route) => route.fulfill({ headers: cors, contentType: 'image/png', body: dem }));
+  return state;
 }
 
 export async function visualPacket(page: Page, seq: number, kind = 'Advert'): Promise<void> {

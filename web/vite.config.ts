@@ -25,7 +25,8 @@ export default defineConfig({
         main: inputPath('index.html'),
         terminal: inputPath('src/terminal.ts'),
         netgraph: inputPath('netgraph/index.html'),
-        chronoscope: inputPath('chronoscope/index.html')
+        chronoscope: inputPath('chronoscope/index.html'),
+        firehose: inputPath('firehose/index.html')
       }
     }
   },

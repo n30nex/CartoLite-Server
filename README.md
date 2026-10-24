@@ -213,3 +213,7 @@ customizations remain. Reset all display settings restores these Terminal defaul
 ## Chronoscope
 
 Open /chronoscope/ or choose **Chronoscope** in the dock. A bright Now plane and fading traces show the last minute of activity observed by this page. Explore Sculpture, Slice or Flat, freeze time, select regions and inspect confirmed packet segments. Display and live sound use the existing shared controls; phone Display settings live in the View picker. The bounded session window starts empty, stays silent while frozen and never reconstructs traffic from route totals. [View guide](docs/chronoscope.md).
+
+## Firehose
+
+Open `/firehose/` for a fully 3D live packet box. Tilt the box, orbit the camera, or pour linked packet beads into the pit. The pile starts empty, preserves confirmed hops and uses GPU rendering with worker physics and bounded resources. [View and controls guide](docs/firehose.md).

@@ -1,4 +1,4 @@
-type View = 'Map' | 'Netgraph' | 'Terminal' | 'Chronoscope' | 'Labs';
+type View = 'Map' | 'Netgraph' | 'Terminal' | 'Chronoscope' | 'Firehose' | 'Labs';
 
 export function closeHelpBackdrop(dialog: HTMLDialogElement, event: MouseEvent): void {
   if (event.target !== dialog) return;
@@ -10,6 +10,10 @@ export function closeHelpBackdrop(dialog: HTMLDialogElement, event: MouseEvent):
 export function addViewGuide(dialog: HTMLDialogElement, view: View): void {
   dialog.classList.add('view-help');
   const guide = document.createElement('section'); guide.className = 'view-guide';
+  if (view === 'Firehose') {
+    guide.innerHTML = '<h2>Playing with Firehose</h2><p>Fresh packets fall from the spout into the box. Each bead represents a node in an observed packet; links preserve confirmed hops. Single beads are observer-only receptions. Positions, gravity and tumbling are an illustration, not geography or measured radio travel.</p><p>Drag in Tilt box mode to move the pile. Choose Orbit camera in Box to look around independently. Right-drag or two fingers pan; scroll or pinch zoom. Arrow keys tilt or orbit, Shift-arrows pan, +/− zoom, and Home resets the camera.</p><p>Pour turns the box upside down so its contents fall into the pit. Right the box in Box to collect again. Pause stops physics, new beads and sound; Resume uses fresh activity only. The box starts empty on every load. Hidden and paused intervals are never backfilled.</p><p>Find inspects public nodes; clicking a bead inspects its packet. Graphics are GPU-batched and physics runs in a worker. A bounded detail cap protects long sessions; omitted events are counted. Old beads leave only when their chain drains or you explicitly clear the pile. Sound is opt-in and collisions never trigger it.</p>';
+    dialog.append(guide); return;
+  }
   if (view === 'Chronoscope') {
     guide.innerHTML = '<h2>Reading Chronoscope</h2><p>The top plane is Now. Depth is seconds since this page observed an event. Bright packets are new live activity; lower traces are earlier observations from this session.</p><p>Sculpture shows time as depth. Flat keeps a top-down picture. Slice freezes the view and shows a four-second interval around the chosen moment. Freeze view keeps a bounded still snapshot while new events arrive silently. Return to live does not replay missed packets.</p><p>Observer-only pulses stay local. Separate confirmed segments remain separate, including gaps in a journey. Empty time means no activity was observed here, including while the tab was hidden or disconnected.</p><p>Drag or use arrow keys to pan, scroll or pinch to zoom, and Home to fit. Shift-left/right rotates Sculpture. Find selects nodes; Time lists recent packets for keyboard inspection. Escape or Back closes the current sheet. Sound is opt-in; M mutes outside text fields.</p>';
     dialog.append(guide); return;
@@ -62,7 +66,7 @@ export function mountNetworkHelp(view: Exclude<View, 'Labs'>): void {
     if (brand) brand.click(); else { dialog!.showModal(); dialog!.scrollTop = 0; }
   });
   dialog.addEventListener('close', () => {
-    if (restore) document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' || view === 'Chronoscope' ? 'display-button' : 'display-shortcut')?.focus({ preventScroll: true });
+    if (restore) document.getElementById(document.documentElement.dataset.mobileDock === 'true' ? 'view-button' : view === 'Netgraph' || view === 'Chronoscope' || view === 'Firehose' ? 'display-button' : 'display-shortcut')?.focus({ preventScroll: true });
     restore = false;
   });
 }
