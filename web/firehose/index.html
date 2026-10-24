@@ -41,10 +41,10 @@
   </div>
   <button id="reset-button" class="control-button" type="button" aria-label="Reset Firehose camera">⌂ <span>Home</span></button>
  </section>
- <aside id="legend" class="legend glass" aria-label="Firehose packet types"><div class="packet-legend"><span><i data-kind="Advert"></i>Advert</span><span><i data-kind="Trace"></i>Trace</span><span><i data-kind="Text"></i>Text</span><span><i data-kind="ACK"></i>ACK</span><span><i data-kind="Control"></i>Control</span></div></aside>
+ <aside id="legend" class="legend glass" aria-label="Firehose packet types"><div class="packet-legend"><span><i data-kind="Advert"></i>Advert</span><span><i data-kind="Trace"></i>Trace</span><span><i data-kind="Text"></i>Text</span><span><i data-kind="ACK"></i>ACK</span><span><i data-kind="Control"></i>Control</span><span><i data-kind="Other"></i>Other</span></div></aside>
  <aside id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected activity" hidden></aside>
  <aside id="feed-notice" class="firehose-notice glass" role="status" hidden><span>Waiting for the live feed.</span><button type="button" id="retry-feed">Retry</button></aside>
  <aside id="graphics-notice" class="firehose-notice glass" role="status" hidden>Graphics paused. Restoring the scene…</aside>
  <section id="fatal" class="fatal glass" role="alert" hidden><p id="fatal-message">The 3D scene could not start.</p><a class="control-button" href="">Try again</a><a class="control-button" href="/netgraph/">Open Netgraph</a></section>
- <p id="firehose-help" class="visually-hidden">Drag to tilt the physical box. Choose Orbit camera in Box for independent rotation. Right-drag or two fingers pan; scroll or pinch zoom. Arrow keys tilt or orbit in the selected mode, plus and minus zoom, Home resets the camera. Pour turns the box upside down. Find inspects public nodes. This session starts empty; it never replays old traffic.</p>
+ <p id="firehose-help" class="visually-hidden">Drag to tilt the physical box. Choose Orbit camera in Box for independent rotation. Right-drag or two fingers pan; scroll or pinch zoom. Arrow keys tilt or orbit in the selected mode, Shift-arrows pan, plus and minus zoom, Home resets the camera. Pour turns the box upside down. Find inspects public nodes. This session starts empty; it never replays old traffic.</p>
 </main><script type="module" src="/src/firehose/main.ts"></script></body></html>

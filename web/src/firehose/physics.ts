@@ -25,6 +25,7 @@ export class FirehosePhysics {
   linkCount = 0;
   sleeping = 0;
   #turning = false;
+  #inletCredit = 16;
   onAccepted = (_id: number, _slots: number[]) => {};
   onRejected = (_id: number) => {};
   onRemoved = (_ids: number[]) => {};
@@ -59,14 +60,15 @@ export class FirehosePhysics {
   #spawn(packet: PhysicalPacket): void {
     if(this.free.length<packet.beads || this.linkCount+packet.links.length>this.capacity*2){this.omitted++;this.onRejected(packet.id);return;}
     const bodies: RigidBody[]=[], slots:number[]=[], positions:{x:number;y:number;z:number}[]=[];
-    const phase=packet.id*2.399963, spread=this.radius*(1+Math.sqrt(packet.beads)*0.34);
+    const noise=Math.sin(packet.id*12.9898)*43758.5453;
+    const phase=(noise-Math.floor(noise))*Math.PI*2, spread=this.radius*(1+Math.sqrt(packet.beads)*0.34);
     for(let i=0;i<packet.beads;i++) {
       const slot=this.free.pop()!;slots.push(slot);this.generations[slot]=(this.generations[slot]!+1)%1_000_000;
       const angle=phase+i*2.399963;
       const pos={x:SPOUT.x+Math.cos(angle)*spread,y:SPOUT.y+i*this.radius*0.3,z:SPOUT.z+Math.sin(angle)*spread};positions.push(pos);
       const body=this.world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x,pos.y,pos.z)
-        .setLinvel(0.35+Math.cos(phase)*0.3,-1.1,Math.sin(phase)*0.35).setAngvel({x:1.2,y:Math.sin(angle),z:0.8})
-        .setLinearDamping(0.22).setAngularDamping(0.35).setCanSleep(true).setCcdEnabled(true));
+        .setLinvel(0.35+Math.cos(phase)*0.3,-3,Math.sin(phase)*0.35).setAngvel({x:1.2,y:Math.sin(angle),z:0.8})
+        .setLinearDamping(0.22).setAngularDamping(0.6).setCanSleep(true).setSoftCcdPrediction(Math.min(.12,this.radius)));
       this.world.createCollider(RAPIER.ColliderDesc.ball(this.radius).setDensity(1).setFriction(0.48).setRestitution(0.16),body);
       bodies.push(body);
     }
@@ -82,8 +84,10 @@ export class FirehosePhysics {
   #kinds = new Uint8Array(4096);
   step(): void {
     const started=performance.now();
-    let spawned=0;
-    while(this.queue.length&&spawned<96){const packet=this.queue.shift()!;spawned+=packet.beads;this.#spawn(packet);}
+    // A physical inlet needs spacing: unlimited bursts create overlapping bodies
+    // and expensive collision explosions before they even leave the spout.
+    this.#inletCredit=Math.min(MAX_PACKET_BEADS,this.#inletCredit+4);
+    if(this.queue.length&&this.queue[0]!.beads<=this.#inletCredit){const packet=this.queue.shift()!;this.#inletCredit-=packet.beads;this.#spawn(packet);}
     const next=approachRotation(this.rotation,this.target,2.4/60);
     const turning=Math.abs(next.x-this.rotation.x)+Math.abs(next.y-this.rotation.y)+Math.abs(next.z-this.rotation.z)+Math.abs(next.w-this.rotation.w)>0.00001;
     if(turning){this.rotation=next;this.box.setNextKinematicRotation(next);if(!this.#turning)for(const group of this.groups.values())for(const body of group.bodies)if(body.isSleeping())body.wakeUp();}

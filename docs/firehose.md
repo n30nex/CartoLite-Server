@@ -9,7 +9,7 @@ travel time or signal strength. No message text or private traffic is shown.
 The box starts empty each time. Drag in **Tilt box** mode to slide and spill its
 contents. **Orbit camera**, in Box, changes your viewpoint independently. Both
 modes support right-drag/two-finger pan and wheel/pinch zoom. Arrow keys tilt or
-orbit, +/− zoom, and Home restores the starting camera. **Pour** tips the box
+orbit, Shift-arrows pan, +/− zoom, and Home restores the starting camera. **Pour** tips the box
 upside down; **Right the box** restores it. Fallen chains disappear down the pit.
 
 Pause stops physics, new beads and sound. Resume collects fresh activity only;

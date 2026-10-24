@@ -22,7 +22,8 @@ html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]
 @media(max-width:900px),(pointer:coarse) {
  .firehose-caption { top:66px;left:12px;font-size:11px; }.firehose-caption strong { font-size:10px; }.firehose-caption small { max-width:270px;font-size:10px; }
  .firehose-panel { width:100%;left:0;right:0;bottom:calc(100% + 8px);max-width:none; }
- .firehose-app #legend,.firehose-app #sound-state { display:none; }
+ .firehose-app #sound-state { display:none; }
+ .firehose-app #view-panel .packet-legend { flex-wrap:wrap;gap:8px 12px; }
  html:root[data-mobile-dock=true] .firehose-app .display-disclosure { display:contents; }
  html:root[data-cinematic] .firehose-app .controls { max-width:calc(100vw - 12px);gap:0; }.firehose-app .control-button { padding-inline:6px; }
  html:root[data-cinematic] .firehose-app #node-inspector-sheet { position:fixed;top:auto;left:8px;right:8px;bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 8px);width:auto;max-width:none;max-height:48dvh; }

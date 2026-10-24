@@ -29,9 +29,9 @@ describe('Firehose public topology and real physics',()=>{
    const sim=new FirehosePhysics(128);try{
      for(let id=1;id<=MAX_PENDING+10;id++)sim.enqueue({id,kind:1,beads:4,links:[[0,1],[2,3]]});
      expect(sim.queue).toHaveLength(MAX_PENDING);expect(sim.omitted).toBe(10);
-     for(let i=0;i<4;i++)sim.step();
+     for(let i=0;i<60&&sim.queue.length;i++)sim.step();
      expect(sim.count).toBeLessThanOrEqual(128);expect(sim.count%4).toBe(0);expect(sim.linkCount).toBe(sim.count/2);
-     const frame=sim.snapshot(new ArrayBuffer(frameSize(128)*4));expect([...frame]).toEqual(expect.arrayContaining([128]));expect([...frame].every(Number.isFinite)).toBe(true);
+     const frame=sim.snapshot(new ArrayBuffer(frameSize(128)*4));expect(frame[0]).toBe(sim.count);expect([...frame].every(Number.isFinite)).toBe(true);
      const target={...sim.target};sim.setRotation({x:NaN,y:0,z:0,w:1});expect(sim.target).toEqual(target);
      sim.clear();expect(sim.count).toBe(0);expect(sim.linkCount).toBe(0);expect(sim.queue).toHaveLength(0);
      expect(sim.snapshot(frame.buffer as ArrayBuffer).slice(HEADER).every(v=>v===0)).toBe(true);

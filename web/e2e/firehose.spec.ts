@@ -112,3 +112,13 @@ test('Firehose stays bounded under synthetic load and keeps its dependencies iso
 test('Firehose navigation is available alongside the existing views',async({page},info)=>{
  test.skip(info.project.name!=='desktop');await setup(page);await page.goto('/chronoscope/');await openViewMenu(page);await page.getByRole('link',{name:'Open CartoLite Firehose',exact:true}).click();await expect(page.locator('#firehose-stage')).toHaveAttribute('data-render-state','ready');
 });
+
+test('Firehose suspends hidden physics and resumes only fresh packets',async({page},info)=>{
+ test.skip(info.project.name!=='desktop');await setup(page);let snapshots=0;page.on('request',r=>{if(new URL(r.url()).pathname==='/api/state')snapshots++;});await open(page);
+ await packet(page,1);const stage=page.locator('#firehose-stage');await expect(stage).toHaveAttribute('data-events','1');
+ await page.evaluate(()=>{(window as any).__testHidden=true;Object.defineProperty(document,'hidden',{configurable:true,get:()=>Boolean((window as any).__testHidden)});Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>(window as any).__testHidden?'hidden':'visible'});document.dispatchEvent(new Event('visibilitychange'));});
+ await page.waitForTimeout(200);const before={steps:await stage.getAttribute('data-steps'),frames:await stage.getAttribute('data-render-frames')};
+ await packet(page,2);await page.waitForTimeout(250);expect(await stage.getAttribute('data-steps')).toBe(before.steps);expect(await stage.getAttribute('data-render-frames')).toBe(before.frames);
+ await page.evaluate(()=>{(window as any).__testHidden=false;document.dispatchEvent(new Event('visibilitychange'));});await expect.poll(()=>snapshots).toBeGreaterThan(1);await page.waitForTimeout(150);
+ await expect(stage).toHaveAttribute('data-events','1');await packet(page,3);await expect(stage).toHaveAttribute('data-events','2');
+});

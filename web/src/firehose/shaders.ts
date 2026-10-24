@@ -13,14 +13,14 @@ vec4 bead(float slot) {
 export const beadVertex = `
 ${positionFunctions}
 in float aSlot;in float aBorn;in float aSelected;
-uniform float uRadius;uniform float uHeight;uniform float uDpr;uniform float uHalo;
+uniform float uRadius;uniform float uHeight;uniform float uDpr;uniform float uHalo;uniform float uTime;uniform float uGlow;
 out vec3 vCenter;out float vKind;out float vBorn;out float vSelected;out float vWorldY;
 void main(){
  vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vBorn=aBorn;vSelected=aSelected;vWorldY=b.y;
  vec4 eye=modelViewMatrix*vec4(b.xyz,1.0);vCenter=eye.xyz;gl_Position=projectionMatrix*eye;
  float pixels=uRadius*uHeight*projectionMatrix[1][1]/max(0.1,-eye.z);
  gl_PointSize=clamp(pixels,2.5*uDpr,48.0*uDpr)*(uHalo>0.5?1.8:1.0);
- if(b.w<0.5||eye.z>=-0.05){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}
+ if(b.w<0.5||eye.z>=-0.05||(uHalo>.5&&(uTime-aBorn>2.8||uGlow<.005))){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}
 }
 `;
 export const beadFragment = `
@@ -30,7 +30,7 @@ uniform float uGlow;uniform float uLight;uniform float uCore;
 in vec3 vCenter;in float vKind;in float vBorn;in float vSelected;in float vWorldY;
 out vec4 outColor;
 void main(){
- vec2 p=gl_PointCoord*2.0-1.0;p.y=-p.y;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;
+ vec2 p=gl_PointCoord*2.0-1.0;p.y=-p.y;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;gl_FragDepth=gl_FragCoord.z;
  vec3 color=uPalette[int(clamp(vKind,0.0,5.0))];
  float fade=1.0-smoothstep(2.7,4.7,-vWorldY);
  if(uHalo>0.5){float age=max(0.0,uTime-vBorn);float alpha=exp(-r2*4.5)*max(0.0,1.0-age/2.8)*uGlow*.23*fade;
@@ -44,6 +44,35 @@ void main(){
  if(vSelected>.5)shaded=mix(shaded,vec3(1.0,.9,.55),smoothstep(.72,.9,sqrt(r2)));
  vec4 clip=projectionMatrix*vec4(vCenter+normal*uRadius,1.0);gl_FragDepth=clip.z/clip.w*.5+.5;
  outColor=vec4(pow(max(shaded,vec3(0.0)),vec3(1.0/2.2)),fade);
+}
+`;
+// Opaque instanced spheres allow early depth rejection through a dense pile.
+// Writing per-fragment sphere depth on thousands of overlapping sprites defeats it.
+export const solidVertex = `
+${positionFunctions}
+in float aSlot;in float aSelected;uniform float uRadius;
+out vec3 vNormal;out float vKind;out float vSelected;out float vWorldY;
+void main(){
+ vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vSelected=aSelected;vWorldY=b.y;
+ vNormal=normalMatrix*normalize(position);
+ gl_Position=projectionMatrix*modelViewMatrix*vec4(b.xyz+position*uRadius,1.0);
+ if(b.w<.5)gl_Position=vec4(2.0,2.0,2.0,1.0);
+}
+`;
+export const solidFragment = `
+uniform vec3 uPalette[6];uniform vec3 uDarkPalette[6];uniform float uLight;uniform float uCore;
+in vec3 vNormal;in float vKind;in float vSelected;in float vWorldY;out vec4 outColor;
+void main(){
+ if(vKind<0.0)discard;int kind=int(clamp(vKind,0.0,5.0));
+ vec3 color=vWorldY< -1.3?uDarkPalette[kind]:uPalette[kind];
+ vec3 n=normalize(vNormal);float diffuse=.35+.65*max(0.0,dot(n,normalize(vec3(-.4,.7,1.0))));
+ float spec=pow(max(0.0,dot(n,normalize(vec3(-.3,.55,1.0)))),24.0);
+ float core=pow(max(0.0,n.z),5.0/max(.5,uCore));
+ bool light=uLight>.5&&vWorldY> -1.3;
+ vec3 shade=light?color*(.4+diffuse*.6)+vec3(spec*.25):color*(diffuse*.85+core*.3)+vec3(spec*.65);
+ if(vSelected>.5)shade=mix(shade,vec3(1.0,.9,.55),smoothstep(.6,1.0,1.0-n.z));
+ shade*=1.0-smoothstep(3.6,4.7,-vWorldY);
+ outColor=vec4(pow(max(shade,vec3(0.0)),vec3(1.0/2.2)),1.0);
 }
 `;
 export const linkVertex = `

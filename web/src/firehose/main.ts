@@ -45,9 +45,9 @@ function sync(){
  const count=Number(stage.dataset.beads??0),groups=Number(stage.dataset.events??0),drained=Number(stage.dataset.drained??0);
  const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?'An empty box. Waiting for live packets.':`${count.toLocaleString()} beads · ${groups.toLocaleString()} packets · ${drained.toLocaleString()} drained`;
  if(required('pile-status').textContent!==text)required('pile-status').textContent=text;
- required('gesture-hint').textContent=scenePaused?'Orbit to inspect · Resume to collect fresh activity':renderer?.mode==='orbit'?'Drag to orbit · right-drag or two fingers pan':'Drag to tilt the box · pinch or scroll to zoom';
+ const hint=scenePaused?'Orbit to inspect · Resume to collect fresh activity':renderer?.mode==='orbit'?'Drag to orbit · right-drag or two fingers pan':'Drag to tilt the box · pinch or scroll to zoom';if(required('gesture-hint').textContent!==hint)required('gesture-hint').textContent=hint;
  const cap=omitted?`${omitted.toLocaleString()} events omitted at the detail cap · never replayed`:'';if(required('capacity-status').textContent!==cap)required('capacity-status').textContent=cap;
- const button=required('pause-button');button.setAttribute('aria-pressed',String(scenePaused));button.setAttribute('aria-label',scenePaused?'Resume physics and new packets':'Pause physics and new packets');button.querySelector('span')!.textContent=scenePaused?'Resume':'Pause';
+ const button=required('pause-button'),label=scenePaused?'Resume':'Pause';if(button.getAttribute('aria-pressed')!==String(scenePaused))button.setAttribute('aria-pressed',String(scenePaused));button.setAttribute('aria-label',scenePaused?'Resume physics and new packets':'Pause physics and new packets');if(button.querySelector('span')!.textContent!==label)button.querySelector('span')!.textContent=label;
  stage.dataset.paused=String(scenePaused);stage.dataset.clientOmitted=String(omitted);
  if(store){const activity=activityLabel(store.snapshot,connected);required('status').dataset.state=activity.state;if(required('status-text').textContent!==activity.text)required('status-text').textContent=activity.text;}
 }
