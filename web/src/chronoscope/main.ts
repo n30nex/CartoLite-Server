@@ -18,8 +18,9 @@ import { mountGraphFollow } from '../netgraph/follow';
 import { normalizePacketKind } from '../trafficVisuals';
 import { ChronoscopeRenderer } from './renderer';
 import { normalizeChronoscope, type ChronoscopeMode, type Observation } from './timeline';
+import { UI_STORAGE_KEY } from '../preferences';
 
-const KEY = 'cartolite:chronoscope:v1';
+const KEY = UI_STORAGE_KEY.replace(':ui:', ':chronoscope:');
 const stage=required('chronoscope-stage'), inspector=required('node-inspector-sheet'), caption=required('chrono-status');
 const mode=required<HTMLSelectElement>('chrono-mode'), windowSize=required<HTMLSelectElement>('chrono-window');
 const freeze=required<HTMLButtonElement>('freeze-button'), slice=required<HTMLInputElement>('slice-time');
@@ -29,12 +30,18 @@ let feed: LiveFeed | undefined, resolver: NetgraphRegionResolver | undefined, di
 let connected=false, disposed=false, selected: string | null=null, recentSignature='', regionSignature='', refreshSearch=()=>{};
 let minuteTimer: number | undefined;
 let settings=load();
+let liveMode: 'sculpture' | 'flat'=settings.mode==='flat'?'flat':'sculpture';
 initializeDisplay();
 const closeDisplay=mountNetgraphDisplay(()=>closePanels());
 populateSoundScenes(required<HTMLSelectElement>('sound-scene'));
 
-function load() { try { return normalizeChronoscope(JSON.parse(localStorage.getItem(KEY)??'null')); } catch { return normalizeChronoscope(null); } }
-function save() { try { localStorage.setItem(KEY,JSON.stringify(settings)); } catch { /* Storage is optional. */ } }
+function load() { try { const value=normalizeChronoscope(JSON.parse(localStorage.getItem(KEY)??'null'));if(value.mode==='slice')value.mode='sculpture';return value; } catch { return normalizeChronoscope(null); } }
+function save() { try { localStorage.setItem(KEY,JSON.stringify({...settings,mode:settings.mode==='slice'?liveMode:settings.mode})); } catch { /* Storage is optional. */ } }
+function returnLive() {
+  if(settings.mode==='slice'){settings.mode=liveMode;mode.value=liveMode;renderer?.setMode(liveMode);required('slice-control').hidden=true;save();}
+  if(!selected){inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;}
+  renderer?.live();
+}
 function closePanels(except='') {
   for(const id of ['find','sound','time','regions'])if(id!==except){required(`${id}-panel`).hidden=true;required(`${id}-button`).setAttribute('aria-expanded','false');}
 }
@@ -60,10 +67,11 @@ function applySettings() {
 function sync() {
   if(!renderer)return;
   const records=renderer.visibleRecords(),frozen=renderer.frozen;
-  freeze.setAttribute('aria-pressed',String(frozen));freeze.textContent=frozen?'View frozen':'Freeze view';
+  freeze.setAttribute('aria-pressed',String(frozen));
   sonifier?.setPaused(document.hidden||frozen);
   required('regions-button').toggleAttribute('data-filtered',settings.regions!==null);
-  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':records.length?`${records.length.toLocaleString()} observed events · ${settings.seconds}s window${renderer.timeline.trimmed?' · oldest trails capped':''}`:'Waiting for activity');
+  const missing=settings.regions?.length&&!renderer.regions.some(area=>settings.regions!.includes(area.code));
+  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${settings.seconds}s window${renderer.timeline.trimmed?' · oldest trails capped':''}`:'Waiting for activity');
   if(caption.textContent!==copy)caption.textContent=copy;
   const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase();if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
   if(!required('time-panel').hidden)updateRecent();
@@ -84,10 +92,11 @@ function renderRegions() {
   const regions=renderer.regions,signature=JSON.stringify([regions.map(a=>[a.code,a.name]),settings.regions]);if(signature===regionSignature)return;regionSignature=signature;
   const checks=required('region-checks');checks.replaceChildren();
   for(const area of regions){const label=document.createElement('label'),input=document.createElement('input'),text=document.createElement('span');input.type='checkbox';input.value=area.code;input.checked=settings.regions===null||settings.regions.includes(area.code);text.textContent=`${area.code} · ${area.name}`;
+    label.dataset.search=[area.code,area.name,...(area.aliases??[])].join(' ').toLocaleLowerCase();
     input.addEventListener('change',()=>{settings.regions=[...checks.querySelectorAll<HTMLInputElement>('input:checked')].map(el=>el.value);renderer!.setRegions(settings.regions);save();stage.dispatchEvent(new Event('graphfilter'));sync();});label.append(input,text);checks.append(label);}
   filterRegions();
 }
-function filterRegions() {const query=required<HTMLInputElement>('region-search').value.trim().toLocaleLowerCase();for(const row of required('region-checks').querySelectorAll('label'))row.hidden=!row.textContent?.toLocaleLowerCase().includes(query);}
+function filterRegions() {const query=required<HTMLInputElement>('region-search').value.trim().toLocaleLowerCase();for(const row of required('region-checks').querySelectorAll('label'))row.hidden=!row.dataset.search?.includes(query);}
 function selectNode(id: string | null) {
   if(!renderer||!store)return;
   selected=id;rememberNode(id);renderer.selectNode(id);
@@ -113,7 +122,7 @@ function inspectPacket(record: Observation) {
   const nodeButton=(id:string,label:string)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.nodeId=id;button.addEventListener('click',()=>selectNode(id));return button;};
   if(packet.mode==='observer'){card.append(nodeButton(packet.observer.id,packet.observer.label));const p=document.createElement('p');p.textContent='A receiver heard this packet. No public route was confirmed.';card.append(p);}
   else for(const segment of packet.segments){const row=document.createElement('div');row.className='chrono-hop';const arrow=document.createElement('span');arrow.textContent='→';arrow.setAttribute('aria-hidden','true');row.append(nodeButton(segment.from.id,segment.from.label),arrow,nodeButton(segment.to.id,segment.to.label));card.append(row);}
-  const live=document.createElement('button');live.type='button';live.textContent='Return to live';live.addEventListener('click',()=>{inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;renderer!.live();if(settings.mode==='slice'){settings.mode='sculpture';applySettings();save();}stage.focus();});card.append(live);
+  const live=document.createElement('button');live.type='button';live.textContent='Return to live';live.addEventListener('click',()=>{returnLive();stage.focus();});card.append(live);
   replaceInspector(inspector,card);inspector.setAttribute('aria-label','Selected packet details');inspector.hidden=false;
 }
 function dispose() {disposed=true;if(minuteTimer!==undefined)clearInterval(minuteTimer);feed?.stop();store?.destroy();sonifier?.destroy();director?.destroy();renderer?.destroy();resolver?.destroy();}
@@ -132,6 +141,7 @@ async function start() {
     required<HTMLSelectElement>('sound-scene').addEventListener('change',event=>sound.setScene((event.target as HTMLSelectElement).value as SoundScene));
     required<HTMLInputElement>('sound-volume').addEventListener('input',event=>sound.setVolume(Number((event.target as HTMLInputElement).value)/100));
     updateSoundChrome(sound.status(),sound.getVolume(),sound.getScene());
+    if(!sound.supported()){for(const id of ['sound-button','sound-toggle','sound-scene','sound-volume'])required<HTMLButtonElement>(id).disabled=true;required('sound-state').textContent='Unavailable';required('sound-panel-state').textContent='Unavailable';}
     const updateStatus=()=>{const state=activityLabel(liveStore.snapshot,connected);required('status').dataset.state=state.state;if(required('status-text').textContent!==state.text)required('status-text').textContent=state.text;sync();};
     let resolving=false,areasDirty=false;
     const refreshAreas=async()=>{
@@ -161,14 +171,14 @@ async function start() {
 }
 
 configurePanels();mountCinematicDock();
-mode.addEventListener('change',()=>{settings.mode=mode.value as ChronoscopeMode;renderer?.setMode(settings.mode);required('slice-control').hidden=settings.mode!=='slice';save();sync();});
+mode.addEventListener('change',()=>{settings.mode=mode.value as ChronoscopeMode;if(settings.mode!=='slice')liveMode=settings.mode;renderer?.setMode(settings.mode);required('slice-control').hidden=settings.mode!=='slice';save();sync();});
 windowSize.addEventListener('change',()=>{settings=normalizeChronoscope({...settings,seconds:Number(windowSize.value)});renderer?.setWindow(settings.seconds);slice.max=String(settings.seconds);save();sync();});
-freeze.addEventListener('click',()=>renderer?.freeze());required('live-button').addEventListener('click',()=>{if(settings.mode==='slice'){settings.mode='sculpture';mode.value=settings.mode;renderer?.setMode(settings.mode);required('slice-control').hidden=true;save();}renderer?.live();});
+freeze.addEventListener('click',()=>{if(renderer?.frozen)returnLive();else renderer?.freeze();});required('live-button').addEventListener('click',returnLive);
 slice.addEventListener('input',()=>{renderer?.setSlice(Number(slice.value));required<HTMLOutputElement>('slice-output').value=`${slice.value==='0'?'Now':`${slice.value}s ago`} · ±2s`;});
 required('regions-all').addEventListener('click',()=>{settings.regions=null;renderer?.setRegions(null);save();renderRegions();stage.dispatchEvent(new Event('graphfilter'));sync();});
 required('regions-none').addEventListener('click',()=>{settings.regions=[];renderer?.setRegions([]);save();renderRegions();stage.dispatchEvent(new Event('graphfilter'));sync();});
 required('region-search').addEventListener('input',filterRegions);required('reset-button').addEventListener('click',()=>{renderer?.home();stage.dispatchEvent(new Event('graphnavigate'));});
-window.addEventListener('storage',event=>{if(event.key===KEY||event.key===null){settings=load();applySettings();}});
+window.addEventListener('storage',event=>{if(event.key===KEY||event.key===null){const slicing=settings.mode==='slice';settings=load();liveMode=settings.mode==='flat'?'flat':'sculpture';if(slicing)settings.mode='slice';applySettings();}});
 window.addEventListener(DISPLAY_EVENT,()=>{recentSignature='';sync();});
 document.addEventListener('visibilitychange',()=>{sonifier?.setPaused(document.hidden||Boolean(renderer?.frozen));if(!document.hidden)void feed?.resume();});
 window.addEventListener('online',()=>void feed?.resume());window.addEventListener('pageshow',event=>{if(event.persisted)void feed?.resume();});

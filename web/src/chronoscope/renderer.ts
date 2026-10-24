@@ -85,7 +85,9 @@ export class ChronoscopeRenderer {
   setSlice(seconds: number): void { this.freeze(); this.#slice = seconds; this.request(); }
   setRegions(regions: string[] | null): void {
     if (regions === null && this.#regions === null || regions !== null && this.#regions?.size === regions.length && regions.every(code => this.#regions!.has(code))) return;
-    this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.reproject(); this.request();
+    this.#regions = regions === null ? null : new Set(regions); this.#pan = {x:0,y:0}; this.#zoom=1;
+    if (this.#selectedEvent!==null || this.#selected&&!this.nodeInRegions(this.#selected)) this.callbacks.node(null);
+    this.reproject(); this.request();
   }
   nodeInRegions(id: string): boolean { return !this.#regions || this.#regions.has(this.#layout.positions.get(id)?.areaCode ?? this.#assignments.get(id)?.code ?? ''); }
   selectNode(id: string | null): void { this.#selected = id; this.#selectedEvent = null; this.#dirty = true; this.request(); }
@@ -175,7 +177,8 @@ export class ChronoscopeRenderer {
         ctx.font='10px system-ui';ctx.fillStyle=alpha('#d2e0ef',.8);ctx.fillText(name,p.x,box.y+24);ctx.font=`${palette.textSize==='large'?14:12}px system-ui`;ctx.textAlign='left';
       }
     }
-    const detail = palette.detail === 'complete' ? 1 : Math.min(1, Math.sqrt(240 / Math.max(1, this.#nodes.size)) * Math.sqrt(this.#zoom));
+    const count = this.#regions ? this.#layout.areas.reduce((sum,a)=>sum+(this.#regions!.has(a.code)?a.nodeCount:0),0) : this.#nodes.size;
+    const detail = palette.detail === 'complete' ? 1 : Math.min(1, Math.sqrt(240 / Math.max(1, count)) * Math.sqrt(this.#zoom));
     for (const [id, p] of this.#points) {
       if (!this.nodeInRegions(id) || p.x < 0 || p.x > this.#width || p.y < 0 || p.y > this.#height) continue;
       const node = this.#nodes.get(id); if (!node) continue;

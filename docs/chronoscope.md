@@ -6,7 +6,7 @@ Open `/chronoscope/` or choose **Chronoscope** in the dock (the **View** picker 
 - **Flat:** view the same selected observation window from above.
 - **Slice:** freeze time and inspect the four-second interval around a chosen moment.
 
-**Time** contains the 30-second, 60-second and two-minute windows, Freeze view, Return to live and recent packets that can be selected with the keyboard. A new page starts without earlier observations. Freeze holds the activity window while current feed and radio information keep updating. Returning to live never replays buffered packets or sound.
+**Time** contains the 30-second, 60-second and two-minute windows, Freeze view, Return to live and recent packets that can be selected with the keyboard. A new page starts without earlier observations. Freeze holds the activity window while current feed and radio information keep updating. Returning to live never replays buffered packets or sound. Freeze and Slice inspection are temporary; reopening starts live in your last Sculpture or Flat view.
 
 **Regions** filters one or several geographic groups. **Find** selects a radio and its observed activity. Selecting a trace opens its confirmed segments; gaps are preserved. An observer-only pulse records one receiver hearing activity, without drawing a connection.
 

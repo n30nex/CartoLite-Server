@@ -60,10 +60,11 @@ test('Chronoscope keeps live time, frozen slices, regions and selection separate
 
 test('Chronoscope exposes clear themes and a quiet observer-only fallback',async({page},info)=>{
   await visualFixture(page);
-  await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type:any,...args:any[]){if(type==='webgl2')return null;return (original as any).call(this,type,...args);} as typeof original;});
+  await page.addInitScript(()=>{Object.defineProperty(window,'AudioContext',{value:undefined});Object.defineProperty(window,'webkitAudioContext',{value:undefined});const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type:any,...args:any[]){if(type==='webgl2')return null;return (original as any).call(this,type,...args);} as typeof original;});
   await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:1,id:'heard',at:Date.now(),payloadType:'Advert',mode:'observer',observer:{id:'visual-a',label:'Visual Alpha',lat:43.45,lng:-80.35}}})));
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-renderer','canvas2d');
+  await expect(page.locator('#sound-button')).toBeDisabled();
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-segment-count','1');
   await page.locator('#time-button').click();await page.locator('#recent-events button').first().click();
   await expect(page.locator('#node-inspector-sheet')).toContainText('Observer-only reception');
@@ -89,6 +90,25 @@ test('Chronoscope phone controls fit one row and panels restore focus',async({pa
   const box=await page.locator('#time-panel').boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(320);expect(box!.y).toBeGreaterThanOrEqual(0);
   await page.keyboard.press('Escape');await expect(page.locator('#time-button')).toBeFocused();
   await page.screenshot({path:info.outputPath('chronoscope-phone-320.png')});
+});
+
+test('Chronoscope shares preferences across tabs without losing frozen inspection',async({page,context},info)=>{
+  test.skip(info.project.name!=='desktop');await visualFixture(page);
+  await page.addInitScript(()=>window.addEventListener('cartolite-chronoscope-ready',event=>{(window as any).__chrono=(event as CustomEvent).detail.scene;}));
+  await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:1,id:'shared',at:Date.now(),payloadType:'Text',mode:'route',segments:[{routeId:'visual-hop',fromId:'visual-a',toId:'visual-b'}]}})));
+  await page.locator('#find-button').click();await page.locator('#node-search').fill('Alpha');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
+  await page.locator('#time-button').click();await page.locator('#freeze-button').click();await page.keyboard.press('Escape');
+  const before=await page.evaluate(()=>{const scene=(window as any).__chrono;return{time:scene.frameTime,point:scene.projectEndpoint(scene.nodes.get('visual-a')),selected:scene.selected};});
+  const second=await context.newPage();await visualFixture(second);await second.goto('/chronoscope/');await expect(second.locator('#chronoscope-stage')).toHaveAttribute('data-render-state','idle');
+  await openDisplay(second);await second.getByLabel('Scene style',{exact:true}).selectOption('light');await second.keyboard.press('Escape');
+  await second.locator('#time-button').click();await second.getByLabel('Activity time window').selectOption('120');
+  await expect(page.locator('html')).toHaveAttribute('data-basemap','light');await expect(page.locator('#chrono-window')).toHaveValue('120');
+  expect(await page.evaluate(()=>{const scene=(window as any).__chrono;return{time:scene.frameTime,point:scene.projectEndpoint(scene.nodes.get('visual-a')),selected:scene.selected};})).toEqual(before);
+  await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-event-count','1');await second.close();
+  await page.locator('#time-button').click();await page.getByLabel('Chronoscope view').selectOption('flat');await page.getByLabel('Chronoscope view').selectOption('slice');
+  await page.reload();await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-mode','flat');await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-frozen','false');await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-event-count','0');
+  await page.locator('#regions-button').click();await page.locator('#regions-none').click();expect(new URL(page.url()).searchParams.has('node')).toBe(false);await expect(page.locator('#node-inspector-sheet')).toBeHidden();
 });
 
 test('Chronoscope retains 7000 links and bounds live geometry without fetching a basemap',async({page},info)=>{
