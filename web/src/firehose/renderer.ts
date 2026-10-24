@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { displayPreferences, lightScene, packetPalette } from '../displayPreferences';
 import { NetgraphQuality } from '../netgraph/quality';
 import { BOX, HEADER, KINDS, SPOUT, TEXTURE_WIDTH, particleRadius, type Rotation } from './model';
-import { beadVertex, beadFragment, solidVertex, solidFragment, linkVertex, linkFragment } from './shaders';
+import { beadVertex, beadFragment, solidVertex, solidFragment, dotVertex, dotFragment, linkVertex, linkFragment } from './shaders';
 
 export class FirehoseRenderer {
   readonly scene=new THREE.Scene();
@@ -27,6 +27,7 @@ export class FirehoseRenderer {
   #resize:ResizeObserver;
   #textures:[THREE.DataTexture,THREE.DataTexture];
   #points:THREE.Mesh<THREE.InstancedBufferGeometry,THREE.ShaderMaterial>;
+  #dots:THREE.Points;
   #halos:THREE.Points;
   #links:THREE.Mesh<THREE.InstancedBufferGeometry,THREE.ShaderMaterial>;
   #born:THREE.BufferAttribute;
@@ -78,6 +79,10 @@ export class FirehoseRenderer {
     geometry.setAttribute('aSlot',new THREE.InstancedBufferAttribute(this.#order,1).setUsage(THREE.DynamicDrawUsage));
     this.#selected=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1).setUsage(THREE.DynamicDrawUsage);geometry.setAttribute('aSelected',this.#selected);
     this.#points=new THREE.Mesh(geometry,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:solidVertex,fragmentShader:solidFragment,uniforms:this.#uniforms,depthWrite:true,toneMapped:false}));this.#points.frustumCulled=false;this.#points.renderOrder=1;
+    const dots=new THREE.BufferGeometry();dots.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(capacity*3),3));
+    dots.setAttribute('aSlot',new THREE.BufferAttribute(this.#order,1).setUsage(THREE.DynamicDrawUsage));
+    dots.setAttribute('aSelected',new THREE.BufferAttribute(this.#selected.array,1).setUsage(THREE.DynamicDrawUsage));dots.setDrawRange(0,0);
+    this.#dots=new THREE.Points(dots,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:dotVertex,fragmentShader:dotFragment,uniforms:this.#uniforms,depthWrite:true,toneMapped:false}));this.#dots.frustumCulled=false;this.#dots.renderOrder=1;
     const haloGeometry=new THREE.BufferGeometry();haloGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(capacity*3),3));
     haloGeometry.setAttribute('aSlot',new THREE.Float32BufferAttribute(Float32Array.from({length:capacity},(_,i)=>i),1));
     this.#born=new THREE.BufferAttribute(new Float32Array(capacity).fill(-100),1).setUsage(THREE.DynamicDrawUsage);haloGeometry.setAttribute('aBorn',this.#born);
@@ -87,7 +92,7 @@ export class FirehoseRenderer {
     links.setAttribute('aEnds',new THREE.InstancedBufferAttribute(new Float32Array(capacity*4),2).setUsage(THREE.DynamicDrawUsage));links.instanceCount=0;
     this.#links=new THREE.Mesh(links,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:linkVertex,fragmentShader:linkFragment,
       uniforms:this.#uniforms,transparent:true,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true,toneMapped:false}));this.#links.frustumCulled=false;this.#links.renderOrder=2;
-    this.scene.add(this.#points,this.#halos,this.#links);
+    this.scene.add(this.#points,this.#dots,this.#halos,this.#links);
     this.#buildStage();this.applyDisplay();this.home();
     canvas.addEventListener('pointerdown',this.#down);canvas.addEventListener('pointermove',this.#move);canvas.addEventListener('pointerup',this.#release);canvas.addEventListener('pointercancel',this.#cancel);
     canvas.addEventListener('webglcontextlost',this.#contextLost);canvas.addEventListener('webglcontextrestored',this.#contextRestored);
@@ -213,7 +218,9 @@ export class FirehoseRenderer {
     for(let slot=0;slot<this.capacity;slot++){const at=HEADER+slot*4;if(!data[at+3])continue;this.#order[count++]=slot;this.#depth[slot]=-(m[2]!*data[at]!+m[6]!*data[at+1]!+m[10]!*data[at+2]!+m[14]!);}
     this.#order.subarray(0,count).sort((a,b)=>this.#depth[a]!-this.#depth[b]!);
     for(let i=0;i<count;i++)this.#selected.setX(i,this.#selectedSlots[this.#order[i]!]!);
-    this.#selected.needsUpdate=true;this.#points.geometry.getAttribute('aSlot').needsUpdate=true;this.#points.geometry.instanceCount=count;this.#sortDirty=false;
+    const economy=this.stage.dataset.quality==='low';
+    this.#selected.needsUpdate=true;this.#points.geometry.getAttribute('aSlot').needsUpdate=true;this.#points.geometry.instanceCount=economy?0:count;
+    this.#dots.geometry.getAttribute('aSlot').needsUpdate=true;this.#dots.geometry.getAttribute('aSelected').needsUpdate=true;this.#dots.geometry.setDrawRange(0,economy?count:0);this.#sortDirty=false;
   }
   #draw=(now:number)=>{this.#frame=undefined;if(this.#disposed||this.lost||document.hidden)return;
     const blend=Math.min(1,(now-this.#received)/(1000/30));this.#uniforms.uBlend!.value=blend;this.#uniforms.uTime!.value=now/1000;

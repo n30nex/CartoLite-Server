@@ -2,7 +2,7 @@
 .firehose-app [hidden] { display:none!important; }
 #firehose-stage { position:absolute;inset:0;overflow:hidden;touch-action:none;outline-offset:-4px; }
 #firehose-canvas { display:block;width:100%;height:100%;touch-action:none; }
-.firehose-app .glass { transition:none; }
+html:root .firehose-app .glass { transition:none; }
 .firehose-caption { position:absolute;z-index:3;left:20px;top:max(78px,calc(env(safe-area-inset-top) + 78px));display:grid;gap:6px;pointer-events:none;color:#dbf8f0;text-shadow:0 1px 3px #06121b;font-size:12px; }
 .firehose-caption strong { letter-spacing:.22em;font-size:12px; }.firehose-caption small { font-size:11px;color:#9dc7ce;max-width:360px;line-height:1.4; }
 :root:is([data-basemap=light],[data-basemap=streets]) .firehose-caption { color:#183a45;text-shadow:0 1px 2px #eff5ee; }

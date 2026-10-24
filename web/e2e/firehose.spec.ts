@@ -1,10 +1,9 @@
-import { expect, test, type Page, type CDPSession } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { visualFixture } from './visualFixtures';
 import { openDisplay, openViewMenu } from './dockControls';
 import type { StateV2 } from '../src/types';
 
 const diagnostics=new WeakMap<Page,string[]>();
-const profiles=new WeakMap<Page,CDPSession>();
 test.beforeEach(async({page})=>{
  const lines:string[]=[];diagnostics.set(page,lines);
  const add=(value:string)=>{if(lines.length<80)lines.push(value.slice(0,2500).replace(/([?&](?:key|api_key|token)=)[^&#\s]+/gi,'$1[redacted]'));};
@@ -12,7 +11,6 @@ test.beforeEach(async({page})=>{
  page.on('response',r=>{if(r.status()>=400)add(`${r.status()} ${new URL(r.url()).pathname}`);});
 });
 test.afterEach(async({page},info)=>{
- const profile=profiles.get(page);if(profile){const result=await profile.send('Profiler.stop').catch(()=>null);if(result)await info.attach('firehose-cpu-profile',{body:JSON.stringify(result.profile),contentType:'application/json'});await profile.detach();}
  if(info.status!==info.expectedStatus)await info.attach('firehose-diagnostics',{body:JSON.stringify({messages:diagnostics.get(page),state:await page.locator('#firehose-stage').evaluate(el=>({...((el as HTMLElement).dataset)})).catch(()=>null)},null,2),contentType:'application/json'});
 });
 
@@ -61,6 +59,10 @@ test('Firehose scene themes preserve the pile and camera',async({page},info)=>{
  for(const theme of ['dark','light','streets']){await openDisplay(page);await page.getByLabel('Scene style',{exact:true}).selectOption(theme);await page.keyboard.press('Escape');
    await expect(page.locator('html')).toHaveAttribute('data-basemap',theme);await expect(page.locator('#firehose-stage')).toHaveAttribute('data-events','1');
    expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).toEqual(camera);
+   const contrast=await page.evaluate(()=>{
+     const luminance=(color:string)=>{const [r,g,b]=(color.match(/[\d.]+/g)??[]).slice(0,3).map(c=>{const n=Number(c)/255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;});return .2126*r!+.7152*g!+.0722*b!;};
+     return ['#topbar','.controls'].map(selector=>{const panel=document.querySelector(selector)!;const ink=getComputedStyle(panel.querySelector('button,a')!),back=getComputedStyle(panel);const a=luminance(ink.color),b=luminance(back.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);});
+   });for(const ratio of contrast)expect(ratio).toBeGreaterThanOrEqual(4.5);
    await page.screenshot({path:info.outputPath(`firehose-${theme}.png`)});
  }
  await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('#firehose-stage')).toHaveAttribute('data-paused','true');
@@ -98,7 +100,6 @@ test('Firehose stays bounded under synthetic load and keeps its dependencies iso
  const now=Date.now(),nodes=Array.from({length:16},(_,i)=>({id:`pile-${i}`,label:`Synthetic ${i}`,lat:43+i*.001,lng:-80+i*.001,role:'repeater' as const,observer:false,lastSeen:now}));
  const state:StateV2={schemaVersion:2,bootId:'visual-fixture',seq:0,serverTime:now,status:{feed:'connected',activity:'active',dropped:0,version:'test',gitSha:'synthetic'},map:{center:[-80,43],zoom:8},nodes,routes:[]};
  await page.route('**/api/state',r=>r.fulfill({json:state}));await open(page);
- const profile=await page.context().newCDPSession(page);await profile.send('Profiler.enable');await profile.send('Profiler.start');profiles.set(page,profile);
  const result=await page.evaluate(async()=>{
   let seq=0,ticks=0,maxDelay=0,previous=performance.now();const timer=setInterval(()=>{const now=performance.now();maxDelay=Math.max(maxDelay,now-previous-25);previous=now;ticks++;},25);
   const send=()=>{seq++;window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`pile-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:Array.from({length:15},(_,i)=>({routeId:`chain-${i}`,fromId:`pile-${i}`,toId:`pile-${i+1}`}))}}));};
