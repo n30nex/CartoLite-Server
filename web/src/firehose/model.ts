@@ -23,8 +23,9 @@ export type Output = { type: 'ready'; capacity: number; radius: number }
   | { type: 'frame'; buffer: ArrayBuffer } | { type: 'fatal' };
 export function frameSize(capacity: number): number { return HEADER + capacity * 8; }
 export function particleRadius(capacity: number): number {
-  // A shallow open box fills before its resource ceiling, including on phones.
-  return Math.cbrt(BOX.width * BOX.depth * BOX.height * 0.66 / (capacity * 4 * Math.PI / 3));
+  // Packing leaves air gaps. Reserve capacity for beads still falling/spilling,
+  // so a settled pile cannot consume every slot and stop the visible overflow.
+  return Math.cbrt(BOX.width * BOX.depth * BOX.height / (capacity * 4 * Math.PI / 3));
 }
 export function capacityFor(coarse: boolean, quality: string): number {
   return coarse ? quality === 'high' ? 2048 : quality === 'economy' ? 768 : 1280
