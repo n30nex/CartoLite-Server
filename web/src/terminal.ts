@@ -243,6 +243,12 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     // tile/source to load can leave the ordinary palette on a busy live map.
     if (disposed || failed || !ids.includes('basemap-water')) return;
     const setPaint = (layer: string, property: string, value: Parameters<typeof map.setPaintProperty>[2]) => {
+      // These colours encode semantic classes for the GPU classifier. A colour
+      // transition can temporarily turn water into road/terrain ink after Retry.
+      const transition = `${property}-transition` as Parameters<typeof map.getPaintProperty>[1];
+      const oldTransition = map.getPaintProperty(layer, transition);
+      if (!originalPaint.has(`${layer}:${transition}`)) originalPaint.set(`${layer}:${transition}`, { layer, property: transition, value: oldTransition });
+      if (JSON.stringify(oldTransition) !== '{"duration":0,"delay":0}') map.setPaintProperty(layer, transition, { duration: 0, delay: 0 });
       const current = map.getPaintProperty(layer, property as Parameters<typeof map.getPaintProperty>[1]);
       if (JSON.stringify(current) === JSON.stringify(value)) return;
       if(!originalPaint.has(`${layer}:${property}`))originalPaint.set(`${layer}:${property}`, { layer, property, value: current });

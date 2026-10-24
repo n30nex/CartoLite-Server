@@ -14,7 +14,7 @@ curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/readyz
 ```
 
-The map is at `http://localhost:8080/`; Netgraph is at `/netgraph/`. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains only public map-provider settings; the traffic API remains schema v2.
+The map is at `http://localhost:8080/`; Netgraph is at `/netgraph/`, Terminal at `/terminal/` and Chronoscope at `/chronoscope/`. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains only public map-provider settings; the traffic API remains schema v2.
 
 ## Configuration
 

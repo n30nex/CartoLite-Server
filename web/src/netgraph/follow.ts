@@ -3,7 +3,7 @@ import type { PacketView } from '../types';
 import type { NetgraphRenderer } from './renderer';
 
 /** Same live-only queue and ten-second dwell as Map. No animation is replayed. */
-export function mountGraphFollow(graph: NetgraphRenderer, select: (id: string) => void) {
+export function mountGraphFollow(graph: Pick<NetgraphRenderer, 'holdView' | 'selectedNode' | 'captureFollowArea' | 'followPacket' | 'nodeInRegions' | 'projectEndpoint'>, select: (id: string) => void, stage = document.getElementById('netgraph-stage')!) {
   const button=document.createElement('button');button.id='follow-button';button.type='button';button.className='control-button';button.innerHTML='<span aria-hidden="true">◎</span><span>Follow</span>';button.setAttribute('aria-label','Follow');button.setAttribute('aria-pressed','false');
   document.querySelector('.controls')!.append(button);
   const card=document.createElement('section');card.id='follow-card';card.className='follow-card glass';card.hidden=true;card.setAttribute('aria-label','Live Follow activity');
@@ -27,7 +27,6 @@ export function mountGraphFollow(graph: NetgraphRenderer, select: (id: string) =
   card.querySelector('[data-next]')!.addEventListener('click',()=>{held=false;delete app.dataset.followInspect;queue.next();hold.textContent='Hold';tick();});
   inspect.addEventListener('click',()=>{const id=current&&followEndpoints(current)[0]?.id;if(id){held=true;app.dataset.followInspect='true';graph.holdView();queue.setHeld(true,Date.now());hold.textContent='Continue';select(id);}});
   const pause=()=>{if(enabled&&!held){held=true;queue.setHeld(true,Date.now());graph.holdView();hold.textContent='Continue';}};
-  const stage=document.getElementById('netgraph-stage')!;
   stage.addEventListener('pointerdown',pause);stage.addEventListener('wheel',pause,{passive:true});stage.addEventListener('keydown',pause);
   stage.addEventListener('graphnavigate',pause);
   const filterChanged=()=>{queue.clear();clearActivity();pause();};

@@ -96,7 +96,7 @@ jobs:
         if: matrix.arch == 'amd64'
         run: |
           npm ci
-          npm exec -- playwright install --with-deps chromium webkit
+          docker pull mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - name: Read build identity
         id: identity
@@ -155,7 +155,7 @@ jobs:
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: session-playwright-report
-        run: npm run test:e2e -- long-session.spec.ts --project desktop --retries 0 --output session-test-results
+        run: bash ../scripts/browser-ci.sh long-session.spec.ts --project desktop --retries 0 --output session-test-results
       - name: Preserve long-session diagnostics
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -165,12 +165,27 @@ jobs:
           path: |
             web/session-test-results/
             web/session-playwright-report/
+      - name: Chronoscope live time, interaction and scale
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: chrono-playwright-report
+        run: bash ../scripts/browser-ci.sh chronoscope.spec.ts --retries 0 --output chrono-test-results
+      - name: Preserve Chronoscope evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-chronoscope-review
+          retention-days: 7
+          path: |
+            web/chrono-test-results/
+            web/chrono-playwright-report/
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: terminal-playwright-report
-        run: npm run test:e2e -- terminal.spec.ts --output terminal-test-results
+        run: bash ../scripts/browser-ci.sh terminal.spec.ts --output terminal-test-results
       - name: Preserve Terminal review screenshots
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -185,7 +200,7 @@ jobs:
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
-        run: npm run test:e2e -- ui-audit.spec.ts --output ux-audit-test-results
+        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
       - name: Preserve UI audit screenshots for early review
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -201,7 +216,7 @@ jobs:
         env:
           CARTOLITE_BASE_URL: http://127.0.0.1:39476
           PLAYWRIGHT_HTML_OUTPUT_DIR: focused-playwright-report
-        run: npm run test:e2e -- --grep '@terrain|@world|@regions' --output focused-test-results
+        run: bash ../scripts/browser-ci.sh --grep '@terrain|@world|@regions' --output focused-test-results
       - name: Complete desktop and mobile browser suite
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -217,7 +232,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          npm run test:e2e -- --grep-invert 'long session|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'long session|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

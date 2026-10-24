@@ -73,6 +73,7 @@ export function buildNetgraphLayout(
   nodes: readonly NodeV2[],
   routes: readonly RouteV2[],
   assignedAreas: ReadonlyMap<string, NetgraphAreaAnchor> = new Map(),
+  includeIsolated = false,
 ): NetgraphLayout {
   const nodeByID = new Map(nodes.map((node) => [node.id, node]));
   const nodeIDs = new Set(nodes.map((node) => node.id));
@@ -92,7 +93,7 @@ export function buildNetgraphLayout(
   });
 
   const areaByCode = new Map<string, AreaDraft>();
-  for (const id of [...connectedNodeIDs].sort((left, right) => compareSortKey(sortKeys, left, right))) {
+  for (const id of [...(includeIsolated ? nodeIDs : connectedNodeIDs)].sort((left, right) => compareSortKey(sortKeys, left, right))) {
     const node = nodeByID.get(id)!;
     const anchor = assignedAreas.get(id) ?? nearestNetgraphArea(node.lat, node.lng);
     let area = areaByCode.get(anchor.code);
@@ -172,10 +173,11 @@ export function extendNetgraphLayout(
   nodes: readonly NodeV2[],
   routes: readonly RouteV2[],
   assignedAreas: ReadonlyMap<string, NetgraphAreaAnchor> = new Map(),
+  includeIsolated = false,
 ): NetgraphLayout {
-  if (previous.positions.size === 0) return buildNetgraphLayout(nodes, routes, assignedAreas);
+  if (previous.positions.size === 0) return buildNetgraphLayout(nodes, routes, assignedAreas, includeIsolated);
 
-  const canonical = buildNetgraphLayout(nodes, routes, assignedAreas);
+  const canonical = buildNetgraphLayout(nodes, routes, assignedAreas, includeIsolated);
   const positions = new Map<string, NetgraphPosition>();
   const canonicalAreas = new Map(canonical.areas.map((area) => [area.code, area]));
   const previousAreas = new Map(previous.areas.map((area) => [area.code, area]));

@@ -11,7 +11,8 @@ export function mountCinematicDock(): void {
   navigation.className = 'dock-views'; navigation.setAttribute('aria-label', 'Views');
   const graph = location.pathname.startsWith('/netgraph');
   const terminal = location.pathname.startsWith('/terminal');
-  for (const [label, path, active] of [['Map', '/', !graph && !terminal], ['Netgraph', '/netgraph/', graph], ['Terminal', '/terminal/', terminal]] as const) {
+  const chrono = location.pathname.startsWith('/chronoscope');
+  for (const [label, path, active] of [['Map', '/', !graph && !terminal && !chrono], ['Netgraph', '/netgraph/', graph], ['Terminal', '/terminal/', terminal], ['Chronoscope', '/chronoscope/', chrono]] as const) {
     const link = (label === 'Netgraph' ? topbar.querySelector<HTMLAnchorElement>('#netgraph-link') : null) ?? document.createElement('a');
     link.href = path; link.classList.add('control-button'); link.textContent = label;
     link.setAttribute('aria-label', `Open CartoLite ${label === 'Map' ? 'map' : label}`);
@@ -23,7 +24,7 @@ export function mountCinematicDock(): void {
   controls.prepend(navigation);
   const zoomControls = document.querySelector<HTMLElement>('.zoom-controls');
   if (zoomControls) controls.append(zoomControls);
-  if (!graph) {
+  if (!graph && !chrono) {
     const display = document.createElement('button');
     display.id = 'display-shortcut'; display.type = 'button'; display.className = 'control-button'; display.textContent = '◐ Display';
     display.setAttribute('aria-label', 'Display settings');
@@ -43,9 +44,9 @@ export function mountCinematicDock(): void {
     close.setAttribute('aria-label', id === 'find' ? 'Close node search' : 'Close sound settings');
     close.addEventListener('click', () => { if (!panel.hidden) owner.click(); owner.focus(); }); header.append(close);
   }
-  mountNetworkHelp(graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
-  mountMobileDock(controls, navigation, graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
-  trackPanelHistory(controls, ['about-dialog', 'view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
+  mountNetworkHelp(chrono ? 'Chronoscope' : graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
+  mountMobileDock(controls, navigation, chrono ? 'Chronoscope' : graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
+  trackPanelHistory(controls, ['about-dialog', 'view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'time-panel', 'regions-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
   // One menu at a time, including the independently mounted display control.
   let closing = false;
   controls.addEventListener('click', event => {

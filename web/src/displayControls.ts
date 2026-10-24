@@ -26,7 +26,7 @@ export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netg
       ] as const).map(([key, label, min, max, step, unit]) => `<label class="display-slider">${label}<output data-output="${key}" data-unit="${unit}"></output><input data-display="${key}" aria-label="${label}" type="range" min="${min}" max="${max}" step="${step}"></label>`).join('')}
       <button class="display-reset" type="button">Reset route styling</button>
     </details>` : '<p id="labs-quality-status" class="display-note" role="status"></p>'}
-    <p class="display-note">${surface === 'labs' ? 'Effects, motion, graphics, text and interface settings are shared. Each experiment keeps its own artistic setting; route styling stays in Map, Netgraph and Terminal.' : (TERMINAL_PAGE ? 'Terminal saves its own display settings. Map and Netgraph keep their choices. Styling never changes connections or packet timing.' : 'Shared across Map and Netgraph in this browser. Terminal saves its own display settings. Styling never changes connections or packet timing.')}</p>`;
+    <p class="display-note">${surface === 'labs' ? 'Effects, motion, graphics, text and interface settings are shared. Each experiment keeps its own artistic setting; route styling stays in Map, Netgraph and Terminal.' : (TERMINAL_PAGE ? 'Terminal saves its own display settings. Map and Netgraph keep their choices. Styling never changes connections or packet timing.' : 'Shared across Map, Netgraph and Chronoscope in this browser. Terminal saves its own display settings. Styling never changes connections or packet timing.')}</p>`;
   const oldOpacity = parent.querySelector<HTMLInputElement>('#route-opacity');
   const oldOpacityLabel = oldOpacity?.closest('label');
   const duplicateOpacity = section.querySelector('[data-display="opacity"]')?.closest('label');
@@ -75,7 +75,7 @@ export function mountNetgraphDisplay(onOpen: () => void = () => {}): () => void 
   controls.prepend(host);
   const button = host.querySelector<HTMLButtonElement>('#display-button')!;
   const panel = host.querySelector<HTMLElement>('#display-panel')!;
-  const close = (restore = false): void => { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (restore) button.focus(); };
+  const close = (restore = false): void => { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); if (restore) (button.getClientRects().length ? button : document.getElementById('view-button'))?.focus(); };
   button.addEventListener('click', () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) onOpen(); });
   panel.querySelector('button')!.addEventListener('click', () => close(true));
   document.addEventListener('pointerdown', (event) => { if (event.target instanceof Node && !host.contains(event.target)) close(); });

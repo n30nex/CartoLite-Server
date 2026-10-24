@@ -59,7 +59,7 @@ CartoLite Server renders public MeshCore activity as a living map: packet trails
 | | |
 |---|---|
 | **Live topology** | Vector geography, six route styles, packet-type heat, clusters, terrain and desktop 3D buildings. |
-| **Make it yours** | Shared Map/Netgraph themes, preset and advanced line controls, readable light/dark palettes, and saved display choices. |
+| **Make it yours** | Shared Map/Netgraph/Chronoscope themes, preset and advanced line controls, readable light/dark palettes, and saved display choices. |
 | **Find and inspect** | Search downloaded node labels, open node details, and browse neighbours sorted by last heard. |
 | **Musical traffic** | A grouped choice of [31 sound voices](docs/sound-voices.md), using opt-in native browser audio and visible live hops only. |
 | **Works worldwide** | Accept valid coordinates anywhere, or apply an exact region allowlist for a shared broker. |
@@ -209,3 +209,7 @@ heatmap, node/place labels, roads and buildings on; clusters, regions, Topo and
 Complete detail, High graphics, system motion, standard text and Neon routes.
 Layer/display settings are independent from Map/Netgraph, and saved Terminal
 customizations remain. Reset all display settings restores these Terminal defaults.
+
+## Chronoscope
+
+Open /chronoscope/ or choose **Chronoscope** in the dock. A bright Now plane and fading traces show the last minute of activity observed by this page. Explore Sculpture, Slice or Flat, freeze time, select regions and inspect confirmed packet segments. Display and live sound use the existing shared controls; phone Display settings live in the View picker. The bounded session window starts empty, stays silent while frozen and never reconstructs traffic from route totals. [View guide](docs/chronoscope.md).
