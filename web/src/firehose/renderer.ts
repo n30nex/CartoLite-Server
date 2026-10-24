@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { displayPreferences, lightScene, packetPalette } from '../displayPreferences';
+import { NetgraphQuality } from '../netgraph/quality';
 import { BOX, HEADER, KINDS, SPOUT, TEXTURE_WIDTH, particleRadius, type Rotation } from './model';
 import { beadVertex, beadFragment, solidVertex, solidFragment, linkVertex, linkFragment } from './shaders';
 
@@ -46,6 +47,7 @@ export class FirehoseRenderer {
   #maxFrameGap=0;
   #drawMs=0;
   #sortMs=0;
+  #quality=new NetgraphQuality();
   #vector=new THREE.Vector3();
   #right=new THREE.Vector3();
   #up=new THREE.Vector3();
@@ -67,17 +69,20 @@ export class FirehoseRenderer {
       uHeight:{value:1},uDpr:{value:1},uResolution:{value:new THREE.Vector2(1,1)},uPalette:{value:KINDS.map(()=>new THREE.Color())},uDarkPalette:{value:KINDS.map(()=>new THREE.Color())},
       uTime:{value:0},uGlow:{value:0},uCore:{value:1},uLight:{value:0},uWidth:{value:1.5},uOpacity:{value:.8},uPattern:{value:0}};
     this.#order=new Float32Array(capacity);this.#depth=new Float32Array(capacity);this.#selectedSlots=new Float32Array(capacity);
-    const sphere=new THREE.IcosahedronGeometry(1,1),geometry=new THREE.InstancedBufferGeometry();
-    geometry.index=sphere.index;geometry.setAttribute('position',sphere.getAttribute('position'));geometry.instanceCount=0;
+    // Small beads need fewer surface triangles under pressure, not fewer events.
+    // Both levels share one GPU buffer, so adapting never churns GPU resources.
+    const coarse=new THREE.IcosahedronGeometry(1,0),fine=new THREE.IcosahedronGeometry(1,1),geometry=new THREE.InstancedBufferGeometry();
+    const positions=new Float32Array(900);positions.set(coarse.getAttribute('position').array);positions.set(fine.getAttribute('position').array,180);
+    geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.setDrawRange(60,240);geometry.instanceCount=0;
+    coarse.dispose();fine.dispose();
     geometry.setAttribute('aSlot',new THREE.InstancedBufferAttribute(this.#order,1).setUsage(THREE.DynamicDrawUsage));
     this.#selected=new THREE.InstancedBufferAttribute(new Float32Array(capacity),1).setUsage(THREE.DynamicDrawUsage);geometry.setAttribute('aSelected',this.#selected);
     this.#points=new THREE.Mesh(geometry,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:solidVertex,fragmentShader:solidFragment,uniforms:this.#uniforms,depthWrite:true,toneMapped:false}));this.#points.frustumCulled=false;this.#points.renderOrder=1;
     const haloGeometry=new THREE.BufferGeometry();haloGeometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(capacity*3),3));
     haloGeometry.setAttribute('aSlot',new THREE.Float32BufferAttribute(Float32Array.from({length:capacity},(_,i)=>i),1));
     this.#born=new THREE.BufferAttribute(new Float32Array(capacity).fill(-100),1).setUsage(THREE.DynamicDrawUsage);haloGeometry.setAttribute('aBorn',this.#born);
-    haloGeometry.setAttribute('aSelected',new THREE.Float32BufferAttribute(new Float32Array(capacity),1));
     this.#halos=new THREE.Points(haloGeometry,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:beadVertex,fragmentShader:beadFragment,
-      uniforms:{...this.#uniforms,uHalo:{value:1}},transparent:true,depthWrite:false,toneMapped:false}));this.#halos.frustumCulled=false;this.#halos.renderOrder=4;
+      uniforms:this.#uniforms,transparent:true,depthWrite:false,toneMapped:false}));this.#halos.frustumCulled=false;this.#halos.renderOrder=4;
     const links=new THREE.InstancedBufferGeometry();links.setAttribute('position',new THREE.Float32BufferAttribute([0,-1,0,1,-1,0,1,1,0,0,-1,0,1,1,0,0,1,0],3));
     links.setAttribute('aEnds',new THREE.InstancedBufferAttribute(new Float32Array(capacity*4),2).setUsage(THREE.DynamicDrawUsage));links.instanceCount=0;
     this.#links=new THREE.Mesh(links,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:linkVertex,fragmentShader:linkFragment,
@@ -130,19 +135,24 @@ export class FirehoseRenderer {
   }
   #changed=()=>{this.#dirty=true;this.#sortDirty=true;this.#request();};
   #resized=()=>{if(this.#disposed||document.hidden)return;const w=this.stage.clientWidth,h=this.stage.clientHeight;if(w<1||h<1)return;
-    const p=displayPreferences(),coarse=matchMedia('(pointer:coarse)').matches;const dpr=Math.min(devicePixelRatio||1,p.quality==='economy'?1:coarse?1.35:1.75);
+    const p=displayPreferences(),coarse=matchMedia('(pointer:coarse)').matches;
+    const quality=p.quality==='economy'?'low':p.quality==='high'?'full':this.#quality.mode;
+    const dpr=Math.min(devicePixelRatio||1,quality==='low'?.75:quality==='balanced'?1:coarse?1.35:1.75);
     if(this.gpu.getPixelRatio()!==dpr||this.canvas.width!==Math.floor(w*dpr)||this.canvas.height!==Math.floor(h*dpr)){this.gpu.setPixelRatio(dpr);this.gpu.setSize(w,h,false);}
-    this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.#uniforms.uHeight!.value=h*dpr;this.#uniforms.uDpr!.value=dpr;this.#uniforms.uResolution!.value.set(w*dpr,h*dpr);this.#changed();
+    // Preserve the whole box and pit in portrait without moving a user's camera.
+    this.camera.aspect=w/h;this.camera.zoom=Math.min(1,this.camera.aspect/.85);this.camera.updateProjectionMatrix();this.#uniforms.uHeight!.value=h*dpr;this.#uniforms.uDpr!.value=dpr;this.#uniforms.uResolution!.value.set(w*dpr,h*dpr);this.#changed();
     this.#uniforms.uWidth!.value=Math.max(1.4,p.width)*dpr;
+    this.#halos.visible=p.effects!=='minimal'&&quality!=='low';this.stage.dataset.quality=quality;this.stage.dataset.pixelRatio=dpr.toFixed(2);
+    this.#points.geometry.setDrawRange(quality==='full'?60:0,quality==='full'?240:60);
   };
   applyDisplay(){const p=displayPreferences(),light=lightScene(),palette=packetPalette();
     this.scene.background=new THREE.Color(light?(p.basemap==='streets'?'#e7dfc9':'#e7eff0'):'#06121b');
     this.#floorMaterial?.color.set(light?(p.basemap==='streets'?'#e1d7ba':'#d5e3e7'):'#09222c');
     this.#uniforms.uPalette!.value=KINDS.map(kind=>new THREE.Color(palette[kind]));const dark=packetPalette(false);this.#uniforms.uDarkPalette!.value=KINDS.map(kind=>new THREE.Color(dark[kind]));this.#uniforms.uLight!.value=light?1:0;
-    this.#uniforms.uGlow!.value=p.effects==='minimal'?0:p.effects==='calm'?.3:.9;this.#uniforms.uCore!.value=p.packetSize;
+    this.#uniforms.uGlow!.value=(p.effects==='minimal'?0:p.effects==='calm'?.3:.9)*(.3+.7*p.glow);this.#uniforms.uCore!.value=p.packetSize;
     this.#uniforms.uWidth!.value=Math.max(1.4,p.width)*(this.gpu.getPixelRatio()||1);this.#uniforms.uOpacity!.value=p.opacity;
     this.#uniforms.uPattern!.value=p.pattern==='dashed'?1:p.pattern==='dotted'?2:0;
-    this.#halos.visible=p.effects!=='minimal';this.#resized();this.#changed();
+    this.#quality.resetSamples();this.#resized();this.#changed();
   }
   accept(buffer:ArrayBuffer):ArrayBuffer|undefined{
     const data=new Float32Array(buffer),old=this.#previous&&this.#previous!==this.#current?this.#previous.buffer as ArrayBuffer:undefined;
@@ -197,7 +207,7 @@ export class FirehoseRenderer {
   zoom(scale:number){this.camera.position.sub(this.controls.target).multiplyScalar(scale).clampLength(3,45).add(this.controls.target);this.controls.update();this.#changed();}
   #contextLost=(e:Event)=>{e.preventDefault();this.lost=true;if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;this.onContext(true);};
   #contextRestored=()=>{if(this.#disposed)return;this.lost=false;this.#textures.forEach(t=>t.needsUpdate=true);this.#born.needsUpdate=true;this.#selected.needsUpdate=true;this.onContext(false);this.#changed();};
-  #visibility=()=>{if(document.hidden){if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;}else{this.#lastDraw=0;this.#resized();this.#changed();}};
+  #visibility=()=>{this.#quality.resetSamples();if(document.hidden){if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;}else{this.#lastDraw=0;this.#resized();this.#changed();}};
   #request(){if(this.#frame===undefined&&!this.#disposed&&!this.lost&&!document.hidden)this.#frame=requestAnimationFrame(this.#draw);}
   #sortBeads(){if(!this.#current)return;this.camera.updateMatrixWorld();const m=this.camera.matrixWorldInverse.elements,data=this.#current;let count=0;
     for(let slot=0;slot<this.capacity;slot++){const at=HEADER+slot*4;if(!data[at+3])continue;this.#order[count++]=slot;this.#depth[slot]=-(m[2]!*data[at]!+m[6]!*data[at+1]!+m[10]!*data[at+2]!+m[14]!);}
@@ -210,9 +220,12 @@ export class FirehoseRenderer {
     if(this.#previous&&this.#current){this.#poseA.set(this.#previous[8]!,this.#previous[9]!,this.#previous[10]!,this.#previous[11]!);this.#poseB.set(this.#current[8]!,this.#current[9]!,this.#current[10]!,this.#current[11]!);this.box.quaternion.copy(this.#poseA).slerp(this.#poseB,blend);}
     const moved=this.controls.update();
     if(this.#sortDirty){const started=performance.now();this.#sortBeads();this.#sortMs=performance.now()-started;}
-    if(this.#dirty||moved||blend<1){const started=performance.now();this.gpu.render(this.scene,this.camera);this.#drawMs=performance.now()-started;this.#visualFrames++;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,now-this.#lastDraw);this.#lastDraw=now;this.#dirty=false;
+    if(this.#dirty||moved||blend<1){const started=performance.now();this.gpu.render(this.scene,this.camera);this.#drawMs=performance.now()-started;this.#visualFrames++;const frameMs=this.#lastDraw?now-this.#lastDraw:0;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,frameMs);this.#lastDraw=now;this.#dirty=false;
       this.stage.dataset.drawMs=this.#drawMs.toFixed(2);this.stage.dataset.sortMs=this.#sortMs.toFixed(2);
-      this.stage.dataset.renderFrames=String(this.#visualFrames);this.stage.dataset.drawCalls=String(this.gpu.info.render.calls);this.stage.dataset.geometries=String(this.gpu.info.memory.geometries);this.stage.dataset.textures=String(this.gpu.info.memory.textures);}
+      this.stage.dataset.renderFrames=String(this.#visualFrames);this.stage.dataset.drawCalls=String(this.gpu.info.render.calls);this.stage.dataset.geometries=String(this.gpu.info.memory.geometries);this.stage.dataset.textures=String(this.gpu.info.memory.textures);
+      // Idle/paused snapshots are intentionally infrequent, not slow frames.
+      if(displayPreferences().quality==='auto'&&!this.paused&&this.#current&&this.#current[0]!>this.#current[3]!
+        &&this.#quality.sample(frameMs,this.#drawMs+this.#sortMs))this.#resized();}
     if(moved||(!this.paused&&blend<1))this.#request();
   };
   get metrics(){return{frames:this.#visualFrames,maxFrameGap:this.#maxFrameGap,drawCalls:this.gpu.info.render.calls,geometries:this.gpu.info.memory.geometries,textures:this.gpu.info.memory.textures,capacity:this.capacity};}

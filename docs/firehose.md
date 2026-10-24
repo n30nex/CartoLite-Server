@@ -19,6 +19,10 @@ click a bead to inspect its packet. Sound remains opt-in and plays new packets,
 never collisions. Display changes colours, link styles, glow, core size and
 graphics resolution while preserving the pile and camera.
 
+Auto graphics measures the scene as it runs. When frames become expensive it
+reduces surface detail, glow and pixel density, then restores them after sustained
+headroom. It never removes a retained bead or confirmed link to meet a frame budget.
+
 Rendering is GPU-batched WebGL2. Rapier physics runs in a dedicated worker with
 sleeping bodies, fixed steps and three reusable snapshot buffers. Graphics mode
 and device class determine a finite session budget. Whole packet graphs are

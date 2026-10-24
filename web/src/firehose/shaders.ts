@@ -12,38 +12,27 @@ vec4 bead(float slot) {
 `;
 export const beadVertex = `
 ${positionFunctions}
-in float aSlot;in float aBorn;in float aSelected;
-uniform float uRadius;uniform float uHeight;uniform float uDpr;uniform float uHalo;uniform float uTime;uniform float uGlow;
-out vec3 vCenter;out float vKind;out float vBorn;out float vSelected;out float vWorldY;
+in float aSlot;in float aBorn;
+uniform float uRadius;uniform float uHeight;uniform float uDpr;uniform float uTime;uniform float uGlow;
+out float vKind;out float vBorn;out float vWorldY;
 void main(){
- vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vBorn=aBorn;vSelected=aSelected;vWorldY=b.y;
- vec4 eye=modelViewMatrix*vec4(b.xyz,1.0);vCenter=eye.xyz;gl_Position=projectionMatrix*eye;
+ vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vBorn=aBorn;vWorldY=b.y;
+ vec4 eye=modelViewMatrix*vec4(b.xyz,1.0);gl_Position=projectionMatrix*eye;
  float pixels=uRadius*uHeight*projectionMatrix[1][1]/max(0.1,-eye.z);
- gl_PointSize=clamp(pixels,2.5*uDpr,48.0*uDpr)*(uHalo>0.5?1.8:1.0);
- if(b.w<0.5||eye.z>=-0.05||(uHalo>.5&&(uTime-aBorn>2.8||uGlow<.005))){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}
+ gl_PointSize=clamp(pixels,2.5*uDpr,48.0*uDpr)*1.8;
+ if(b.w<0.5||eye.z>=-0.05||uTime-aBorn>2.8||uGlow<.005){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}
 }
 `;
 export const beadFragment = `
-uniform mat4 projectionMatrix;
-uniform vec3 uPalette[6];uniform float uRadius;uniform float uTime;uniform float uHalo;
-uniform float uGlow;uniform float uLight;uniform float uCore;
-in vec3 vCenter;in float vKind;in float vBorn;in float vSelected;in float vWorldY;
+uniform vec3 uPalette[6];uniform float uTime;uniform float uGlow;
+in float vKind;in float vBorn;in float vWorldY;
 out vec4 outColor;
 void main(){
- vec2 p=gl_PointCoord*2.0-1.0;p.y=-p.y;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;gl_FragDepth=gl_FragCoord.z;
+ vec2 p=gl_PointCoord*2.0-1.0;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;
  vec3 color=uPalette[int(clamp(vKind,0.0,5.0))];
  float fade=1.0-smoothstep(2.7,4.7,-vWorldY);
- if(uHalo>0.5){float age=max(0.0,uTime-vBorn);float alpha=exp(-r2*4.5)*max(0.0,1.0-age/2.8)*uGlow*.23*fade;
-   if(alpha<.005)discard;outColor=vec4(pow(color,vec3(1.0/2.2)),alpha);return;}
- vec3 normal=vec3(p,sqrt(max(0.0,1.0-r2)));
- float diffuse=.3+.7*max(0.0,dot(normal,normalize(vec3(-.4,.7,1.0))));
- float core=1.0-smoothstep(.08*uCore,.5*uCore,sqrt(r2));
- float specular=pow(max(0.0,dot(normal,normalize(vec3(-.3,.55,1.0)))),28.0);
- vec3 shaded=color*(diffuse*.78+core*.55)+vec3(specular*.8+vSelected*.45*(1.0-smoothstep(.7,.93,sqrt(r2))));
- if(uLight>.5)shaded=mix(color*.35,color,diffuse)*(1.0-core*.2)+vec3(specular*.32);
- if(vSelected>.5)shaded=mix(shaded,vec3(1.0,.9,.55),smoothstep(.72,.9,sqrt(r2)));
- vec4 clip=projectionMatrix*vec4(vCenter+normal*uRadius,1.0);gl_FragDepth=clip.z/clip.w*.5+.5;
- outColor=vec4(pow(max(shaded,vec3(0.0)),vec3(1.0/2.2)),fade);
+ float age=max(0.0,uTime-vBorn);float alpha=exp(-r2*4.5)*max(0.0,1.0-age/2.8)*uGlow*.23*fade;
+ if(alpha<.005)discard;outColor=vec4(pow(color,vec3(1.0/2.2)),alpha);
 }
 `;
 // Opaque instanced spheres allow early depth rejection through a dense pile.

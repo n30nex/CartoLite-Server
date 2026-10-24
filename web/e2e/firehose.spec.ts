@@ -69,6 +69,8 @@ test('Firehose scene themes preserve the pile and camera',async({page},info)=>{
 
 test('Firehose phone dock and sheets fit 320px with keyboard focus',async({page},info)=>{
  test.skip(info.project.name==='desktop');await setup(page);await page.setViewportSize({width:320,height:720});await open(page);
+ const framing=await page.evaluate(()=>[-1,1].flatMap(x=>[-1,1].map(z=>(window as any).__hose.projectWorld(x*2.6,0,z*1.8))));
+ for(const p of framing){expect(p.x).toBeGreaterThanOrEqual(0);expect(p.x).toBeLessThanOrEqual(320);expect(p.y).toBeGreaterThan(120);expect(p.y).toBeLessThan(650);}
  const boxes=await page.locator('.controls > button,.controls > div > button').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};}));
  expect(boxes).toHaveLength(6);expect(Math.max(...boxes.map(r=>r.y))-Math.min(...boxes.map(r=>r.y))).toBeLessThan(2);
  for(const b of boxes){expect(b.x).toBeGreaterThanOrEqual(0);expect(b.x+b.w).toBeLessThanOrEqual(320);expect(b.w).toBeGreaterThanOrEqual(44);expect(b.h).toBeGreaterThanOrEqual(44);}
