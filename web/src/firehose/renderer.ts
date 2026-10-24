@@ -44,6 +44,8 @@ export class FirehoseRenderer {
   #visualFrames=0;
   #lastDraw=0;
   #maxFrameGap=0;
+  #drawMs=0;
+  #sortMs=0;
   #vector=new THREE.Vector3();
   #right=new THREE.Vector3();
   #up=new THREE.Vector3();
@@ -207,8 +209,9 @@ export class FirehoseRenderer {
     const blend=Math.min(1,(now-this.#received)/(1000/30));this.#uniforms.uBlend!.value=blend;this.#uniforms.uTime!.value=now/1000;
     if(this.#previous&&this.#current){this.#poseA.set(this.#previous[8]!,this.#previous[9]!,this.#previous[10]!,this.#previous[11]!);this.#poseB.set(this.#current[8]!,this.#current[9]!,this.#current[10]!,this.#current[11]!);this.box.quaternion.copy(this.#poseA).slerp(this.#poseB,blend);}
     const moved=this.controls.update();
-    if(this.#sortDirty)this.#sortBeads();
-    if(this.#dirty||moved||blend<1){this.gpu.render(this.scene,this.camera);this.#visualFrames++;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,now-this.#lastDraw);this.#lastDraw=now;this.#dirty=false;
+    if(this.#sortDirty){const started=performance.now();this.#sortBeads();this.#sortMs=performance.now()-started;}
+    if(this.#dirty||moved||blend<1){const started=performance.now();this.gpu.render(this.scene,this.camera);this.#drawMs=performance.now()-started;this.#visualFrames++;if(this.#lastDraw)this.#maxFrameGap=Math.max(this.#maxFrameGap,now-this.#lastDraw);this.#lastDraw=now;this.#dirty=false;
+      this.stage.dataset.drawMs=this.#drawMs.toFixed(2);this.stage.dataset.sortMs=this.#sortMs.toFixed(2);
       this.stage.dataset.renderFrames=String(this.#visualFrames);this.stage.dataset.drawCalls=String(this.gpu.info.render.calls);this.stage.dataset.geometries=String(this.gpu.info.memory.geometries);this.stage.dataset.textures=String(this.gpu.info.memory.textures);}
     if(moved||(!this.paused&&blend<1))this.#request();
   };
