@@ -30,8 +30,8 @@ port.onmessage=event=>{const message=event.data;
   }
   if(message.type==='recycle'){if(physics&&message.buffer.byteLength===frameSize(physics.capacity)*4&&pool.length<3){pool.push(message.buffer);if(lastFrame===0)publish();}return;}
   if(message.type==='pause'){paused=message.paused;physics?.discardPending();if(timer)clearTimeout(timer);timer=undefined;accumulator=0;last=performance.now();schedule();return;}
-  if(message.type==='packet'){if(physics&&!paused)physics.enqueue(message.packet);else post({type:'rejected',id:message.packet.id});return;}
-  if(message.type==='rotation'){physics?.setRotation(message.rotation);return;}
+  if(message.type==='packet'){if(physics&&!paused){const wasIdle=idle();physics.enqueue(message.packet);if(wasIdle&&timer!==undefined){clearTimeout(timer);timer=undefined;schedule();}}else post({type:'rejected',id:message.packet.id});return;}
+  if(message.type==='rotation'){const wasIdle=idle();physics?.setRotation(message.rotation);if(wasIdle&&timer!==undefined){clearTimeout(timer);timer=undefined;schedule();}return;}
   if(message.type==='clear'){physics?.clear();publish();return;}
   if(message.type==='dispose'){disposed=true;if(timer)clearTimeout(timer);physics?.destroy();physics=undefined;pool.length=0;}
 };

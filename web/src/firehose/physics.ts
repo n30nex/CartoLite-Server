@@ -106,6 +106,22 @@ export class FirehosePhysics {
     let hit=false;
     for(let wall=0;wall<walls.length;wall++){
       const [hx,hy,hz,cx,cy,cz]=walls[wall]!,lx=cx-hx,ux=cx+hx,ly=cy-hy,uy=cy+hy,lz=cz-hz,uz=cz+hz;
+      // Sweep flat faces from the previous pose. Position constraints can move
+      // a sphere past the centre of a thin collider within a single iteration.
+      let swept=false;const epsilon=r*.02;
+      if(y>=ly&&y<=uy&&z>=lz&&z<=uz){
+        if(px>=ux+r-epsilon&&x<ux+r){x=ux+r;swept=true;}
+        else if(px<=lx-r+epsilon&&x>lx-r){x=lx-r;swept=true;}
+      }
+      if(x>=lx&&x<=ux&&z>=lz&&z<=uz){
+        if(py>=uy+r-epsilon&&y<uy+r){y=uy+r;swept=true;}
+        else if(py<=ly-r+epsilon&&y>ly-r){y=ly-r;swept=true;}
+      }
+      if(x>=lx&&x<=ux&&y>=ly&&y<=uy){
+        if(pz>=uz+r-epsilon&&z<uz+r){z=uz+r;swept=true;}
+        else if(pz<=lz-r+epsilon&&z>lz-r){z=lz-r;swept=true;}
+      }
+      if(swept){hit=true;const group=this.#owners[slot];if(wall===0&&group&&!group.landed&&this.steps-group.born<300){group.landed=true;this.onImpact(x,z,group.kind);}}
       let nx=x-Math.max(lx,Math.min(ux,x)),ny=y-Math.max(ly,Math.min(uy,y)),nz=z-Math.max(lz,Math.min(uz,z));
       const d2=nx*nx+ny*ny+nz*nz;if(d2>=r*r)continue;let depth:number;
       if(d2>1e-12){const d=Math.sqrt(d2);depth=r-d;nx/=d;ny/=d;nz/=d;}
@@ -147,6 +163,9 @@ export class FirehosePhysics {
     for(let n=0;n<this.#activeCount;n++){const s=this.#active[n]!,i=s*3;if(this.#sleep[s]){this.sleeping++;continue;}
       const friction=this.#contact[s] ? .82 : .996;
       let vx=(p[i]!-this.#before[i]!)/DT*friction,vy=(p[i+1]!-this.#before[i+1]!)/DT*friction,vz=(p[i+2]!-this.#before[i+2]!)/DT*friction;
+      // The inlet guides fresh groups downward. Resolving their initial overlap
+      // must not turn numerical separation into sideways launch energy.
+      if(p[i+1]!>SPOUT.y-.65&&this.steps-this.#owners[s]!.born<12){vx=Math.max(-.8,Math.min(.8,vx));vz=Math.max(-.8,Math.min(.8,vz));vy=Math.min(-3,vy);}
       const speed=Math.hypot(vx,vy,vz);if(speed>10){const scale=10/speed;vx*=scale;vy*=scale;vz*=scale;}
       v[i]=vx;v[i+1]=vy;v[i+2]=vz;
       this.#quiet[s]=!turning&&this.#contact[s]&&speed<.12?Math.min(45,this.#quiet[s]!+1):0;

@@ -57,4 +57,14 @@ describe('Firehose public topology and real physics',()=>{
    for(let i=0;i<100;i++)q=approachRotation(q,target,.04);
    expect(q.z).toBeCloseTo(1);expect(Math.hypot(q.x,q.y,q.z,q.w)).toBeCloseTo(1);
  });
+ it('keeps a small arrival burst inside the box and wakes a settled pile when tilted',()=>{
+   const sim=new FirehosePhysics(3072);try{
+     for(let id=1;id<=20;id++)sim.enqueue({id,kind:id%5,beads:id%3===0?1:2,links:id%3===0?[]:[[0,1]]});
+     for(let i=0;i<300;i++)sim.step();
+     expect(sim.groups.size).toBe(20);expect(sim.drained).toBe(0);expect(sim.sleeping).toBeGreaterThan(10);
+     sim.setRotation({x:0,y:0,z:Math.sin(.5),w:Math.cos(.5)});sim.step();expect(sim.sleeping).toBe(0);
+     for(let i=0;i<600&&sim.count;i++)sim.step();
+     expect(sim.drained).toBeGreaterThan(0);
+   }finally{sim.destroy();}
+ },15000);
 });
