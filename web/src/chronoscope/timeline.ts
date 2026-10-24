@@ -11,6 +11,7 @@ export interface Observation {
   duration: number;
   weights: number[];
   cost: number;
+  animate: boolean;
 }
 
 /** Only newly received public events enter this bounded, session-local view. */
@@ -37,7 +38,7 @@ export class ChronoscopeTimeline {
     const cost = packet.mode === 'route' ? packet.segments.length : 1;
     if (!cost || cost > MAX_SEGMENTS) { this.trimmed = true; return; }
     this.prune(now);
-    const record = { packet, started: now, cost, duration: packet.mode === 'route' ? routeDuration(packet.segments) : 1_200,
+    const record = { packet, started: now, cost, animate: !this.frozen, duration: packet.mode === 'route' ? routeDuration(packet.segments) : 1_200,
       weights: packet.mode === 'route' ? segmentTravelWeights(packet.segments) : [] };
     this.#records.push(record); this.#cost += cost;
     while (this.#records.length > MAX_EVENTS || this.#cost > MAX_SEGMENTS) {

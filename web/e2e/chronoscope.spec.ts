@@ -132,6 +132,20 @@ test('Chronoscope keeps the camera still when a distant region appears',async({p
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-event-count','0');
 });
 
+test('Chronoscope return to live leaves buffered packets historical',async({page},info)=>{
+  test.skip(info.project.name!=='desktop');await visualFixture(page);
+  await page.addInitScript(()=>window.addEventListener('cartolite-chronoscope-ready',event=>{(window as any).__chrono=(event as CustomEvent).detail.scene;}));
+  await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  const result=await page.evaluate(async()=>{
+    const scene=(window as any).__chrono;scene.freeze();
+    scene.addPacket({seq:1,id:'received-frozen',at:Date.now(),payloadType:'Text',mode:'route',segments:[{routeId:'visual-hop',from:scene.nodes.get('visual-a'),to:scene.nodes.get('visual-b')}]});
+    scene.live();await new Promise(requestAnimationFrame);
+    return{active:Number(document.getElementById('chronoscope-stage')!.dataset.activeCount),age:performance.now()-scene.timeline.records[0].started};
+  });
+  expect(result.age).toBeLessThan(1000);expect(result.active).toBe(0);
+  await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-visible-events','1');
+});
+
 test('Chronoscope retains 7000 links and bounds live geometry without fetching a basemap',async({page},info)=>{
   test.skip(info.project.name!=='desktop');
   await visualFixture(page);const now=Date.now();

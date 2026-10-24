@@ -38,4 +38,13 @@ describe('Chronoscope session window', () => {
     expect(normalizeChronoscope({ mode: 'unknown', seconds: Infinity, regions: [null, 1, 'YKF', 'YKF'] })).toEqual({ mode: 'sculpture', seconds: 60, regions: ['YKF'] });
     expect(normalizeChronoscope(null).regions).toBeNull();
   });
+  it('never promotes events received during frozen inspection into live motion', () => {
+    const time = new ChronoscopeTimeline();
+    expect(time.add(packet(1), 0)!.animate).toBe(true);
+    time.freeze(10);
+    expect(time.add(packet(2), 20)!.animate).toBe(false);
+    time.resume();
+    expect(time.records[1]!.animate).toBe(false);
+    expect(time.add(packet(3), 30)!.animate).toBe(true);
+  });
 });

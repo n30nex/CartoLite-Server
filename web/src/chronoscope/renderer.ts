@@ -244,11 +244,11 @@ export class ChronoscopeRenderer {
     const decorative = !reduced && prefs.quality !== 'economy' && (prefs.quality === 'high' || this.#drawMS < 12) && effectStrength() > 0;
     ctx.setLineDash(lineDash());
     for (const record of this.#records) {
-      const age = Math.max(0, at - record.started), inFlight = age < record.duration + 440;
+      const age = Math.max(0, at - record.started), inFlight = record.animate && age < record.duration + 440;
       if (this.#mode === 'slice' && Math.abs(age / 1_000 - this.#slice) > 2) continue;
       const packet = record.packet, highlighted = this.#selectedEvent === packet.seq || Boolean(this.#selected && (packet.mode === 'observer' ? packet.observer.id === this.#selected : packet.segments.some(s => s.from.id === this.#selected || s.to.id === this.#selected)));
       const dimmed = (this.#selected || this.#selectedEvent !== null) && !highlighted;
-      const settle = Math.min(1,Math.max(0,(age-record.duration)/440));
+      const settle = record.animate ? Math.min(1,Math.max(0,(age-record.duration)/440)) : 1;
       const offset = this.#mode === 'sculpture' ? settle * age / (this.#seconds * 1_000) * this.#depth : 0;
       const opacity = dimmed ? .04 : highlighted ? .95 : inFlight ? .68 : background * Math.max(.12, .6 * (1 - age / (this.#seconds * 1_000)));
       const color = payloadColor(packet.payloadType);
