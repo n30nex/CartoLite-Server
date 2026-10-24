@@ -104,7 +104,7 @@ function start(){let phase='graphics';try{
  required('sound-toggle').addEventListener('click',()=>void sound.setEnabled(sound.status()!=='on'));required<HTMLSelectElement>('sound-scene').addEventListener('change',e=>sound.setScene((e.target as HTMLSelectElement).value as SoundScene));required<HTMLInputElement>('sound-volume').addEventListener('input',e=>sound.setVolume(Number((e.target as HTMLInputElement).value)/100));
  updateSoundChrome(sound.status(),sound.getVolume(),sound.getScene());if(!sound.supported()){for(const id of ['sound-button','sound-toggle','sound-scene','sound-volume'])required<HTMLButtonElement>(id).disabled=true;required('sound-state').textContent='Unavailable';}
  pause();setMode('tilt');void connect();
- }catch(error){console.error(`Firehose ${phase} initialization failed`,error);stage.dataset.failurePhase=phase;fail(phase==='graphics'?'Firehose needs working WebGL2 graphics. Try reloading, or use Netgraph’s Canvas fallback.':'Firehose could not initialize. Reload to start a fresh box, or open Netgraph.');}}
+ }catch(error){console.error(`Firehose ${phase} initialization failed`,error instanceof Error ? error.stack : error);stage.dataset.failurePhase=phase;fail(phase==='graphics'?'Firehose needs working WebGL2 graphics. Try reloading, or use Netgraph’s Canvas fallback.':'Firehose could not initialize. Reload to start a fresh box, or open Netgraph.');}}
 
 mountCinematicDock();
 required('tilt-mode').addEventListener('click',()=>setMode('tilt'));required('orbit-mode').addEventListener('click',()=>setMode('orbit'));
