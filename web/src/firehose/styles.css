@@ -42,3 +42,5 @@ html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]
 .firehose-caption { width:min(380px,calc(100vw - 40px)); font-variant-numeric:tabular-nums; }
 
 #capacity-status { min-height:1.4em; }
+
+@media(max-height:480px) { .pachinko-buckets div { display:flex; align-items:center; justify-content:center; gap:6px; padding:3px; }.pachinko-buckets output { font-size:11px; } }

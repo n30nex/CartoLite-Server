@@ -21,14 +21,17 @@ export function sceneViewport(stage:HTMLElement):SceneViewport {
 export function fitSceneCamera(camera:PerspectiveCamera, volumes:readonly Box3[], frame:SceneViewport):void {
   const {width,height,left,right,top,bottom}=frame;
   if(width<=0||height<=0||Math.max(left,right)>=width/2||Math.max(top,bottom)>=height/2||!volumes.length||volumes.some(volume=>volume.isEmpty()))return;
-  const limits=[1-2*left/width,1-2*right/width,1-2*top/height,1-2*bottom/height];
-  const oldZoom=camera.zoom, point=new Vector3();let zoom=1;
-  camera.zoom=1;camera.updateProjectionMatrix();camera.updateMatrixWorld();
+  const limits=[1-(left+right)/width,1-(top+bottom)/height];
+  const oldZoom=camera.zoom,oldView=camera.view?{...camera.view}:null,point=new Vector3();let zoom=1;
+  camera.zoom=1;camera.clearViewOffset();camera.updateProjectionMatrix();camera.updateMatrixWorld();
   for(const volume of volumes)for(const x of [volume.min.x,volume.max.x])for(const y of [volume.min.y,volume.max.y])for(const z of [volume.min.z,volume.max.z]) {
     point.set(x,y,z).project(camera);
-    if(!Number.isFinite(point.x+point.y+point.z)||point.z< -1||point.z>1){camera.zoom=oldZoom;camera.updateProjectionMatrix();return;}
-    if(point.x<0)zoom=Math.min(zoom,limits[0]!/-point.x);else if(point.x>0)zoom=Math.min(zoom,limits[1]!/point.x);
-    if(point.y>0)zoom=Math.min(zoom,limits[2]!/point.y);else if(point.y<0)zoom=Math.min(zoom,limits[3]!/-point.y);
+    if(!Number.isFinite(point.x+point.y+point.z)||point.z< -1||point.z>1){camera.zoom=oldZoom;camera.view=oldView;camera.updateProjectionMatrix();return;}
+    if(point.x)zoom=Math.min(zoom,limits[0]!/Math.abs(point.x));
+    if(point.y)zoom=Math.min(zoom,limits[1]!/Math.abs(point.y));
   }
-  camera.zoom=Math.max(.04,zoom*.96);camera.updateProjectionMatrix();
+  // Center the projection in usable space; shrinking around the screen center
+  // otherwise makes tall machines tiny above a short landscape dock.
+  camera.zoom=Math.max(.04,zoom*.96);
+  camera.setViewOffset(width,height,(right-left)/2,(bottom-top)/2,width,height);
 }

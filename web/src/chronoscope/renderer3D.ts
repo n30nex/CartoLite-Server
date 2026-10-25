@@ -41,7 +41,7 @@ export class Chronoscope3DRenderer {
   #a:Position3={x:0,y:0,z:0};#b:Position3={x:0,y:0,z:0};#c:Position3={x:0,y:0,z:0};#vector=new THREE.Vector3();
   #down?:{x:number;y:number;id:number};#dragged=false;
   #signatures:Array<{record:Observation;x:number;y:number;dx:number;dy:number;age:number}>=[];
-  #sculpturePose?:{position:THREE.Vector3;target:THREE.Vector3;zoom:number;home:boolean};
+  #sculpturePose?:{position:THREE.Vector3;target:THREE.Vector3;zoom:number;home:boolean;view:THREE.PerspectiveCamera['view']};
   constructor(readonly stage:HTMLElement,readonly canvas:HTMLCanvasElement,readonly effects:HTMLCanvasElement,
     readonly callbacks:{node(id:string|null):void;packet(record:Observation):void;change?():void},context:WebGL2RenderingContext){
     const overlay=effects.getContext('2d');if(!overlay)throw new Error('Canvas labels are unavailable');this.#overlay=overlay;
@@ -73,11 +73,11 @@ export class Chronoscope3DRenderer {
     if(changed||changes.nodes?.length)this.updateKnown();this.request();Object.assign(this.stage.dataset,{totalNodes:String(state.nodes.length),totalRoutes:String(state.routes.length),renderApplyMs:String(performance.now()-started),renderState:'idle'});
   }
   setMode(mode:ChronoscopeMode){
-    if(this.#mode==='sculpture'&&mode!=='sculpture')this.#sculpturePose={position:this.camera.position.clone(),target:this.controls.target.clone(),zoom:this.camera.zoom,home:this.#homeView};
+    if(this.#mode==='sculpture'&&mode!=='sculpture')this.#sculpturePose={position:this.camera.position.clone(),target:this.controls.target.clone(),zoom:this.camera.zoom,home:this.#homeView,view:this.camera.view?{...this.camera.view}:null};
     const changed=this.#mode!==mode;this.#mode=mode;if(mode==='slice')this.freeze();
     this.controls.enableRotate=mode==='sculpture';this.controls.minPolarAngle=mode==='sculpture'?.03:0;this.controls.mouseButtons.LEFT=mode==='sculpture'?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN;this.controls.touches.ONE=mode==='sculpture'?THREE.TOUCH.ROTATE:THREE.TOUCH.PAN;
     this.#frameGeometry.visible=mode==='sculpture';
-    if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.camera.zoom=this.#sculpturePose.zoom;this.#homeView=this.#sculpturePose.home;this.camera.updateProjectionMatrix();this.controls.update();if(this.#homeView){this.#frameLayout='';this.resize();}}else this.home();}
+    if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.camera.zoom=this.#sculpturePose.zoom;this.camera.view=this.#sculpturePose.view?{...this.#sculpturePose.view}:null;this.#homeView=this.#sculpturePose.home;this.camera.updateProjectionMatrix();this.controls.update();if(this.#homeView){this.#frameLayout='';this.resize();}}else this.home();}
     this.updateKnown();this.request();
   }
   setWindow(seconds:number){this.#seconds=seconds;this.#slice=Math.min(this.#slice,seconds);this.request();}
@@ -92,7 +92,7 @@ export class Chronoscope3DRenderer {
   selectNode(id:string|null){this.#selected=id;this.#selectedEvent=null;this.updateKnown();this.request();}
   selectPacket(record:Observation){this.#selectedEvent=record.packet.seq;this.#selected=null;this.updateKnown();this.request();}
   focusNode(id:string){this.#homeView=false;const node=this.#nodes.get(id);if(!node||!this.world(node,this.#a))return;const delta=this.camera.position.clone().sub(this.controls.target);this.controls.target.set(this.#a.x,this.#a.y,this.#a.z);this.camera.position.copy(this.controls.target).add(delta);this.controls.update();this.request();}
-  home(){const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;this.#homeView=true;this.#frameLayout='';this.#framed=false;this.frameBounds();if(this.#mode==='sculpture'){this.camera.position.set(11,10,15);this.controls.target.set(0,2.25,0);}else{this.camera.position.set(0,19,.001);this.controls.target.set(0,.1,0);}this.controls.update();this.resize();this.updateKnown();this.request();}
+  home(){const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;this.#homeView=true;this.#frameLayout='';this.#framed=false;this.frameBounds();if(this.#mode==='sculpture'){this.camera.position.set(11,10,15);this.controls.target.set(0,2.25,0);}else{this.camera.clearViewOffset();this.camera.position.set(0,19,.001);this.controls.target.set(0,.1,0);}this.controls.update();this.resize();this.updateKnown();this.request();}
   panBy(x:number,y:number){this.#homeView=false;const scale=this.camera.position.distanceTo(this.controls.target)/Math.max(100,this.#height);const right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar(x*scale),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar(-y*scale);right.add(up);this.camera.position.add(right);this.controls.target.add(right);this.controls.update();this.request();}
   zoomBy(factor:number){this.#homeView=false;this.camera.position.sub(this.controls.target).multiplyScalar(1/factor).clampLength(3,65).add(this.controls.target);this.controls.update();this.request();}
   rotateBy(delta:number,pitch=0){this.#homeView=false;if(this.#mode!=='sculpture')return;const offset=this.camera.position.clone().sub(this.controls.target),spherical=new THREE.Spherical().setFromVector3(offset);spherical.theta+=delta;spherical.phi=Math.max(.03,Math.min(Math.PI-.03,spherical.phi+pitch));this.camera.position.copy(this.controls.target).add(offset.setFromSpherical(spherical));this.controls.update();this.request();}

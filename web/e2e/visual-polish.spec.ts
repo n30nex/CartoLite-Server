@@ -26,7 +26,7 @@ for(const view of ['chronoscope','firehose','pachinko'])test(`Visual polish ${vi
       if((o.isMesh||o.isLineSegments)&&!o.isInstancedMesh&&o.material?.type!=='ShaderMaterial'&&o.geometry?.attributes.position){const a=o.geometry.attributes.position;for(let i=0;i<a.count;i++){point.fromBufferAttribute(a,i).applyMatrix4(o.matrixWorld);add();}}
       if(o.isSprite){const position=o.getWorldPosition(point.clone()),scale=o.getWorldScale(point.clone());const right=point.clone().setFromMatrixColumn(s.camera.matrixWorld,0),up=point.clone().setFromMatrixColumn(s.camera.matrixWorld,1);for(const x of [-.5,.5])for(const y of [-.5,.5]){point.copy(position).addScaledVector(right,x*scale.x).addScaledVector(up,y*scale.y);add();}}
     });
-    return count>20&&minX>=8&&maxX<=width-8&&minY>=top-2&&maxY<=bottom+2;
+    return count>20&&minX>=8&&maxX<=width-8&&minY>=top-2&&maxY<=bottom+2&&(maxY-minY)>=Math.min((bottom-top)*.5,width*.35);
   });
   await expect.poll(fits,{timeout:10000}).toBe(true);
   await packet(page,12);await page.waitForTimeout(900);
