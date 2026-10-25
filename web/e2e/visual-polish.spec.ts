@@ -44,7 +44,13 @@ test('Visual polish Terminal recovery controls survive an unreadable custom pale
   await page.getByLabel('Terminal colour element').selectOption('ink');await page.getByLabel('Terminal colour hex').fill('#050b10');
   await expect(page.locator('html')).toHaveAttribute('data-terminal-recovery','true');
   const close=page.locator('#layers-panel .panel-close,#layers-panel [aria-label="Close map options"]').first();
-  await expect(close).toBeVisible();expect(await close.evaluate(el=>getComputedStyle(el).color)).toBe('rgb(239, 255, 223)');
+  await expect(close).toBeVisible();
+  // Test readable contrast, not a particular browser's transition/interpolated shade.
+  await expect.poll(()=>close.evaluate(el=>{
+    const luminance=(colour:string)=>colour.match(/[\d.]+/g)!.slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i]!,0);
+    const ink=luminance(getComputedStyle(el).color),background=luminance(getComputedStyle(el.closest('header')!).backgroundColor);
+    return(Math.max(ink,background)+.05)/(Math.min(ink,background)+.05);
+  })).toBeGreaterThanOrEqual(4.5);
   await close.click();await openDisplay(page);
   await expect(page.getByRole('button',{name:'Reset Terminal display',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Reset Terminal display',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-terminal-recovery','false');
@@ -62,7 +68,7 @@ test('Visual polish packet inspection keeps its close button visible through a l
 });
 
 test('Visual polish Netgraph uses the bottom dock without a phantom attribution gap',async({page},info)=>{
-  test.skip(info.project.name!=='desktop');await visualFixture(page);await page.goto('/netgraph/');await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-render-state','idle');
+  test.skip(info.project.name!=='desktop');await visualFixture(page);await page.goto('/netgraph/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-total-nodes','3');await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-render-state','idle');await page.waitForTimeout(200);
   const dock=(await page.locator('.controls').boundingBox())!;expect(page.viewportSize()!.height-dock.y-dock.height).toBeLessThanOrEqual(20);
   await page.screenshot({path:info.outputPath('netgraph-dock-polished.png')});
 });
