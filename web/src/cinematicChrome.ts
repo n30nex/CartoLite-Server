@@ -73,7 +73,15 @@ export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): voi
       if(replacing) history.replaceState(state,''); else history.pushState(state,'');
     } else if(!open && current) { closingHistory = true; closingURL = location.href; history.back(); }
   };
-  const observer = new MutationObserver(syncHistory);
+  const panelIDs = new Set(menuIDs), panelSelector = menuIDs.map(id => `#${id}`).join(',');
+  const affectsPanel = (node: Node) => node instanceof Element && (panelIDs.has(node.id) || Boolean(panelSelector && node.querySelector(panelSelector)));
+  // Live captions and bucket counters replace text nodes frequently. They do
+  // not change menu history and must not force panel layout measurements.
+  const observer = new MutationObserver(records => {
+    if (records.some(record => record.type === 'attributes'
+      ? affectsPanel(record.target)
+      : [...record.addedNodes, ...record.removedNodes].some(affectsPanel))) syncHistory();
+  });
   const observe = () => observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','open']});
   observe();
   controls.addEventListener('click', event => {
