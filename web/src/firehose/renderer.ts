@@ -176,7 +176,7 @@ export class FirehoseRenderer {
     this.#mesh(new THREE.PlaneGeometry(6.65,9.45),panel,this.box,0,.65,-.025);
     const pegs=new THREE.InstancedMesh(new THREE.CylinderGeometry(PACHINKO.pegRadius,PACHINKO.pegRadius,.26,12),metal,6*PACHINKO.rows),dummy=new THREE.Object3D();
     for(let kind=0;kind<6;kind++)for(let row=0;row<PACHINKO.rows;row++){
-      dummy.position.set(laneCenter(kind)+(row%2?.17:-.17),PACHINKO.pegTop-row*PACHINKO.rowGap,.16);dummy.rotation.set(Math.PI/2,0,0);dummy.updateMatrix();pegs.setMatrixAt(kind*PACHINKO.rows+row,dummy.matrix);
+      dummy.position.set(laneCenter(kind)+(row%2?PACHINKO.pegOffset:-PACHINKO.pegOffset),PACHINKO.pegTop-row*PACHINKO.rowGap,.16);dummy.rotation.set(Math.PI/2,0,0);dummy.updateMatrix();pegs.setMatrixAt(kind*PACHINKO.rows+row,dummy.matrix);
     }this.box.add(pegs);
     const glass=new THREE.MeshBasicMaterial({color:0x80e1e3,transparent:true,opacity:.055,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true});this.#materials.add(glass);
     const dividers=new THREE.InstancedMesh(new THREE.BoxGeometry(.025,PACHINKO.top-PACHINKO.boardBottom,.32),glass,7);

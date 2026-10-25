@@ -154,7 +154,7 @@ export class FirehosePhysics {
       const bounded=Math.max(center-half+r,Math.min(center+half-r,x));contact=bounded!==x;x=bounded;
       z=PACHINKO.back+r+.03;
       for(let row=0;row<PACHINKO.rows;row++){
-        const px=center+(row%2?.17:-.17),py=PACHINKO.pegTop-row*PACHINKO.rowGap,limit=PACHINKO.pegRadius+r;
+        const px=center+(row%2?PACHINKO.pegOffset:-PACHINKO.pegOffset),py=PACHINKO.pegTop-row*PACHINKO.rowGap,limit=PACHINKO.pegRadius+r;
         if(Math.abs(y-py)>limit)continue;
         let dx=x-px,dy=y-py,d=Math.hypot(dx,dy);if(d>=limit)continue;
         if(Math.abs(dx)<.001){dx=(group.id%2?1:-1)*.001;d=Math.hypot(dx,dy);}

@@ -11,7 +11,7 @@ export const PIT_Y = -4.8;
 export const HEADER = 24;
 export const TEXTURE_WIDTH = 128;
 export type MachineMode = 'firehose' | 'pachinko';
-export const PACHINKO = { lanePitch: 1.08, laneWidth: .98, top: 4.5, boardBottom: -1.7, floor: -3.3, lip: -2.35, back: .02, front: .82, pegRadius: .11, rows: 7, rowGap: .68, pegTop: 3.5, pit: -6 } as const;
+export const PACHINKO = { lanePitch: 1.08, laneWidth: .98, top: 4.5, boardBottom: -1.7, floor: -3.3, lip: -2.35, back: .02, front: .82, pegRadius: .11, pegOffset: .09, rows: 7, rowGap: .68, pegTop: 3.5, pit: -6 } as const;
 export function laneCenter(kind: number): number { return (kind - 2.5) * PACHINKO.lanePitch; }
 export interface Rotation { x: number; y: number; z: number; w: number }
 export const UPRIGHT: Rotation = { x: 0, y: 0, z: 0, w: 1 };
@@ -30,7 +30,9 @@ export function particleRadius(capacity: number, mode: MachineMode = 'firehose')
   // Packing leaves air gaps. Reserve capacity for beads still falling/spilling,
   // so a settled pile cannot consume every slot and stop the visible overflow.
   const volume = mode === 'pachinko' ? 6 * PACHINKO.laneWidth * (PACHINKO.front - PACHINKO.back) * (PACHINKO.lip - PACHINKO.floor) / .6 : BOX.width * BOX.depth * BOX.height;
-  return Math.cbrt(volume / (capacity * 4 * Math.PI / 3));
+  const radius = Math.cbrt(volume / (capacity * 4 * Math.PI / 3));
+  // Leave a real passage on both sides of every peg, including economy mode.
+  return mode === 'pachinko' ? Math.min(.135, radius) : radius;
 }
 
 /** Pachinko represents a whole observed packet with one dot, never a drawn hop. */

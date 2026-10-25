@@ -6,6 +6,7 @@ export class SceneMaterials {
   readonly enamel = this.placeholder(0x172329);
   #disposed = false;
   #loading?: Promise<void>;
+  #controllers = new Set<AbortController>();
 
   private placeholder(color: number): THREE.Texture {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -26,6 +27,7 @@ export class SceneMaterials {
 
   private async loadInto(target: THREE.Texture, url: string): Promise<void> {
     const controller = new AbortController();
+    this.#controllers.add(controller);
     const timeout = setTimeout(() => controller.abort(), 6_000);
     try {
       const response = await fetch(url, { signal: controller.signal, credentials: 'same-origin' });
@@ -40,7 +42,7 @@ export class SceneMaterials {
       target.magFilter = THREE.LinearFilter;
       target.needsUpdate = true;
     } catch { /* The neutral material remains available offline. */ }
-    finally { clearTimeout(timeout); }
+    finally { clearTimeout(timeout); this.#controllers.delete(controller); }
   }
 
   init(gpu: THREE.WebGLRenderer, panel = false): void {
@@ -50,6 +52,8 @@ export class SceneMaterials {
 
   dispose(): void {
     this.#disposed = true;
+    for (const controller of this.#controllers) controller.abort();
+    this.#controllers.clear();
     for (const texture of [this.metal, this.enamel]) {
       if (typeof ImageBitmap !== 'undefined' && texture.image instanceof ImageBitmap) texture.image.close();
       texture.dispose();
