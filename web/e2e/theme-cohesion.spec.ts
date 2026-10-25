@@ -11,6 +11,8 @@ async function unreadableControls(page:Page):Promise<string[]> {
     const failures:string[]=[];
     for(const el of document.querySelectorAll<HTMLElement>('.glass :is(button,a,label,select,summary,span,strong,small,p,dt,dd),dialog[open] :is(button,label,select,p,summary)')) {
       if(!el.getClientRects().length||getComputedStyle(el).visibility!=='visible'||el.closest('[hidden]')||el.matches(':disabled'))continue;
+      let collapsed=false;for(let p:HTMLElement|null=el.parentElement;p;p=p.parentElement)if(p instanceof HTMLDetailsElement&&!p.open&&!p.querySelector(':scope > summary')?.contains(el)){collapsed=true;break;}
+      if(collapsed)continue;
       if(![...el.childNodes].some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim())&&!el.matches('select'))continue;
       const style=getComputedStyle(el),ink=rgb(style.color);let bg:number[]=[];
       for(let p:HTMLElement|null=el;p;p=p.parentElement){const c=rgb(getComputedStyle(p).backgroundColor);if(c.length>=3&&(c[3]??1)>=.98){bg=c;break;}}
@@ -34,6 +36,7 @@ for(const view of ['map','netgraph','chronoscope','firehose','pachinko','labs'])
   if(['chronoscope','firehose','pachinko'].includes(view))await expect(page.locator(`#${view}-stage`)).toHaveAttribute('data-graphics-ready','true',{timeout:20000});
   if(view!=='labs')await visualPacket(page,1,'Text');
   await openDisplay(page);
+  if(view==='map')for(const selector of ['#map-detail-options > summary','#terrain-options > summary','.camera-settings > summary']){const summary=page.locator(selector);if(await summary.isVisible()&&!await summary.evaluate(el=>(el.parentElement as HTMLDetailsElement).open))await summary.click();}
   const palette=page.getByLabel('Interface palette',{exact:true});
   const theme=page.locator('[data-display="theme"],#interface-theme');
   const sceneBefore=await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--kind-text'));
@@ -47,6 +50,7 @@ for(const view of ['map','netgraph','chronoscope','firehose','pachinko','labs'])
       await expect(page.locator('html')).toHaveAttribute('data-theme',brightness);
       expect(await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--kind-text'))).toBe(sceneBefore);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      if(view==='map'&&info.project.name==='desktop'&&brightness==='dark')await page.screenshot({path:info.outputPath(`${name}-palette-desktop.png`)});
     }
     await palette.selectOption(brightness==='dark'?'aurora':'glacier');
     await palette.focus();await expect(palette).toHaveCSS('outline-style','solid');

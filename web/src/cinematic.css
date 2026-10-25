@@ -210,3 +210,6 @@ html:root[data-cinematic] .map-notice { bottom:calc(var(--dock-bottom,12px) + va
  html:root[data-cinematic][data-text-size="large"] .follow-copy strong { font-size:15px; }
  html:root[data-cinematic][data-text-size="large"] .follow-card :is(footer,.follow-copy span,.follow-scope select) { font-size:13px; }
 }
+
+/* Error notices retain a semantic state across every interface palette. */
+html:root .glass:is(.fatal,.labs-fatal) { color:var(--danger); border-color:var(--danger); }

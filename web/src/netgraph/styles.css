@@ -68,7 +68,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
 .brand, .workspace-link { color: var(--ink-strong); text-decoration: none; }
 .brand { font-weight: 760; }
 .view-title { color: var(--ink); font-size: 11px; font-weight: 760; letter-spacing: 0.055em; text-transform: uppercase; }
-.view-title > span:first-child, .workspace-link > span:first-child { color: var(--focus-ring); text-shadow: 0 0 10px rgba(99, 217, 204, 0.68); }
+.view-title > span:first-child, .workspace-link > span:first-child { color: var(--focus-ring); text-shadow: none; }
 .workspace-link { color: var(--focus-ring); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 .brand:hover, .workspace-link:hover { color: var(--ink-strong); }
 .status { font-weight: 650; }

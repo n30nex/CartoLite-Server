@@ -164,6 +164,8 @@ export function applyDisplayChrome(): void {
   root.dataset.detail = current.detail;
   root.dataset.motion = prefersReducedMotion() ? 'reduced' : 'full';
   root.dataset.textSize = current.textSize;
+  const panelColor = getComputedStyle(root).getPropertyValue('--panel-solid').trim();
+  if (panelColor) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', panelColor);
   for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--kind-${kind.toLowerCase()}`, color);
   // UI panels may have different brightness from the scene underneath.
   const uiPalette = packetPalette(!root.hasAttribute('data-terminal') && root.dataset.theme === 'light');
