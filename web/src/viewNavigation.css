@@ -14,3 +14,9 @@ html[data-mobile-dock="true"] #view-panel .dock-views { display:grid; grid-templ
 html[data-mobile-dock="true"] #view-panel .nav-group > summary { min-height:44px; width:100%; justify-content:flex-start; }
 html[data-mobile-dock="true"] #view-panel .nav-popover { position:static; width:auto; max-height:none; margin:3px 0 5px 12px; padding:0 0 0 8px; border:0; border-left:2px solid var(--panel-border); border-radius:0; box-shadow:none; }
 @media (prefers-reduced-motion:reduce) { .nav-chevron { transition:none; } }
+
+@media(min-width:901px) and (pointer:fine) {
+ html:root[data-cinematic] .controls .dock-views > a.control-button,
+ html:root[data-cinematic] .controls .dock-views > .nav-group > summary.control-button { padding-inline:6px; }
+ .dock-views > a .view-icon,.dock-views > .nav-group > summary .view-icon { width:16px; height:16px; }
+}

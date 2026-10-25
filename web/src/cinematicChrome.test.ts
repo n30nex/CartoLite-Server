@@ -30,3 +30,13 @@ it('does not force menu layout when live counters update',async()=>{
   panel.hidden=true;panel.hidden=false;
   await Promise.resolve();expect(measure).toHaveBeenCalled();
 });
+
+it('keeps nested phone navigation in one Back-dismissable View sheet',async()=>{
+  document.body.innerHTML='<div class="controls"><section id="view-panel"><details><summary>Experimental</summary><div id="experimental-options"></div></details></section></div>';
+  history.replaceState(null,'');
+  const push=vi.spyOn(history,'pushState').mockImplementation(()=>{});
+  for(const id of ['view-panel','experimental-options'])vi.spyOn(document.getElementById(id)!,'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+  trackPanelHistory(document.querySelector('.controls')!,['experimental-options','view-panel']);
+  document.querySelector('details')!.open=true;
+  await Promise.resolve();expect(push).toHaveBeenLastCalledWith(expect.objectContaining({cartolitePanel:'view-panel'}),'');
+});

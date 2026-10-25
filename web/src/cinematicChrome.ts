@@ -58,7 +58,11 @@ export function mountCinematicDock(): void {
 /** Keep Back dismissal shared by the map, graph and Labs menus. */
 export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): void {
   if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
-  const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden && panel.getClientRects().length; });
+  const openMenu = () => {
+    const id = menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden && panel.getClientRects().length; });
+    // Phone disclosures live inside one View sheet: Back dismisses that sheet.
+    return id && document.getElementById(id)?.closest('#view-panel') ? 'view-panel' : id;
+  };
   let closingHistory = false;
   let closingURL = location.href;
   let pendingNavigation: string | undefined;
