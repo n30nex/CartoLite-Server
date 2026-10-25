@@ -1,4 +1,4 @@
-import { colourHSL, hslColour, normalizeTerminal, TERMINAL_COLOURS, TERMINAL_FONTS, TERMINAL_PRESETS, terminalPreset, type TerminalColour, type TerminalPreset, type TerminalProfile } from './terminalProfile';
+import { colourHSL, hslColour, normalizeTerminal, terminalNeedsRecovery, TERMINAL_COLOURS, TERMINAL_FONTS, TERMINAL_PRESETS, terminalPreset, type TerminalColour, type TerminalPreset, type TerminalProfile } from './terminalProfile';
 
 /** One editor inside Display: no extra floating panel or live-feed owner. */
 export function terminalControls(initial: TerminalProfile, change: (value: TerminalProfile) => void) {
@@ -8,6 +8,8 @@ export function terminalControls(initial: TerminalProfile, change: (value: Termi
   settings.innerHTML = `<legend>Terminal options</legend>
     <label>Preset<select data-terminal="palette" aria-label="Terminal palette">${Object.entries(TERMINAL_PRESETS).map(([id,p])=>`<option value="${id}">${p.label}</option>`).join('')}</select></label>
     <div class="terminal-preview" aria-label="Silent Terminal preview"><span>░░░ ≋≋≋</span><i>R ══════◆── C</i><b>CartoLite BBS</b></div>
+    <p class="terminal-contrast-note" role="status" hidden>Some interface colours have low contrast. Display and close controls stay readable so you can recover.</p>
+    <button type="button" data-reset-terminal>Reset Terminal display</button>
     <label>Map drawing<select data-terminal="glyphs" aria-label="Terminal characters"><option value="braille">Braille dots</option><option value="ascii">ASCII</option><option value="blocks">Pixel blocks</option><option value="cell">Cel-shaded</option></select></label>
     <label>Live traffic<select data-terminal="traffic" aria-label="Terminal live traffic"><option value="characters">Glowing characters</option><option value="smooth">Smooth packets</option></select></label>
     <label>Map grid<select data-terminal="size" aria-label="Terminal cell size"><option value="10">Fine</option><option value="12">Standard</option><option value="16">Large</option></select></label>
@@ -31,7 +33,6 @@ export function terminalControls(initial: TerminalProfile, change: (value: Termi
       <button type="button" data-reset-colour>Reset this colour</button>
       <p>Traffic colours are shared by routes, packets and their legend. This editor keeps readable colours so you can always undo a change.</p>
     </details>
-    <button type="button" data-reset-terminal>Reset Terminal display</button>
     <p>Saved on this device; updates other Terminal tabs. Map, Netgraph, layers, sound and volume keep their saved settings. R repeater · C companion · H room · S sensor · @ selected.</p>`;
   let current = initial;
   const element = settings.querySelector<HTMLSelectElement>('[aria-label="Terminal colour element"]')!;
@@ -50,6 +51,7 @@ export function terminalControls(initial: TerminalProfile, change: (value: Termi
   }
   function sync(profile: TerminalProfile) {
     current=profile;
+    settings.querySelector<HTMLElement>('.terminal-contrast-note')!.hidden=!terminalNeedsRecovery(profile);
     for(const input of settings.querySelectorAll<HTMLInputElement|HTMLSelectElement>('[data-terminal]')) {
       const key=input.dataset.terminal as keyof TerminalProfile;
       if(key in current) input.value=String(current[key]);

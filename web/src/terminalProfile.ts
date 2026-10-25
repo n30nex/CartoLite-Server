@@ -118,3 +118,10 @@ export function hslColour(h: number,s: number,l: number): string {
   const a=s*Math.min(l,1-l);
   return '#'+[0,8,4].map(n=>{const k=(n+h/30)%12;return Math.round(255*(l-a*Math.max(-1,Math.min(k-3,9-k,1)))).toString(16).padStart(2,'0');}).join('');
 }
+
+/** Free palette editing must never hide the route back to readable settings. */
+export function terminalNeedsRecovery(profile:TerminalProfile):boolean {
+  const luminance=(hex:string)=>[1,3,5].map(i=>{const s=parseInt(hex.slice(i,i+2),16)/255;return s<=.04045?s/12.92:((s+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i]!,0);
+  const ratio=(a:string,b:string)=>{const x=luminance(a),y=luminance(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  const c=profile.colours;return ratio(c.ink,c.panel)<4.5||ratio(c.ink,c.field)<4.5||ratio(c.strong,c.active)<4.5||ratio(c.accent,c.panel)<3;
+}

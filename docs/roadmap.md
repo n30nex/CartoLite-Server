@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Visual polish (0.12.1)
+
+[All-page audit and patch](visual-polish-audit-2026-10-25.md): responsive 3D framing, readable Terminal recovery, compact navigation and reachable packet inspection. Validation and release status are recorded in the versioned release notes.
+
 ## Packet arcade and 3D sculpture (0.12.0)
 
 [Implementation and release plan](packet-arcade-plan.md): grouped icon navigation, generated machine materials, Pachinko, a fully controllable Chronoscope sculpture, and release responsiveness/startup qualification. Exact tested artifacts and deployment results are recorded in the published release notes.

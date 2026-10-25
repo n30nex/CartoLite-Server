@@ -4,7 +4,7 @@ import { browserStorage } from './browserStorage';
 import { applyDisplayChrome, displayPreferences, DISPLAY_EVENT, effectStrength, prefersReducedMotion, setDisplayColors } from './displayPreferences';
 import { terminalGraphics } from './terminalGraphics';
 import { characterCells } from './terminalGrid';
-import { loadTerminal, TERMINAL_FONTS, TERMINAL_KEY, TERMINAL_LEGACY_KEY, shade } from './terminalProfile';
+import { loadTerminal, TERMINAL_FONTS, TERMINAL_KEY, TERMINAL_LEGACY_KEY, shade, terminalNeedsRecovery } from './terminalProfile';
 import { terminalControls } from './terminalControls';
 import './terminal.css';
 
@@ -82,6 +82,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   function applyColours() {
     if(failed)return;
     const c=preferences.colours;
+    root.dataset.terminalRecovery=String(terminalNeedsRecovery(preferences));
     for(const kind of ['advert','trace','text','ack','control','other'] as const) {
       root.style.setProperty(`--terminal-${kind}-rgb`,[1,3,5].map(i=>parseInt(c[kind].slice(i,i+2),16)).join(','));
     }
@@ -186,6 +187,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
         cells.forEach(cell => occupied.add(cell));
         context.fillStyle = preferences.colours.background; context.fillRect(x-1,y,w+2,ch);
         const c=preferences.colours;
+    root.dataset.terminalRecovery=String(terminalNeedsRecovery(preferences));
         context.fillStyle = selected && p.id===selected ? c.selection : node ? (p.role==='companion'?c.companion:p.role==='room_server'?c.room:p.role==='repeater'?c.repeater:c.sensor) : cluster?c.repeater:nodeLabel?c.labels:shade(c.places,preferences.labelBrightness);
         context.shadowColor=String(context.fillStyle); context.shadowBlur=node || cluster ? 3*effectStrength() : 0;
         context.globalAlpha=node && p.id!==selected && typeof p.opacity==='number' ? Math.max(.65,Math.min(1,p.opacity)) : 1;
@@ -198,7 +200,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   function fail() {
     if (failed || disposed) return;
     failed = true; root.dataset.terminalFallback = 'true'; notice.hidden = false;
-    delete root.dataset.terminal;
+    delete root.dataset.terminal; delete root.dataset.terminalRecovery;
     fx.clearRect(0, 0, effects.width, effects.height);
     // Shader failure can arrive inside MapLibre's custom-layer render pass.
     // Restore its GL state before changing paint/layer state for the fallback.
@@ -283,6 +285,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
   const capture = terminalGraphics(map, () => {
     const { width, height, cw, ch } = dimensions();
     const c=preferences.colours;
+    root.dataset.terminalRecovery=String(terminalNeedsRecovery(preferences));
     return { columns: Math.max(1,Math.ceil(width/cw)), rows: Math.max(1,Math.ceil(height/ch)), mode:['braille','ascii','blocks','cell'].indexOf(preferences.glyphs),
       colors:[c.background,c.water,c.terrain,c.roads,c.terrain,c.buildings,c.boundary,c.shore,c.boundary,c.vegetation,c.urban,c.shore],brightness:preferences.mapBrightness,font:font(32) };
   }, paint, fail, () => !disposed && !failed && !document.hidden);
@@ -328,7 +331,7 @@ export function mountTerminal(view: LiveMap, animator: PacketAnimator): () => vo
     document.removeEventListener('visibilitychange', visibility); window.removeEventListener('storage', storage);
     window.removeEventListener(DISPLAY_EVENT,displayChanged);allReset.removeEventListener('click',resetTerminal);setDisplayColors();animator.setPresentationGlow(1);
     for (const element of [canvas, effects, status, notice, settings]) element.remove();
-    delete root.dataset.terminal; delete root.dataset.terminalFallback; delete root.dataset.terminalPalette;
+    delete root.dataset.terminal; delete root.dataset.terminalRecovery; delete root.dataset.terminalFallback; delete root.dataset.terminalPalette;
     delete root.dataset.terminalTraffic;delete root.dataset.terminalFont;
   };
   map.on('remove', destroy);

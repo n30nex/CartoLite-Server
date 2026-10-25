@@ -15,8 +15,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.11.1, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:2e429a63517e2b288076d5733537922a2ecdc1a1340d93ad51446d97b9f907b8
+  # Exact published 0.12.0, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:138833e44336fbaa844bbfcb1e06203b80f84802eaa82226730a6985b1b3730a
 
 jobs:
   backend:
@@ -77,7 +77,9 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    # Full baseline took 44 minutes; retain headroom for the new visual suite.
+    # Browser/physics/input limits remain unchanged.
+    timeout-minutes: 50
     permissions:
       contents: read
       packages: write
@@ -166,6 +168,35 @@ jobs:
           path: |
             web/page-options-test-results/
             web/page-options-playwright-report/
+      - name: Visual polish framing, navigation and recovery
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: polish-playwright-report
+        run: bash ../scripts/browser-ci.sh visual-polish.spec.ts --retries 0 --output polish-test-results
+      - name: Preserve visual polish evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: visual-polish-${{ github.sha }}
+          path: |
+            web/polish-test-results/
+            web/polish-playwright-report/
+      - name: UI audit and recovery regressions
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
+        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
+      - name: Preserve UI audit screenshots for early review
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-ui-audit
+          retention-days: 30
+          path: |
+            web/ux-audit-test-results/
+            web/ux-audit-playwright-report/
       - name: Pachinko physics, type buckets and responsive drawing
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -241,21 +272,6 @@ jobs:
           path: |
             web/terminal-test-results/
             web/terminal-playwright-report/
-      - name: UI audit and recovery regressions
-        if: matrix.arch == 'amd64'
-        working-directory: web
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
-        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
-      - name: Preserve UI audit screenshots for early review
-        if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: cartolite-server-ui-audit
-          retention-days: 30
-          path: |
-            web/ux-audit-test-results/
-            web/ux-audit-playwright-report/
       - name: Worldwide and terrain regressions
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -278,7 +294,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          bash ../scripts/browser-ci.sh --grep-invert 'long session|Firehose|Pachinko|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|long session|Firehose|Pachinko|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

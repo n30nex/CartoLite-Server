@@ -19,3 +19,12 @@ describe('grouped view navigation',()=>{
     expect([...subset.querySelectorAll('#experimental-options a')].map(a=>a.textContent)).toEqual(['Firehose']);expect(subset.querySelector('#labs-options')).toBeNull();
   });
 });
+
+it('follows the existing Labs picker without leaving a stale current-view marker',()=>{
+ const picker=document.createElement('select');picker.id='experiment-select';picker.innerHTML='<option value="packet-pond">Pond</option><option value="mesh-loom">Loom</option>';document.body.append(picker);
+ const nav=createViewNavigation('Labs',new Set(),true);document.body.append(nav);
+ expect(nav.querySelector('[data-lab="packet-pond"]')?.getAttribute('aria-current')).toBe('page');
+ picker.value='mesh-loom';picker.dispatchEvent(new Event('change'));
+ expect(nav.querySelector('[data-lab="packet-pond"]')?.hasAttribute('aria-current')).toBe(false);
+ expect(nav.querySelector('[data-lab="mesh-loom"]')?.getAttribute('aria-current')).toBe('page');
+});

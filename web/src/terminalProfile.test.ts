@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { colourHSL, hslColour, loadTerminal, normalizeTerminal, TERMINAL_COLOURS, TERMINAL_KEY, TERMINAL_PRESETS, terminalPreset } from './terminalProfile';
+import { colourHSL, hslColour, loadTerminal, normalizeTerminal, terminalNeedsRecovery, TERMINAL_COLOURS, TERMINAL_KEY, TERMINAL_PRESETS, terminalPreset } from './terminalProfile';
 import { displayColor, displayColorRevision, packetPalette, recolorPaint, setDisplayColors } from './displayPreferences';
 import { characterCells } from './terminalGrid';
 
@@ -51,4 +51,10 @@ describe('Terminal profiles',()=>{
       expect(loadTerminal({getItem:()=>null})).toMatchObject({palette:'ansi',glyphs:'braille',size:10});
     } finally {document.documentElement.removeAttribute('data-terminal');vi.resetModules();}
   });
+});
+
+it('keeps recovery available for unreadable custom UI colours without changing them',()=>{
+ const profile=terminalPreset('amber');expect(terminalNeedsRecovery(profile)).toBe(false);
+ profile.colours.ink=profile.colours.panel;const saved=JSON.stringify(profile);
+ expect(terminalNeedsRecovery(profile)).toBe(true);expect(JSON.stringify(profile)).toBe(saved);
 });

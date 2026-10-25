@@ -35,3 +35,12 @@ html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]
 .pachinko-buckets output { color:var(--ink-strong); font-size:12px; font-variant-numeric:tabular-nums; }
 #pachinko-app > #legend { display:none; }
 #pachinko-app .firehose-caption small { max-width:310px; }
+
+.firehose-caption { max-width:calc(100vw - 40px); }
+.firehose-caption > :is(span,small) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.firehose-caption { width:min(380px,calc(100vw - 40px)); font-variant-numeric:tabular-nums; }
+
+#capacity-status { min-height:1.4em; }
+
+@media(max-height:480px) { .pachinko-buckets div { display:flex; align-items:center; justify-content:center; gap:6px; padding:3px; }.pachinko-buckets output { font-size:11px; } }

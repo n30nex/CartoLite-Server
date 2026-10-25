@@ -58,7 +58,7 @@ export function mountRegionControls(graph: NetgraphRenderer, host: HTMLElement, 
     routes.setAttribute('aria-pressed', String(prefs.routes)); routes.classList.toggle('selected', prefs.routes);
     summary.textContent = `Regions · ${prefs.regions === null ? 'All' : prefs.regions.length}`;
     const focused = stage.dataset.focusMode ?? 'all';
-    const description = [prefs.regions === null ? '' : `${prefs.regions.length} regions`, focused === 'all' ? '' : `${focused === 'area' ? 'Area' : 'Component'} focus`, prefs.routes ? '' : 'Routes hidden'].filter(Boolean).join(' · ');
+    const description = [prefs.regions === null ? '' : `${prefs.regions.length} ${prefs.regions.length===1?'region':'regions'}`, focused === 'all' ? '' : `${focused === 'area' ? 'Area' : 'Component'} focus`, prefs.routes ? '' : 'Routes hidden'].filter(Boolean).join(' · ');
     if (scope.hidden !== !description) scope.hidden = !description;
     if (scope.textContent !== description) {
       scope.textContent = description;

@@ -250,7 +250,9 @@ test.describe('UI audit controls', () => {
     await page.locator('#find-button').click(); await page.locator('#node-search').fill('Visual Alpha');
     await page.locator('.node-search-result').first().click(); await graphFocus(page, 'component');
     await expect(page.locator('#graph-scope')).toContainText('Component focus');
-    await expect(page.locator('#graph-scope')).toContainText('regions');
+    const selectedRegions=await page.locator('.region-checks input:checked').count();
+    expect(selectedRegions).toBeGreaterThan(0);
+    await expect(page.locator('#graph-scope')).toContainText(`${selectedRegions} ${selectedRegions===1?'region':'regions'}`);
     await openDisplay(page); await page.getByLabel('Text size', { exact: true }).selectOption('large'); await page.keyboard.press('Escape');
     await page.locator('#follow-button').click(); await visualPacket(page, 1);
     await expect(page.locator('#follow-card')).toContainText('Visual Alpha');
