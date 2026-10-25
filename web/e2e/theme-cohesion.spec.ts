@@ -10,7 +10,7 @@ async function unreadableControls(page:Page):Promise<string[]> {
     const lum=(v:number[])=>v.slice(0,3).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;}).reduce((a,n,i)=>a+n*[.2126,.7152,.0722][i]!,0);
     const failures:string[]=[];
     for(const el of document.querySelectorAll<HTMLElement>('.glass :is(button,a,label,select,summary,span,strong,small,p,dt,dd),dialog[open] :is(button,label,select,p,summary)')) {
-      if(!el.getClientRects().length||getComputedStyle(el).visibility!=='visible'||el.closest('[hidden]')||el.matches(':disabled'))continue;
+      if(!el.getClientRects().length||getComputedStyle(el).visibility!=='visible'||el.closest('[hidden],[aria-hidden="true"]'))continue;
       let collapsed=false;for(let p:HTMLElement|null=el.parentElement;p;p=p.parentElement)if(p instanceof HTMLDetailsElement&&!p.open&&!p.querySelector(':scope > summary')?.contains(el)){collapsed=true;break;}
       if(collapsed)continue;
       if(![...el.childNodes].some(n=>n.nodeType===Node.TEXT_NODE&&n.textContent?.trim())&&!el.matches('select'))continue;
@@ -19,7 +19,8 @@ async function unreadableControls(page:Page):Promise<string[]> {
       if(bg.length<3)continue;
       const a=ink[3]??1,fg=ink.slice(0,3).map((v,i)=>v*a+bg[i]!*(1-a));
       const l1=lum(fg),l2=lum(bg),contrast=(Math.max(l1,l2)+.05)/(Math.min(l1,l2)+.05);
-      if(contrast<4.5)failures.push(`${el.tagName}.${el.className}: ${(el.textContent??'').trim().slice(0,35)} ${contrast.toFixed(2)}`);
+      const minimum=el.closest(':disabled')?3:4.5; // Inactive copy stays legible; ordinary text keeps AA contrast.
+      if(contrast<minimum)failures.push(`${el.tagName}.${el.className}: ${(el.textContent??'').trim().slice(0,35)} ${contrast.toFixed(2)}`);
     }
     return failures;
   });
@@ -48,6 +49,7 @@ for(const view of ['map','netgraph','chronoscope','firehose','pachinko','labs'])
       await expect(page.locator('html')).toHaveAttribute('data-palette',name);
       await expect.poll(()=>unreadableControls(page)).toEqual([]);
       await expect(page.locator('html')).toHaveAttribute('data-theme',brightness);
+      expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe(await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--panel-solid').trim()));
       expect(await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--kind-text'))).toBe(sceneBefore);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       if(view==='map'&&info.project.name==='desktop'&&brightness==='dark')await page.screenshot({path:info.outputPath(`${name}-palette-desktop.png`)});
@@ -55,6 +57,11 @@ for(const view of ['map','netgraph','chronoscope','firehose','pachinko','labs'])
     await palette.selectOption(brightness==='dark'?'aurora':'glacier');
     await palette.focus();await expect(palette).toHaveCSS('outline-style','solid');
     await page.screenshot({path:info.outputPath(`${view}-${brightness}-interface.png`)});
+  }
+  if(view==='map'&&info.project.name==='desktop'){
+    await page.locator('#basemap-style').selectOption('light');await theme.selectOption('dark');await expect.poll(()=>unreadableControls(page)).toEqual([]);
+    await page.locator('#basemap-style').selectOption('streets');await theme.selectOption('map');await palette.selectOption('aurora');await expect.poll(()=>unreadableControls(page)).toEqual([]);
+    await page.screenshot({path:info.outputPath('map-paper-interface.png')});
   }
   if(streamsBefore!==null)expect(await page.locator('html').getAttribute('data-fixture-streams-opened')).toBe(streamsBefore);
   if(view==='labs'){
@@ -78,6 +85,7 @@ test('Theme cohesion shares palettes across tabs and preserves Terminal customiz
     await expect(other.locator('html')).toHaveAttribute('data-palette','ember');
     expect(await other.locator('html').getAttribute('data-fixture-streams-opened')).toBe(count);
     await other.goto('/terminal/');await expect(other.locator('#map')).toHaveAttribute('data-render-state','idle');
+    expect(await other.locator('html').evaluate(el=>{const s=getComputedStyle(el);return s.getPropertyValue('--divider').trim()===s.getPropertyValue('--terminal-border').trim()&&s.getPropertyValue('--radius-control').trim()==='2px';})).toBe(true);
     const terminal=await other.locator('html').evaluate(el=>({ink:getComputedStyle(el).getPropertyValue('--ink'),font:getComputedStyle(el).fontFamily}));
     await page.getByLabel('Interface palette',{exact:true}).selectOption('violet');
     expect(await other.locator('html').evaluate(el=>({ink:getComputedStyle(el).getPropertyValue('--ink'),font:getComputedStyle(el).fontFamily}))).toEqual(terminal);
