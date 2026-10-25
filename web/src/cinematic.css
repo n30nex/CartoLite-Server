@@ -122,7 +122,7 @@ html:root[data-cinematic] .maplibregl-ctrl-attrib-button::before { content:'\00a
  html:root[data-cinematic] #app #legend .region-legend { font-size:10px; }
  html:root[data-cinematic] #app #legend .region-legend summary { min-height:24px; padding:4px 0; }
  html:root[data-cinematic] #app #legend .focus-chip { max-width:202px; }
- html:root[data-cinematic][data-dock-tight="true"] { --dock-bottom:max(100px,calc(env(safe-area-inset-bottom) + 96px)); }
+ html:root[data-cinematic][data-dock-tight="true"]:has(#app,#netgraph-app) { --dock-bottom:max(100px,calc(env(safe-area-inset-bottom) + 96px)); }
 }
 
 /* The phone dock has one labelled row; existing controls move back on desktop. */

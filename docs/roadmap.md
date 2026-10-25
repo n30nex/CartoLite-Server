@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Packet arcade and 3D sculpture (0.12.0)
+
+[Implementation and release plan](packet-arcade-plan.md): grouped icon navigation, generated machine materials, Pachinko, a fully controllable Chronoscope sculpture, and release responsiveness/startup qualification. Exact tested artifacts and deployment results are recorded in the published release notes.
+
 ## Firehose spectacle and operator page choices (0.11.1)
 
 Implementation and release qualification: [luminous packet and solver update](firehose-spectacle.md). Includes operator-selected optional pages through `EXTRA_PAGES`, default/subset/all routing and navigation checks, and checkpoint-preserving Compose upgrades. [Install and page choices](deployment.md#choose-the-pages-on-your-server).

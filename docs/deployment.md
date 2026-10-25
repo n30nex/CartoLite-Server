@@ -14,7 +14,7 @@ curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/readyz
 ```
 
-The default pages are Map at `http://localhost:8080/` and Netgraph at `/netgraph/`. Terminal, Chronoscope and Firehose are optional. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains public map-provider settings and the enabled page names; the traffic API remains schema v2.
+The default pages are Map at `http://localhost:8080/` and Netgraph at `/netgraph/`. Terminal, Chronoscope, Firehose and Pachinko are optional. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains public map-provider settings and the enabled page names; the traffic API remains schema v2.
 
 ## Configuration
 
@@ -23,7 +23,7 @@ The default pages are Map at `http://localhost:8080/` and Netgraph at `/netgraph
 | `CARTOLITE_IMAGE` | versioned `ghcr.io/n30nex/cartolite-server` image | Published tag or exact release-manifest digest |
 | `CARTOLITE_BIND_ADDR` | `127.0.0.1` | Host bind address |
 | `CARTOLITE_PORT` | `8080` | Host HTTP port |
-| `EXTRA_PAGES` | empty | Optional comma-separated `terminal`, `chronoscope`, `firehose`; Map/Netgraph stay enabled |
+| `EXTRA_PAGES` | empty | Optional comma-separated `terminal`, `chronoscope`, `firehose`, `pachinko`; Map/Netgraph stay enabled |
 | `MQTT_BROKER_URL` | required | Your MeshCore broker URL (`tcp`, `ssl`, `ws`, or `wss`) |
 | `MQTT_TOPIC` | `meshcore/#` | Subscription filter |
 | `MQTT_CLIENT_ID` | generated per process | Optional explicit ID; must be unique per instance |
@@ -41,14 +41,14 @@ Map and Netgraph are always enabled. Starting with 0.11.1, extra pages are off b
 
 ```dotenv
 # Enable all extra pages, or remove the ones you do not want.
-EXTRA_PAGES=terminal,chronoscope,firehose
+EXTRA_PAGES=terminal,chronoscope,firehose,pachinko
 ```
 
 Download the matching release's `compose.yml`, retain your existing `.env` and volume, then apply with `docker compose up -d --no-build`. For a direct container install, pass the same `EXTRA_PAGES` environment variable. Unknown names stop startup with a clear configuration error. An empty value restores Map and Netgraph only. Labs remains exclusive to Canada.
 
 This is an operator setting, not a visitor preference. The desktop dock and phone View picker include only enabled pages. Disabled page links return a short 404 notice with working Map and Netgraph links. Reload an already open tab after a configuration change. Optional graphics are loaded only when their page is opened; changing the list does not change MQTT intake, retained routes or checkpoint data.
 
-**Keeping all existing pages on upgrade:** add `EXTRA_PAGES=terminal,chronoscope,firehose` and update `compose.yml` before recreating the service. An older Compose file will not forward the new setting. Removing an extra page preserves its users' saved preferences for when you enable it again.
+**Keeping all existing pages on upgrade:** add `EXTRA_PAGES=terminal,chronoscope,firehose,pachinko` and update `compose.yml` before recreating the service. An older Compose file will not forward the new setting. Removing an extra page preserves its users' saved preferences for when you enable it again.
 
 ## Optional CARTO provider
 

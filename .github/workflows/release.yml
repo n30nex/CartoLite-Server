@@ -121,14 +121,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$RELEASE_TAG" \
-            artifacts/release/default.env.example \
-            artifacts/release/compose.yml \
-            artifacts/release/compose.carto.yml \
-            artifacts/release/compose.build.yml \
-            artifacts/release/CartoLite-Server-v* \
-            artifacts/release/release-manifest.json \
-            artifacts/release/SHA256SUMS \
-            --verify-tag \
-            --title "CartoLite Server ${{ steps.release.outputs.version }}" \
-            --generate-notes
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            # Re-promotion preserves existing notes, screenshots and release flags.
+            gh release upload "$RELEASE_TAG" artifacts/release/* --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              artifacts/release/default.env.example \
+              artifacts/release/compose.yml \
+              artifacts/release/compose.carto.yml \
+              artifacts/release/compose.build.yml \
+              artifacts/release/CartoLite-Server-v* \
+              artifacts/release/release-manifest.json \
+              artifacts/release/SHA256SUMS \
+              --verify-tag \
+              --title "CartoLite Server ${{ steps.release.outputs.version }}" \
+              --generate-notes
+          fi

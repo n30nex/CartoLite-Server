@@ -103,12 +103,13 @@ test('Firehose stays bounded under synthetic load and keeps its dependencies iso
  const state:StateV2={schemaVersion:2,bootId:'visual-fixture',seq:0,serverTime:now,status:{feed:'connected',activity:'active',dropped:0,version:'test',gitSha:'synthetic'},map:{center:[-80,43],zoom:8},nodes,routes:[]};
  await page.route('**/api/state',r=>r.fulfill({json:state}));await open(page);
  const result=await page.evaluate(async()=>{
-  const physics:number[]=[];let seq=0,ticks=0,maxDelay=0,previous=performance.now();const timer=setInterval(()=>{const now=performance.now();maxDelay=Math.max(maxDelay,now-previous-25);previous=now;ticks++;const s=document.querySelector<HTMLElement>('#firehose-stage');if(Number(s?.dataset.beads)>1000)physics.push(Number(s?.dataset.physicsMs));},25);
+  const physics:number[]=[];const programsBefore=Number(document.getElementById('firehose-stage')!.dataset.programs);let peak:{at:number;particles:number;quality:string;drawMs:number;programs:number}|undefined;const began=performance.now();let seq=0,ticks=0,maxDelay=0,previous=performance.now();const timer=setInterval(()=>{const now=performance.now();const delay=now-previous-25;if(delay>maxDelay){const stage=document.getElementById('firehose-stage')!;maxDelay=delay;peak={at:now-began,particles:Number(stage.dataset.beads),quality:stage.dataset.quality??'',drawMs:Number(stage.dataset.drawMs),programs:Number(stage.dataset.programs)};}previous=now;ticks++;const s=document.querySelector<HTMLElement>('#firehose-stage');if(Number(s?.dataset.beads)>1000)physics.push(Number(s?.dataset.physicsMs));},25);
   const send=()=>{seq++;window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`pile-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:Array.from({length:15},(_,i)=>({routeId:`chain-${i}`,fromId:`pile-${i}`,toId:`pile-${i+1}`}))}}));};
   for(let i=0;i<240;i++){send();await new Promise(r=>setTimeout(r,25));}
-  clearInterval(timer);physics.sort((a,b)=>a-b);return{ticks,maxDelay,physicsP95:physics[Math.floor(physics.length*.95)]??0,samples:physics.length};
+  clearInterval(timer);physics.sort((a,b)=>a-b);return{ticks,maxDelay,peak,programsBefore,programsAfter:Number(document.getElementById('firehose-stage')!.dataset.programs),physicsP95:physics[Math.floor(physics.length*.95)]??0,samples:physics.length};
  });
- const stage=page.locator('#firehose-stage');expect(Number(await stage.getAttribute('data-beads'))).toBeLessThanOrEqual(Number(await stage.getAttribute('data-capacity')));
+ await info.attach('firehose-timing',{body:JSON.stringify(result),contentType:'application/json'});
+ const stage=page.locator('#firehose-stage');await expect(stage).toHaveAttribute('data-graphics-ready','true');expect(result.programsAfter).toBe(result.programsBefore);expect(Number(await stage.getAttribute('data-beads'))).toBeLessThanOrEqual(Number(await stage.getAttribute('data-capacity')));
  expect(Number(await stage.getAttribute('data-beads'))).toBeGreaterThan(500);expect(Number(await stage.getAttribute('data-queue'))).toBeLessThanOrEqual(48);
  expect(result.samples).toBeGreaterThan(10);expect(result.physicsP95).toBeLessThan(25);expect(result.ticks).toBeGreaterThan(100);expect(result.maxDelay).toBeLessThan(300);expect(Number(await stage.getAttribute('data-draw-calls'))).toBeLessThan(40);
  await page.screenshot({path:info.outputPath('firehose-dense-pile.png')});
@@ -117,7 +118,7 @@ test('Firehose stays bounded under synthetic load and keeps its dependencies iso
  expect(await page.evaluate(()=>{const m=(window as any).__hose.metrics;return{geometries:m.geometries,textures:m.textures};})).toEqual(resources);
  expect(requests.some(url=>/maplibre.*\.js|\.pbf|tiles\./i.test(url))).toBe(false);
  await info.attach('firehose-resources',{body:JSON.stringify({result,resources}),contentType:'application/json'});
- requests.length=0;await page.goto('/netgraph/');await expect(page.locator('#netgraph-stage')).toBeVisible();expect(requests.some(url=>/firehose|rapier|three.*\.js/i.test(url))).toBe(false);
+ requests.length=0;await page.goto('/netgraph/');await expect(page.locator('#netgraph-stage')).toBeVisible();expect(requests.some(url=>/firehose|pachinko|arcade|scene3d|rapier|three.*\.js/i.test(url))).toBe(false);
 });
 
 test('Firehose navigation is available alongside the existing views',async({page},info)=>{

@@ -71,10 +71,10 @@ CartoLite Server renders public MeshCore activity as a living map: packet trails
 Map and Netgraph are enabled by default. To offer the extra views, set this in `.env` and apply the matching release's Compose file:
 
 ```dotenv
-EXTRA_PAGES=terminal,chronoscope,firehose
+EXTRA_PAGES=terminal,chronoscope,firehose,pachinko
 ```
 
-Choose any subset, or leave it empty for Map and Netgraph only. Navigation on desktop and phones follows the operator's selection. **Upgrading an existing server?** Set this before upgrading to keep all five pages; extra pages now default to off. Labs remains Canada-only. [Configuration and upgrade details](docs/deployment.md#choose-the-pages-on-your-server).
+Choose any subset, or leave it empty for Map and Netgraph only. Navigation on desktop and phones follows the operator's selection. **Upgrading an existing server?** Set this before upgrading to keep the extra pages you want; they default to off when this setting is absent. Labs remains Canada-only. [Configuration and upgrade details](docs/deployment.md#choose-the-pages-on-your-server).
 
 ## Privacy is the product boundary
 
@@ -222,8 +222,14 @@ customizations remain. Reset all display settings restores these Terminal defaul
 
 ## Chronoscope
 
-When enabled with `EXTRA_PAGES`, open /chronoscope/ or choose **Chronoscope** in the dock. A bright Now plane and fading traces show the last minute of activity observed by this page. Explore Sculpture, Slice or Flat, freeze time, select regions and inspect confirmed packet segments. Display and live sound use the existing shared controls; phone Display settings live in the View picker. The bounded session window starts empty, stays silent while frozen and never reconstructs traffic from route totals. [View guide](docs/chronoscope.md).
+When enabled with `EXTRA_PAGES`, open `/chronoscope/` or choose **Experimental → Chronoscope**. Orbit, pan and zoom around newly observed packet shapes as they descend from the Now plane and settle into a growing 3D sculpture. Flat and Slice retain recent-time inspection; Freeze holds the sculpture while the camera remains usable. Region selection, node/packet inspection and shared display/sound controls remain available. The session starts empty, retains a bounded number of whole observations and never reconstructs traffic from route totals. [View guide](docs/chronoscope.md).
 
 ## Firehose
 
 When enabled with `EXTRA_PAGES`, open `/firehose/` for a fully 3D live packet box. Tilt the box, orbit the camera, or pour linked packet beads into the pit. The pile starts empty, preserves confirmed hops and uses GPU rendering with worker physics and bounded resources. [View and controls guide](docs/firehose.md).
+
+## Packet arcade and sculpture
+
+The icon dock keeps Map, Netgraph and Terminal direct, with Chronoscope, Firehose and the new [Pachinko](docs/pachinko.md) under **Experimental**. Canada also groups its four Labs experiences. Pachinko uses one dot per packet, type lanes, buckets and overflow. [Chronoscope](docs/chronoscope.md) now has a true 3D camera and a bounded accumulating sculpture. [Generated scene materials](docs/scene-assets.md) add metallic shading and a quiet enamel playfield.
+
+Enable optional views with `EXTRA_PAGES=terminal,chronoscope,firehose,pachinko`, or choose a subset. The default remains Map and Netgraph. Labs is Canada-only. Use the matching release Compose file and preserve your `.env` and data volume.

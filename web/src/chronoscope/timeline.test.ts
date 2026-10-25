@@ -7,6 +7,17 @@ const packet = (seq: number, count = 1): PacketView => ({ seq, id: `synthetic-${
   segments: Array.from({ length: count }, (_, i) => ({ routeId: `route-${i}`, from: endpoint(`from-${i}`), to: endpoint(`to-${i}`) })) });
 
 describe('Chronoscope session window', () => {
+  it('keeps a bounded sculpture beyond the recent-time window without inventing events', () => {
+    const time = new ChronoscopeTimeline(true);
+    time.add(packet(1, 2), 0); time.prune(MAX_TIME_MS * 3);
+    expect(time.visible(MAX_TIME_MS * 3, 60)).toHaveLength(0);
+    expect(time.visible(MAX_TIME_MS * 3, 60, true)).toHaveLength(1);
+    expect(time.segmentCount).toBe(2);
+    for (let seq=2;seq<MAX_EVENTS*2;seq++) time.add(packet(seq,8),seq*1000);
+    expect(time.records.length).toBeLessThanOrEqual(MAX_EVENTS);
+    expect(time.segmentCount).toBeLessThanOrEqual(MAX_SEGMENTS);
+    time.clear();expect(time.visible(MAX_TIME_MS*3,60,true)).toHaveLength(0);
+  });
   it('starts empty and preserves discrete confirmed segments without joining gaps', () => {
     const time = new ChronoscopeTimeline();
     expect(time.visible(100, 60)).toEqual([]);

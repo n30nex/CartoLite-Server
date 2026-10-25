@@ -1,7 +1,7 @@
 @import '../chronoscope/styles.css';
 .firehose-app [hidden] { display:none!important; }
-#firehose-stage { position:absolute;inset:0;overflow:hidden;touch-action:none;outline-offset:-4px; }
-#firehose-canvas { display:block;width:100%;height:100%;touch-action:none; }
+:is(#firehose-stage,#pachinko-stage) { position:absolute;inset:0;overflow:hidden;touch-action:none;outline-offset:-4px; }
+:is(#firehose-canvas,#pachinko-canvas) { display:block;width:100%;height:100%;touch-action:none; }
 html:root .firehose-app .glass { transition:none; }
 .firehose-caption { position:absolute;z-index:3;left:20px;top:max(78px,calc(env(safe-area-inset-top) + 78px));display:grid;gap:6px;pointer-events:none;color:#dbf8f0;text-shadow:0 1px 3px #06121b;font-size:12px; }
 .firehose-caption strong { letter-spacing:.22em;font-size:12px; }.firehose-caption small { font-size:11px;color:#9dc7ce;max-width:360px;line-height:1.4; }
@@ -29,3 +29,9 @@ html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]
  html:root[data-cinematic] .firehose-app #node-inspector-sheet { position:fixed;top:auto;left:8px;right:8px;bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 8px);width:auto;max-width:none;max-height:48dvh; }
 }
 @media(max-height:480px) { .firehose-caption { display:none; }.firehose-panel { max-height:calc(var(--available-height,100dvh) - 90px); } }
+
+.pachinko-buckets { position:absolute; left:14px; right:14px; bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 9px); z-index:3; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; max-width:540px; margin:auto; pointer-events:none; }
+.pachinko-buckets div { display:grid; gap:2px; border-top:2px solid var(--bucket-color); background:var(--panel-solid); border-radius:6px; padding:5px 3px; text-align:center; color:var(--ink); font-size:10px; }
+.pachinko-buckets output { color:var(--ink-strong); font-size:12px; font-variant-numeric:tabular-nums; }
+#pachinko-app > #legend { display:none; }
+#pachinko-app .firehose-caption small { max-width:310px; }

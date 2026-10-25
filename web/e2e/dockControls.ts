@@ -1,15 +1,16 @@
 import type { Page } from '@playwright/test';
 
-export async function openViewMenu(page: Page): Promise<void> {
+export async function openViewMenu(page: Page, group: 'Experimental' | 'Labs' | false = 'Experimental'): Promise<void> {
   if (await page.locator('#view-button').isVisible() && await page.locator('#view-panel').isHidden()) await page.locator('#view-button').click();
+  if (group) { const selector = group === 'Labs' ? '#labs-options' : '#experimental-options'; const list = page.locator(selector); if (await list.count() && !await list.isVisible()) await list.locator('..').locator('summary').click(); }
 }
 export async function viewTool(page: Page, selector: string): Promise<void> {
-  if (!await page.locator(selector).isVisible()) await openViewMenu(page);
+  if (!await page.locator(selector).isVisible()) await openViewMenu(page, false);
   await page.locator(selector).click();
 }
 export async function switchView(page: Page, view: 'map' | 'Netgraph' | 'Labs'): Promise<void> {
-  const link = page.getByRole('link', { name: `Open CartoLite ${view}`, exact: true });
-  if (!await link.isVisible()) await openViewMenu(page);
+  const link = page.getByRole('link', { name: `Open CartoLite ${view === 'Labs' ? 'Packet Pond' : view}`, exact: true });
+  if (!await link.isVisible()) await openViewMenu(page, view === 'Labs' ? 'Labs' : 'Experimental');
   await link.click();
 }
 export async function openDisplay(page: Page): Promise<void> {

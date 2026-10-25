@@ -1,5 +1,6 @@
 import { mountMobileDock } from './mobileDock';
 import { mountNetworkHelp } from './viewHelp';
+import { createViewNavigation } from './viewNavigation';
 
 /** A single dock, with existing control handlers and accessible names preserved. */
 export function mountCinematicDock(): void {
@@ -7,27 +8,17 @@ export function mountCinematicDock(): void {
   const topbar = document.querySelector<HTMLElement>('#topbar');
   if (!controls || !topbar) return;
   document.documentElement.dataset.cinematic = 'true';
-  const navigation = document.createElement('nav');
-  navigation.className = 'dock-views'; navigation.setAttribute('aria-label', 'Views');
   const graph = location.pathname.startsWith('/netgraph');
   const terminal = location.pathname.startsWith('/terminal');
   const chrono = location.pathname.startsWith('/chronoscope');
   const firehose = location.pathname.startsWith('/firehose');
-  const extraPages = new Set((document.documentElement.dataset.extraPages ?? '').split(','));
-  for (const [label, path, active] of [['Map', '/', !graph && !terminal && !chrono && !firehose], ['Netgraph', '/netgraph/', graph], ['Terminal', '/terminal/', terminal], ['Chronoscope', '/chronoscope/', chrono], ['Firehose', '/firehose/', firehose]] as const) {
-    if (label !== 'Map' && label !== 'Netgraph' && !extraPages.has(label.toLowerCase())) continue;
-    const link = (label === 'Netgraph' ? topbar.querySelector<HTMLAnchorElement>('#netgraph-link') : null) ?? document.createElement('a');
-    link.href = path; link.classList.add('control-button'); link.textContent = label;
-    link.setAttribute('aria-label', `Open CartoLite ${label === 'Map' ? 'map' : label}`);
-    if (active) link.setAttribute('aria-current', 'page');
-    navigation.append(link);
-  }
-  const labs = topbar.querySelector<HTMLAnchorElement>('#labs-link');
-  if (labs) { labs.classList.add('control-button'); navigation.append(labs); }
+  const pachinko = location.pathname.startsWith('/pachinko');
+  const view = pachinko ? 'Pachinko' : firehose ? 'Firehose' : chrono ? 'Chronoscope' : graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map';
+  const navigation = createViewNavigation(view, new Set((document.documentElement.dataset.extraPages ?? '').split(',')), false);
   controls.prepend(navigation);
   const zoomControls = document.querySelector<HTMLElement>('.zoom-controls');
   if (zoomControls) controls.append(zoomControls);
-  if (!graph && !chrono && !firehose) {
+  if (!graph && !chrono && !firehose && !pachinko) {
     const display = document.createElement('button');
     display.id = 'display-shortcut'; display.type = 'button'; display.className = 'control-button'; display.textContent = '◐ Display';
     display.setAttribute('aria-label', 'Display settings');
@@ -47,9 +38,9 @@ export function mountCinematicDock(): void {
     close.setAttribute('aria-label', id === 'find' ? 'Close node search' : 'Close sound settings');
     close.addEventListener('click', () => { if (!panel.hidden) owner.click(); owner.focus(); }); header.append(close);
   }
-  mountNetworkHelp(firehose ? 'Firehose' : chrono ? 'Chronoscope' : graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
-  mountMobileDock(controls, navigation, firehose ? 'Firehose' : chrono ? 'Chronoscope' : graph ? 'Netgraph' : terminal ? 'Terminal' : 'Map');
-  trackPanelHistory(controls, ['about-dialog', 'view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'time-panel', 'box-panel', 'regions-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
+  mountNetworkHelp(view);
+  mountMobileDock(controls, navigation, view);
+  trackPanelHistory(controls, ['about-dialog', 'experimental-options', 'labs-options', 'view-panel', 'layers-panel', 'find-panel', 'sound-panel', 'time-panel', 'box-panel', 'regions-panel', 'region-options', 'display-panel', 'follow-card', 'node-inspector-sheet']);
   // One menu at a time, including the independently mounted display control.
   let closing = false;
   controls.addEventListener('click', event => {
@@ -67,7 +58,11 @@ export function mountCinematicDock(): void {
 /** Keep Back dismissal shared by the map, graph and Labs menus. */
 export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): void {
   if (/CartoLiteAndroid\//.test(navigator.userAgent)) document.documentElement.dataset.nativeApp = 'true';
-  const openMenu = () => menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden && panel.getClientRects().length; });
+  const openMenu = () => {
+    const id = menuIDs.find(id => { const panel=document.getElementById(id); return panel && !panel.hidden && panel.getClientRects().length; });
+    // Phone disclosures live inside one View sheet: Back dismisses that sheet.
+    return id && document.getElementById(id)?.closest('#view-panel') ? 'view-panel' : id;
+  };
   let closingHistory = false;
   let closingURL = location.href;
   let pendingNavigation: string | undefined;
@@ -82,7 +77,15 @@ export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): voi
       if(replacing) history.replaceState(state,''); else history.pushState(state,'');
     } else if(!open && current) { closingHistory = true; closingURL = location.href; history.back(); }
   };
-  const observer = new MutationObserver(syncHistory);
+  const panelIDs = new Set(menuIDs), panelSelector = menuIDs.map(id => `#${id}`).join(',');
+  const affectsPanel = (node: Node) => node instanceof Element && (panelIDs.has(node.id) || Boolean(panelSelector && node.querySelector(panelSelector)));
+  // Live captions and bucket counters replace text nodes frequently. They do
+  // not change menu history and must not force panel layout measurements.
+  const observer = new MutationObserver(records => {
+    if (records.some(record => record.type === 'attributes'
+      ? affectsPanel(record.target)
+      : [...record.addedNodes, ...record.removedNodes].some(affectsPanel))) syncHistory();
+  });
   const observe = () => observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','open']});
   observe();
   controls.addEventListener('click', event => {
@@ -102,6 +105,10 @@ export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): voi
     }
     const target = history.state?.cartolitePanel;
     for (const dialog of document.querySelectorAll('dialog[open]')) if (dialog.id !== target) (dialog as HTMLDialogElement).close();
+    for (const group of controls.querySelectorAll<HTMLDetailsElement>('.nav-group[open]')) if (group.querySelector('.nav-popover')?.id !== target) {
+      const restoreFocus = group.contains(document.activeElement); group.open = false;
+      if (restoreFocus) group.querySelector('summary')?.focus({ preventScroll:true });
+    }
     if (target !== 'region-options') document.querySelector('#region-filter[open]')?.removeAttribute('open');
     for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
       if(button.getAttribute('aria-controls') !== target) { button.click(); button.focus({ preventScroll:true }); }

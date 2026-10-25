@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import {afterEach,expect,it} from 'vitest';
-import {followViewport} from './cinematicChrome';
-afterEach(()=>{document.body.replaceChildren();});
+import {afterEach,expect,it,vi} from 'vitest';
+import {followViewport,trackPanelHistory} from './cinematicChrome';
+afterEach(()=>{window.dispatchEvent(new Event('pagehide'));document.body.replaceChildren();vi.restoreAllMocks();});
 function element(id:string,x:number,y:number,width:number,height:number){
   const node=document.createElement('div');node.id=id;node.className=id;
   Object.defineProperties(node,{clientWidth:{value:width},clientHeight:{value:height}});
@@ -18,4 +18,25 @@ it('uses the space beside a landscape card without covering the dock',()=>{
   const stage=element('stage',0,0,844,390);element('controls',40,330,764,52);element('follow-card',486,100,350,215);
   const rect=followViewport(stage);
   expect(rect.right).toBeLessThan(486);expect(rect.bottom).toBeLessThan(330);expect(rect.right-rect.left).toBeGreaterThan(350);
+});
+
+it('does not force menu layout when live counters update',async()=>{
+  document.body.innerHTML='<div class="controls"></div><details><summary>Views</summary><section id="panel"></section></details><output id="live-count">0</output>';
+  const panel=document.getElementById('panel')!,counter=document.getElementById('live-count')!;
+  const measure=vi.spyOn(panel,'getClientRects').mockReturnValue([] as unknown as DOMRectList);
+  trackPanelHistory(document.querySelector('.controls')!,['panel']);
+  for(let count=0;count<20;count++)counter.textContent=String(count);
+  await Promise.resolve();expect(measure).not.toHaveBeenCalled();
+  panel.hidden=true;panel.hidden=false;
+  await Promise.resolve();expect(measure).toHaveBeenCalled();
+});
+
+it('keeps nested phone navigation in one Back-dismissable View sheet',async()=>{
+  document.body.innerHTML='<div class="controls"><section id="view-panel"><details><summary>Experimental</summary><div id="experimental-options"></div></details></section></div>';
+  history.replaceState(null,'');
+  const push=vi.spyOn(history,'pushState').mockImplementation(()=>{});
+  for(const id of ['view-panel','experimental-options'])vi.spyOn(document.getElementById(id)!,'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+  trackPanelHistory(document.querySelector('.controls')!,['experimental-options','view-panel']);
+  document.querySelector('details')!.open=true;
+  await Promise.resolve();expect(push).toHaveBeenLastCalledWith(expect.objectContaining({cartolitePanel:'view-panel'}),'');
 });

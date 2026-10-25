@@ -1,17 +1,19 @@
 # Chronoscope
 
-Open `/chronoscope/` or choose **Chronoscope** in the dock (the **View** picker on phones). It turns recently observed public activity into a time sculpture. It needs no map tiles, extra key or backend service.
+Open Chronoscope under Experimental. Known nodes and geographic groups occupy the Now plane. Newly observed packet shapes travel along their confirmed segments, descend, and settle into a growing 3D session sculpture. Color and the shared live-packet signature identify the sanitized packet type. Stack spacing compresses as it grows; height is not a linear measurement. Observer-only activity stays local. Positions and height are illustrative, not radio trajectories, antenna heights, signal strength or coverage.
 
-- **Sculpture:** radios stay on the Now plane, while completed packet traces settle into the time volume. Depth is time since this page received the event, not altitude or radio travel time.
-- **Flat:** view the same selected observation window from above.
-- **Slice:** freeze time and inspect the four-second interval around a chosen moment.
+## Explore
 
-**Time** contains the 30-second, 60-second and two-minute windows, Freeze view, Return to live and recent packets that can be selected with the keyboard. A new page starts without earlier observations. Freeze holds the activity window while current feed and radio information keep updating. Returning to live never replays buffered packets or sound. Freeze and Slice inspection are temporary; reopening starts live in your last Sculpture or Flat view.
+In Sculpture, drag to orbit, right-drag or use two fingers to pan, and pinch or scroll to zoom. Arrow keys pan; Shift-arrows rotate and tilt. Home fits the scene. The camera stays still until you move it or explicitly enable Follow. Appearance changes preserve the camera and observations.
 
-**Regions** filters one or several geographic groups. **Find** selects a radio and its observed activity. Selecting a trace opens its confirmed segments; gaps are preserved. An observer-only pulse records one receiver hearing activity, without drawing a connection.
+The Time panel offers Sculpture, Flat and Slice. Fall time (30, 60 or 120 seconds) applies to new sculpture shapes. Flat and Slice inspect the recent time window; Slice holds a four-second interval around the chosen age. Freeze holds time while leaving the camera usable. New observations received during frozen inspection never turn into replayed live motion. Clear session sculpture empties the retained observations.
 
-Drag to pan, scroll or pinch to zoom, and use Fit to restore the overview. Arrow keys pan, +/− zoom and Home fits. Shift-left/right rotates Sculpture. Display shares themes, route styles, effects, motion and text preferences with Map and Netgraph. On phones, Display is in View. Sound remains opt-in and is silent while time is frozen. Follow uses the same ten-second live-only subjects and scopes as Netgraph.
+Use region checkboxes to focus the view, Find to inspect public nodes, or click a shape/recent-activity entry to inspect confirmed segments. Sound remains opt-in and follows the existing packet timeline, never the decorative fall or settling effects.
 
-The session buffer retains up to 1,024 complete events and 4,096 segments for at most two minutes. Capacity trimming is shown above the scene. A frozen view keeps one additional bounded snapshot. Nothing is saved across reloads. Background tabs stop ingesting/rendering; disconnected and hidden intervals remain unobserved. Historical route totals are never converted into invented activity.
+## Bounded session
 
-Canada uses the existing region resolver; Worldwide uses its coordinate-derived geographic cells. Traces use the current schematic grouping, not a history of radio locations. New activity does not reframe the camera; use Fit or choose regions to change the overview. The time ruler stays readable as you pan or zoom the spatial view. Graphics fall back to Canvas2D when WebGL effects are unavailable; reduced motion and automatic detail preserve the data while limiting decoration.
+Every page load starts empty. The sculpture retains at most 1,024 observations and 4,096 confirmed segments, evicting whole oldest observations at the cap. No packet is reconstructed from route totals or server history. Hidden traffic is not backfilled. Flat/Slice show only their selected recent window. Session sculpture data is not persisted.
+
+The renderer batches strokes and shaded glyphs on the GPU, keeps geometry buffers bounded, uploads active ranges only, and reduces decoration before readability. A labelled 2D time-window fallback remains available if WebGL2 is unavailable. Context recovery preserves the camera, retained state and user freeze choice.
+
+Worldwide operators enable this page with `chronoscope` in `EXTRA_PAGES`. Map and Netgraph remain available independently.

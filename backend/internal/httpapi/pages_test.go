@@ -11,16 +11,16 @@ import (
 )
 
 func TestOptionalPagesGateDocumentsAndNavigation(t *testing.T) {
-	for _, extras := range [][]string{nil, {"terminal"}, {"terminal", "chronoscope", "firehose"}} {
+	for _, extras := range [][]string{nil, {"terminal"}, {"terminal", "chronoscope", "firehose", "pachinko"}} {
 		t.Run(strings.Join(extras, ","), func(t *testing.T) {
 			assets := fstest.MapFS{}
-			for _, name := range []string{"index.html", "netgraph/index.html", "terminal/index.html", "chronoscope/index.html", "firehose/index.html"} {
+			for _, name := range []string{"index.html", "netgraph/index.html", "terminal/index.html", "chronoscope/index.html", "firehose/index.html", "pachinko/index.html"} {
 				assets[name] = &fstest.MapFile{Data: []byte(`<!doctype html><html lang="en"><title>synthetic</title></html>`)}
 			}
 			server := &Server{static: assets, extraPages: extras}
 			handler := server.Handler()
 			for _, method := range []string{http.MethodGet, http.MethodHead} {
-				for _, page := range []string{"map", "netgraph", "terminal", "chronoscope", "firehose"} {
+				for _, page := range []string{"map", "netgraph", "terminal", "chronoscope", "firehose", "pachinko"} {
 					enabled := page == "map" || page == "netgraph" || slices.Contains(extras, page)
 					for _, suffix := range []string{"", "/", "/index.html"} {
 						target := "/" + page + suffix

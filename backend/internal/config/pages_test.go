@@ -15,6 +15,7 @@ func TestOptionalPagesConfiguration(t *testing.T) {
 		{"", "", true},
 		{" firehose,terminal,firehose ", "terminal,firehose", true},
 		{"terminal,chronoscope,firehose", "terminal,chronoscope,firehose", true},
+		{"pachinko,terminal,pachinko", "terminal,pachinko", true},
 		{"labs", "", false},
 		{"firehos", "", false},
 		{"terminal/firehose", "", false},

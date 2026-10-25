@@ -16,6 +16,7 @@ export interface Observation {
 
 /** Only newly received public events enter this bounded, session-local view. */
 export class ChronoscopeTimeline {
+  constructor(readonly retainSculpture = false) {}
   #records: Observation[] = [];
   #cost = 0;
   #lastSeq = -1;
@@ -47,11 +48,12 @@ export class ChronoscopeTimeline {
     return record;
   }
   prune(now: number): void {
+    if (this.retainSculpture) return;
     while (this.#records.length && now - this.#records[0]!.started > MAX_TIME_MS) this.#cost -= this.#records.shift()!.cost;
   }
-  visible(now: number, seconds: number): readonly Observation[] {
+  visible(now: number, seconds: number, includeSettled = false): readonly Observation[] {
     const at = this.clock(now);
-    return (this.#frozen?.records ?? this.#records).filter(record => at - record.started >= 0 && at - record.started <= seconds * 1_000);
+    return (this.#frozen?.records ?? this.#records).filter(record => at - record.started >= 0 && (includeSettled || at - record.started <= seconds * 1_000));
   }
 }
 
