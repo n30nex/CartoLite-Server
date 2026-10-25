@@ -77,7 +77,9 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    # Full baseline took 44 minutes; retain headroom for the new visual suite.
+    # Browser/physics/input limits remain unchanged.
+    timeout-minutes: 50
     permissions:
       contents: read
       packages: write
