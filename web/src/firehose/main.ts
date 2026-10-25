@@ -16,9 +16,11 @@ import { mountSoundPreview } from '../soundPreview';
 import { normalizePacketKind } from '../trafficVisuals';
 import type { PacketView } from '../types';
 import { FirehoseRenderer } from './renderer';
-import { capacityFor, frameSize, MAX_PENDING, packetShape, type Input, type Output, type PacketShape } from './model';
+import { capacityFor, frameSize, MAX_PENDING, packetShape, pachinkoShape, KINDS, type MachineMode, type Input, type Output, type PacketShape } from './model';
 
-const stage=required('firehose-stage'),inspector=required('node-inspector-sheet');
+const machine:MachineMode=document.documentElement.dataset.machine==='pachinko'?'pachinko':'firehose';
+const pachinko=machine==='pachinko', title=pachinko?'Pachinko':'Firehose';
+const stage=required(`${machine}-stage`),inspector=required('node-inspector-sheet');
 let renderer:FirehoseRenderer|undefined,worker:Worker|undefined,store:LiveStore|undefined,feed:LiveFeed|undefined,sonifier:RouteSonifier|undefined;
 let disposed=false,ready=false,connecting=false,connected=false,effectivePause=false,scenePaused=false,nextId=1,omitted=0;
 let retryTimer:number|undefined,inspectorTimer:number|undefined,refreshSearch=()=>{},selectedNode:string|null=null;
@@ -29,7 +31,8 @@ initializeDisplay();scenePaused=prefersReducedMotion();let motionKey=`${displayP
 const closeDisplay=mountNetgraphDisplay(()=>closePanels());
 // Physical links have no time residue; the remaining shared styles apply directly.
 for(const key of ['residueSeconds','detail'])document.querySelector(`[data-display="${key}"]`)?.closest('label')?.remove();
-const note=document.querySelector<HTMLElement>('#display-panel .display-note');if(note)note.textContent='Shared colours, link styles, effects, motion and text. Terminal keeps its own settings. Physics never changes which hops were confirmed.';
+const note=document.querySelector<HTMLElement>('#display-panel .display-note');if(note)note.textContent=pachinko?'Shared colors, particle size, glow, trails, motion and text. One dot is one observed packet; lanes identify its category.':'Shared colours, link styles, effects, motion and text. Terminal keeps its own settings. Physics never changes which hops were confirmed.';
+if(pachinko)for(const key of ['pattern','width','opacity'])document.querySelector(`[data-display="${key}"]`)?.closest('label')?.remove();
 populateSoundScenes(required<HTMLSelectElement>('sound-scene'));
 function post(message:Input,transfer:Transferable[]=[]){worker?.postMessage(message,transfer);}
 function closePanels(except=''){for(const id of ['box','find','sound'])if(id!==except){required(`${id}-panel`).hidden=true;required(`${id}-button`).setAttribute('aria-expanded','false');}}
@@ -43,7 +46,8 @@ document.addEventListener('keydown',e=>{if(e.key!=='Escape'||document.querySelec
 function setMode(mode:'tilt'|'orbit') {renderer?.setMode(mode);required('tilt-mode').setAttribute('aria-pressed',String(mode==='tilt'));required('orbit-mode').setAttribute('aria-pressed',String(mode==='orbit'));sync();}
 function sync(){
  const count=Number(stage.dataset.beads??0),groups=Number(stage.dataset.events??0),drained=Number(stage.dataset.drained??0);
- const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?'An empty box. Waiting for live packets.':`${count.toLocaleString()} particles · ${groups.toLocaleString()} packets · ${drained.toLocaleString()} drained`;
+ const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?(pachinko?'Empty buckets. Waiting for live packets.':'An empty box. Waiting for live packets.'):pachinko?`${count.toLocaleString()} packets · ${drained.toLocaleString()} drained${stage.dataset.draining==='true'?' · draining buckets':''}`:`${count.toLocaleString()} particles · ${groups.toLocaleString()} packets · ${drained.toLocaleString()} drained`;
+ if(pachinko){const counts=JSON.parse(stage.dataset.buckets??'[0,0,0,0,0,0]') as number[];for(let i=0;i<6;i++){const output=document.querySelector<HTMLOutputElement>(`[data-bucket="${KINDS[i]}"]`);if(output&&output.value!==String(counts[i]??0))output.value=String(counts[i]??0);}}
  if(required('pile-status').textContent!==text)required('pile-status').textContent=text;
  const hint=scenePaused?'Orbit to inspect · Resume to collect fresh activity':renderer?.mode==='orbit'?'Drag to orbit · right-drag or two fingers pan':'Drag to tilt the box · pinch or scroll to zoom';if(required('gesture-hint').textContent!==hint)required('gesture-hint').textContent=hint;
  const cap=omitted?`${omitted.toLocaleString()} events omitted at the detail cap · never replayed`:'';if(required('capacity-status').textContent!==cap)required('capacity-status').textContent=cap;
@@ -51,14 +55,14 @@ function sync(){
  stage.dataset.paused=String(scenePaused);stage.dataset.clientOmitted=String(omitted);
  if(store){const activity=activityLabel(store.snapshot,connected);required('status').dataset.state=activity.state;if(required('status-text').textContent!==activity.text)required('status-text').textContent=activity.text;}
 }
-function pause(){const value=scenePaused||document.hidden||Boolean(renderer?.lost);if(value!==effectivePause||!ready){effectivePause=value;post({type:'pause',paused:value});}renderer?.setPaused(value);sonifier?.setPaused(value);sync();}
+function pause(){const value=scenePaused||document.hidden||!renderer?.graphicsReady;if(value!==effectivePause||!ready){effectivePause=value;post({type:'pause',paused:value});}renderer?.setPaused(value);sonifier?.setPaused(value);sync();}
 function resumeMotion(){scenePaused=false;pause();}
 function selectNode(id:string|null){
  selectedNode=id;rememberNode(id);renderer?.highlight([]);if(!id||!store){inspector.hidden=true;return;}
  const nodes=new Map(store.snapshot.nodes.map(n=>[n.id,n]));const model=buildNodeInspectorModel(id,nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
  replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:selectNode}));
- const slots:number[]=[];for(const event of events.values())event.shape.nodes.forEach((node,i)=>{if(node===id)slots.push(event.slots[i]!);});renderer?.highlight(slots);
- const p=document.createElement('p');p.className='firehose-selection-note';p.textContent=slots.length?`${slots.length} particles from this node are in this session's pile.`:'No dot from this node is in this session’s pile yet.';inspector.append(p);
+ const slots:number[]=[];for(const event of events.values()){if(pachinko){if(event.shape.nodes.includes(id))slots.push(event.slots[0]!);}else event.shape.nodes.forEach((node,i)=>{if(node===id)slots.push(event.slots[i]!);});}renderer?.highlight(slots);
+ const p=document.createElement('p');p.className='firehose-selection-note';p.textContent=slots.length?`${slots.length} ${pachinko?'packets involving':'particles from'} this node are in this session's ${pachinko?'machine':'pile'}.`:'No dot from this node is in this session’s pile yet.';inspector.append(p);
  const links=document.createElement('div');links.className='chrono-links';for(const [label,path]of [['Open Map','/'],['Open Netgraph','/netgraph/']]as const){const a=document.createElement('a');a.textContent=label;a.href=`${path}?node=${encodeURIComponent(id)}`;links.append(a);}inspector.append(links);inspector.hidden=false;
 }
 function inspect(id:number){const event=events.get(id);if(!event)return;selectedNode=null;rememberNode(null);renderer?.highlight(event.slots);
@@ -69,14 +73,14 @@ function inspect(id:number){const event=events.get(id);if(!event)return;selected
  else for(const edge of event.packet.segments){const row=document.createElement('div');row.className='chrono-hop';const arrow=document.createElement('span');arrow.textContent='→';row.append(node(edge.from.id,edge.from.label),arrow,node(edge.to.id,edge.to.label));card.append(row);}
  replaceInspector(inspector,card);inspector.hidden=false;close.focus({preventScroll:true});
 }
-function acceptPacket(packet:PacketView){if(!ready||effectivePause||disposed)return;const shape=packetShape(packet);if(!shape||pending.size>=MAX_PENDING){omitted++;sync();return;}
- const id=nextId++;pending.set(id,{packet,shape});post({type:'packet',packet:{id,kind:shape.kind,beads:shape.nodes.length,links:shape.links}});
+function acceptPacket(packet:PacketView){if(!ready||effectivePause||disposed)return;const shape=pachinko?pachinkoShape(packet):packetShape(packet);if(!shape||pending.size>=MAX_PENDING){omitted++;sync();return;}
+ const id=nextId++;pending.set(id,{packet,shape});post({type:'packet',packet:{id,kind:shape.kind,beads:pachinko?1:shape.nodes.length,links:shape.links}});
 }
 function workerMessage(message:Output){if(disposed)return;
- if(message.type==='impact'){renderer?.impact(message.x,message.z,message.kind);return;}
- if(message.type==='ready'){ready=true;for(let i=0;i<3;i++){const buffer=new ArrayBuffer(frameSize(message.capacity)*4);post({type:'recycle',buffer},[buffer]);}stage.dataset.capacity=String(message.capacity);stage.dataset.renderState='ready';pause();sync();window.dispatchEvent(new CustomEvent('cartolite-firehose-ready',{detail:{scene:renderer}}));return;}
+ if(message.type==='impact'){renderer?.impact(message.x,message.z,message.kind,message.y);return;}
+ if(message.type==='ready'){ready=true;for(let i=0;i<3;i++){const buffer=new ArrayBuffer(frameSize(message.capacity)*4);post({type:'recycle',buffer},[buffer]);}stage.dataset.capacity=String(message.capacity);stage.dataset.renderState='ready';pause();sync();window.dispatchEvent(new CustomEvent(`cartolite-${machine}-ready`,{detail:{scene:renderer}}));return;}
  if(message.type==='frame'){const old=renderer?.accept(message.buffer);if(old)post({type:'recycle',buffer:old},[old]);sync();return;}
- if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots,message.slots.filter((_,i)=>entry.shape.nodes[i]===selectedNode),entry.shape.kind);if(!effectivePause)sonifier?.play(entry.packet);}return;}
+ if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots,pachinko&&selectedNode&&entry.shape.nodes.includes(selectedNode)?message.slots:message.slots.filter((_,i)=>entry.shape.nodes[i]===selectedNode),entry.shape.kind);if(!effectivePause)sonifier?.play(entry.packet);}return;}
  if(message.type==='rejected'){if(pending.delete(message.id)&&!effectivePause)omitted++;sync();return;}
  if(message.type==='removed'){for(const id of message.ids){const entry=events.get(id);if(entry)for(const slot of entry.slots)if(owners[slot]===id)owners[slot]=-1;events.delete(id);}return;}
  fail('The physics scene stopped. Reload to start a fresh box.');
@@ -95,22 +99,23 @@ async function connect(){
  }catch{if(!disposed){required('feed-notice').hidden=false;required('status').dataset.state='offline';required('status-text').textContent='Reconnecting';retryTimer=window.setTimeout(()=>{if(!document.hidden)void connect();},5000);}}
  finally{connecting=false;}
 }
-function start(){let phase='graphics';try{
- const capacity=capacityFor(matchMedia('(pointer:coarse)').matches,displayPreferences().quality);owners=new Int32Array(capacity).fill(-1);
- renderer=new FirehoseRenderer(stage,required<HTMLCanvasElement>('firehose-canvas'),capacity);renderer.onRotation=rotation=>post({type:'rotation',rotation});renderer.onPick=slot=>{const id=owners[slot];if(id!==undefined&&id>=0)inspect(id);};
+async function start(){let phase='graphics';try{
+ const capacity=capacityFor(matchMedia('(pointer:coarse)').matches,displayPreferences().quality,machine);owners=new Int32Array(capacity).fill(-1);
+ renderer=new FirehoseRenderer(stage,required<HTMLCanvasElement>(`${machine}-canvas`),capacity,machine);renderer.onRotation=rotation=>post({type:'rotation',rotation});renderer.onPick=slot=>{const id=owners[slot];if(id!==undefined&&id>=0)inspect(id);};
  renderer.onContext=lost=>{required('graphics-notice').hidden=!lost;pause();};
- phase='worker';worker=new Worker(new URL('./firehose.worker.ts',import.meta.url),{type:'module'});worker.onmessage=event=>workerMessage(event.data as Output);worker.onerror=()=>fail('The physics worker could not start. Reload to try again.');worker.onmessageerror=()=>fail('The physics worker lost its connection. Reload to start a fresh box.');post({type:'init',capacity});
+ await renderer.prepare();if(disposed)return;if(!renderer.graphicsReady)throw new Error('Graphics were interrupted during initialization');
+ phase='worker';worker=new Worker(new URL('./firehose.worker.ts',import.meta.url),{type:'module'});worker.onmessage=event=>workerMessage(event.data as Output);worker.onerror=()=>fail('The physics worker could not start. Reload to try again.');worker.onmessageerror=()=>fail('The physics worker lost its connection. Reload to start a fresh box.');post({type:'init',capacity,mode:machine});
  phase='sound-controls';
  const sound=new RouteSonifier(renderer,stage);sonifier=sound;const panel=required('sound-panel');mountSoundPreview(sound,panel);sound.setStatusListener(status=>updateSoundChrome(status,sound.getVolume(),sound.getScene()));
  required('sound-toggle').addEventListener('click',()=>void sound.setEnabled(sound.status()!=='on'));required<HTMLSelectElement>('sound-scene').addEventListener('change',e=>sound.setScene((e.target as HTMLSelectElement).value as SoundScene));required<HTMLInputElement>('sound-volume').addEventListener('input',e=>sound.setVolume(Number((e.target as HTMLInputElement).value)/100));
  updateSoundChrome(sound.status(),sound.getVolume(),sound.getScene());if(!sound.supported()){for(const id of ['sound-button','sound-toggle','sound-scene','sound-volume'])required<HTMLButtonElement>(id).disabled=true;required('sound-state').textContent='Unavailable';}
- pause();setMode('tilt');void connect();
- }catch(error){console.error(`Firehose ${phase} initialization failed`,error instanceof Error ? error.stack : error);stage.dataset.failurePhase=phase;fail(phase==='graphics'?'Firehose needs working WebGL2 graphics. Try reloading, or use Netgraph’s Canvas fallback.':'Firehose could not initialize. Reload to start a fresh box, or open Netgraph.');}}
+ pause();setMode(pachinko?'orbit':'tilt');void connect();
+ }catch(error){console.error(`${title} ${phase} initialization failed`,error instanceof Error ? error.stack : error);stage.dataset.failurePhase=phase;fail(phase==='graphics'?`${title} needs working WebGL2 graphics. Try reloading, or use Netgraph’s Canvas fallback.`:`${title} could not initialize. Reload to start a fresh session, or open Netgraph.`);}}
 
 mountCinematicDock();
 required('tilt-mode').addEventListener('click',()=>setMode('tilt'));required('orbit-mode').addEventListener('click',()=>setMode('orbit'));
 required('pause-button').addEventListener('click',()=>{scenePaused=!scenePaused;pause();});
-required('pour-button').addEventListener('click',()=>{resumeMotion();renderer?.pour();});required('upright-button').addEventListener('click',()=>{resumeMotion();renderer?.upright();});
+required('pour-button').addEventListener('click',()=>{resumeMotion();if(pachinko)post({type:'drain'});else renderer?.pour();});required('upright-button').addEventListener('click',()=>{resumeMotion();renderer?.upright();});
 for(const button of document.querySelectorAll<HTMLButtonElement>('[data-tip]'))button.addEventListener('click',()=>{resumeMotion();const [x,y]=button.dataset.tip!.split(',').map(Number);renderer?.tilt(x!*.25,y!*.25);});
 for(const id of ['reset-button','camera-home'])required(id).addEventListener('click',()=>renderer?.home());required('zoom-in').addEventListener('click',()=>renderer?.zoom(.85));required('zoom-out').addEventListener('click',()=>renderer?.zoom(1.15));
 required('clear-button').addEventListener('click',()=>{pending.clear();renderer?.clearEffects();post({type:'clear'});selectNode(null);});required<HTMLInputElement>('show-links').addEventListener('change',e=>renderer?.setLinks((e.target as HTMLInputElement).checked));
@@ -119,4 +124,4 @@ window.addEventListener(DISPLAY_EVENT,()=>{renderer?.applyDisplay();const key=`$
 document.addEventListener('visibilitychange',()=>{pause();if(!document.hidden){if(feed)void feed.resume();else void connect();}});
 window.addEventListener('online',()=>{if(feed)void feed.resume();else void connect();});window.addEventListener('pageshow',e=>{if(e.persisted){pause();if(feed)void feed.resume();}});window.addEventListener('pagehide',e=>{if(!e.persisted)dispose();});
 inspectorTimer=window.setInterval(()=>{if(!disposed&&!document.hidden&&selectedNode&&!inspector.hidden)selectNode(selectedNode);},60_000);
-start();
+void start();

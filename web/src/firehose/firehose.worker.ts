@@ -8,7 +8,7 @@ let timer:ReturnType<typeof setTimeout>|undefined, last=0, accumulator=0, lastFr
 const pool:ArrayBuffer[]=[];
 function post(value:Output,transfer:Transferable[]=[]){if(!disposed)port.postMessage(value,transfer);}
 function fail(){if(timer)clearTimeout(timer);physics?.destroy();physics=undefined;post({type:'fatal'});disposed=true;}
-function idle(){return Boolean(physics&&physics.sleeping===physics.count&&!physics.queue.length&&Math.abs(physics.rotation.x-physics.target.x)+Math.abs(physics.rotation.y-physics.target.y)+Math.abs(physics.rotation.z-physics.target.z)+Math.abs(physics.rotation.w-physics.target.w)<.0001);}
+function idle(){return Boolean(physics&&!physics.draining&&physics.sleeping===physics.count&&!physics.queue.length&&Math.abs(physics.rotation.x-physics.target.x)+Math.abs(physics.rotation.y-physics.target.y)+Math.abs(physics.rotation.z-physics.target.z)+Math.abs(physics.rotation.w-physics.target.w)<.0001);}
 function schedule(){if(!paused&&!disposed&&physics&&timer===undefined)timer=setTimeout(tick,idle()?80:8);}
 function publish(){if(physics&&pool.length){const buffer=pool.pop()!;physics.snapshot(buffer);post({type:'frame',buffer},[buffer]);lastFrame=performance.now();}}
 function tick(){timer=undefined;if(!physics||paused||disposed)return;try{
@@ -22,9 +22,9 @@ port.onmessage=event=>{const message=event.data;
   if(disposed)return;
   if(message.type==='init'){
     if(initializing||physics)return;initializing=true;
-    void initializePhysics().then(()=>{if(disposed)return;physics=new FirehosePhysics(message.capacity);
+    void initializePhysics().then(()=>{if(disposed)return;physics=new FirehosePhysics(message.capacity,message.mode);
       physics.onAccepted=(id,slots)=>post({type:'accepted',id,slots});physics.onRejected=id=>post({type:'rejected',id});physics.onRemoved=ids=>post({type:'removed',ids});
-      physics.onImpact=(x,z,kind)=>post({type:'impact',x,z,kind});
+      physics.onImpact=(x,z,kind,y)=>post({type:'impact',x,z,kind,y});
       post({type:'ready',capacity:physics.capacity,radius:physics.radius});last=performance.now();schedule();
     }).catch(fail);return;
   }
@@ -33,5 +33,6 @@ port.onmessage=event=>{const message=event.data;
   if(message.type==='packet'){if(physics&&!paused){const wasIdle=idle();physics.enqueue(message.packet);if(wasIdle&&timer!==undefined){clearTimeout(timer);timer=undefined;schedule();}}else post({type:'rejected',id:message.packet.id});return;}
   if(message.type==='rotation'){const wasIdle=idle();physics?.setRotation(message.rotation);if(wasIdle&&timer!==undefined){clearTimeout(timer);timer=undefined;schedule();}return;}
   if(message.type==='clear'){physics?.clear();publish();return;}
+  if(message.type==='drain'){physics?.drain();if(timer)clearTimeout(timer);timer=undefined;last=performance.now();schedule();return;}
   if(message.type==='dispose'){disposed=true;if(timer)clearTimeout(timer);physics?.destroy();physics=undefined;pool.length=0;}
 };

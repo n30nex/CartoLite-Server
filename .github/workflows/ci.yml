@@ -15,8 +15,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.11.0, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:c2c3459c8369027e2bec54493db0df428c12e34008d7c22a6ab910b0d1c619bc
+  # Exact published 0.11.1, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:2e429a63517e2b288076d5733537922a2ecdc1a1340d93ad51446d97b9f907b8
 
 jobs:
   backend:
@@ -139,7 +139,7 @@ jobs:
             --mount source=cartolite-server-ci-data,target=/data \
             -e MQTT_BROKER_URL=tcp://cartolite-server-mqtt:1883 \
             -e MQTT_TOPIC=meshcore/# -e MQTT_CLIENT_ID=cartolite-server-ci \
-            -e EXTRA_PAGES=terminal,chronoscope,firehose \
+            -e EXTRA_PAGES=terminal,chronoscope,firehose,pachinko \
             cartolite-server:ci
           for _ in $(seq 1 90); do
             curl --fail --silent http://127.0.0.1:39476/readyz >/dev/null && exit 0
@@ -171,7 +171,7 @@ jobs:
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: firehose-playwright-report
-        run: bash ../scripts/browser-ci.sh firehose.spec.ts --retries 0 --output firehose-test-results
+        run: bash ../scripts/browser-ci.sh firehose.spec.ts pachinko.spec.ts --retries 0 --output firehose-test-results
       - name: Preserve Firehose evidence
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -263,7 +263,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          bash ../scripts/browser-ci.sh --grep-invert 'long session|Firehose|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'long session|Firehose|Pachinko|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

@@ -17,7 +17,7 @@ test('Chronoscope presents regional time depth in a reproducible showcase',async
   await page.evaluate(({nodes,links,crosses})=>{
     const scene=(window as any).__chrono,at=performance.now();
     const segments=(routes:typeof links)=>routes.map(r=>({routeId:r.id,from:nodes.find(n=>n.id===r.fromId)!,to:nodes.find(n=>n.id===r.toId)!}));
-    for(let i=1;i<=24;i++)scene.timeline.add({seq:i,id:`history-${i}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK'][i%4],mode:'route',segments:segments(i%4===0?crosses:[links[i%links.length]!])},at-55_000+i*1_500);
+    for(let i=1;i<=24;i++)scene.timeline.add({seq:i,id:`history-${i}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK'][i%4],mode:'route',segments:segments(i%4===0?crosses:[links[i%links.length]!])},at-140_000+i*5_000);
     scene.addPacket({seq:25,id:'current',at:Date.now(),payloadType:'Text',mode:'route',segments:segments(crosses)});
   },{nodes,links,crosses});
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-active-count','1');
@@ -128,7 +128,7 @@ test('Chronoscope keeps the camera still when a distant region appears',async({p
   const before=await page.evaluate(()=>{const scene=(window as any).__chrono;return scene.projectEndpoint(scene.nodes.get('visual-a'));});
   await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-node',{detail:{seq:1,node:{id:'new-region',label:'New region radio',lat:-17.7,lng:179.8,role:'repeater',observer:false,lastSeen:Date.now()}}})));
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-total-nodes','4');
-  expect(await page.evaluate(()=>{const scene=(window as any).__chrono;return scene.projectEndpoint(scene.nodes.get('visual-a'));})).toEqual(before);
+  const after=await page.evaluate(()=>{const scene=(window as any).__chrono;return scene.projectEndpoint(scene.nodes.get('visual-a'));});expect(after.x).toBeCloseTo(before.x,8);expect(after.y).toBeCloseTo(before.y,8);
   await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-event-count','0');
 });
 
@@ -170,4 +170,24 @@ test('Chronoscope retains 7000 links and bounds live geometry without fetching a
   expect(Number(await page.locator('#chronoscope-stage').getAttribute('data-event-count'))).toBeLessThanOrEqual(1024);
   await page.locator('#find-button').click();await page.locator('#node-search').fill('Node 42');await expect(page.locator('.node-search-result').first()).toBeVisible();await page.keyboard.press('Escape');
   await page.screenshot({path:info.outputPath('chronoscope-dense.png')});
+});
+
+
+test('Chronoscope 3D camera preserves a settled sculpture through appearance and context recovery',async({page},info)=>{
+  test.skip(info.project.name!=='desktop');await visualFixture(page);
+  await page.addInitScript(()=>window.addEventListener('cartolite-chronoscope-ready',event=>{(window as any).__chrono=(event as CustomEvent).detail.scene;}));
+  await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
+  await page.evaluate(()=>{const scene=(window as any).__chrono,now=performance.now();for(let seq=1;seq<=30;seq++)scene.timeline.add({seq,id:`stack-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:[{routeId:'visual-hop',from:scene.nodes.get('visual-a'),to:scene.nodes.get('visual-b')}]},now-180_000+seq*100);scene.setWindow(60);});
+  const stage=page.locator('#chronoscope-stage');await expect(stage).toHaveAttribute('data-camera-mode','orbit');await expect(stage).toHaveAttribute('data-settled-count','30');await expect(stage).toHaveAttribute('data-active-count','0');
+  const before=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());
+  await stage.focus();await page.keyboard.press('Shift+ArrowRight');await page.keyboard.press('Shift+ArrowDown');
+  const moved=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());expect(Math.hypot(...moved.map((v:number,i:number)=>v-before[i]))).toBeGreaterThan(.1);
+  await page.locator('#time-button').click();await page.locator('#freeze-button').click();await page.keyboard.press('Escape');
+  await openDisplay(page);await page.locator('[data-display="basemap"]').selectOption('light');await page.keyboard.press('Escape');
+  const themed=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());themed.forEach((v:number,i:number)=>expect(v).toBeCloseTo(moved[i],8));await expect(stage).toHaveAttribute('data-settled-count','30');
+  await page.screenshot({path:info.outputPath('chronoscope-stacked-3d.png')});
+  await page.evaluate(()=>{const extension=(window as any).__chrono.gpu.getContext().getExtension('WEBGL_lose_context');extension.loseContext();setTimeout(()=>extension.restoreContext(),150);});
+  await expect(stage).toHaveAttribute('data-graphics-ready','true',{timeout:15000});await expect(stage).toHaveAttribute('data-frozen','true');await expect(stage).toHaveAttribute('data-event-count','30');
+  await page.locator('#time-button').click();await page.locator('#clear-sculpture').click();await expect(stage).toHaveAttribute('data-event-count','0');await expect(stage).toHaveAttribute('data-settled-count','0');
+  expect(await page.evaluate(()=>(window as any).__chrono.metrics.stackRecords)).toBe(0);
 });

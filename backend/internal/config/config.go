@@ -98,14 +98,14 @@ func extraPages() ([]string, error) {
 		switch item {
 		case "":
 			continue
-		case "terminal", "chronoscope", "firehose":
+		case "terminal", "chronoscope", "firehose", "pachinko":
 			selected[item] = true
 		default:
-			return nil, fmt.Errorf("EXTRA_PAGES accepts only terminal, chronoscope and firehose (comma-separated)")
+			return nil, fmt.Errorf("EXTRA_PAGES accepts only terminal, chronoscope, firehose and pachinko (comma-separated)")
 		}
 	}
 	var pages []string
-	for _, page := range []string{"terminal", "chronoscope", "firehose"} {
+	for _, page := range []string{"terminal", "chronoscope", "firehose", "pachinko"} {
 		if selected[page] {
 			pages = append(pages, page)
 		}

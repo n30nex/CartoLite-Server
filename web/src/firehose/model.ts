@@ -8,27 +8,38 @@ export const MAX_PENDING = 48;
 export const BOX = { width: 4.8, depth: 3.2, height: 0.9, centerY: 0.45 } as const;
 export const SPOUT = { x: -0.65, y: 3.15, z: -0.2 } as const;
 export const PIT_Y = -4.8;
-export const HEADER = 16;
+export const HEADER = 24;
 export const TEXTURE_WIDTH = 128;
+export type MachineMode = 'firehose' | 'pachinko';
+export const PACHINKO = { lanePitch: 1.08, laneWidth: .98, top: 4.5, boardBottom: -1.7, floor: -3.3, lip: -2.35, back: .02, front: .82, pegRadius: .11, rows: 7, rowGap: .68, pegTop: 3.5, pit: -6 } as const;
+export function laneCenter(kind: number): number { return (kind - 2.5) * PACHINKO.lanePitch; }
 export interface Rotation { x: number; y: number; z: number; w: number }
 export const UPRIGHT: Rotation = { x: 0, y: 0, z: 0, w: 1 };
 export interface PacketShape { kind: number; nodes: string[]; links: [number, number][] }
 export interface PhysicalPacket { id: number; kind: number; beads: number; links: [number, number][] }
-export type Input = { type: 'init'; capacity: number } | { type: 'packet'; packet: PhysicalPacket }
+export type Input = { type: 'init'; capacity: number; mode?: MachineMode } | { type: 'packet'; packet: PhysicalPacket }
   | { type: 'rotation'; rotation: Rotation } | { type: 'pause'; paused: boolean }
-  | { type: 'recycle'; buffer: ArrayBuffer } | { type: 'clear' } | { type: 'dispose' };
+  | { type: 'recycle'; buffer: ArrayBuffer } | { type: 'clear' } | { type: 'drain' } | { type: 'dispose' };
 export type Output = { type: 'ready'; capacity: number; radius: number }
-  | { type: 'impact'; x:number; z:number; kind:number }
+  | { type: 'impact'; x:number; z:number; kind:number; y?:number }
   | { type: 'accepted'; id: number; slots: number[] }
   | { type: 'removed'; ids: number[] } | { type: 'rejected'; id: number }
   | { type: 'frame'; buffer: ArrayBuffer } | { type: 'fatal' };
 export function frameSize(capacity: number): number { return HEADER + capacity * 8; }
-export function particleRadius(capacity: number): number {
+export function particleRadius(capacity: number, mode: MachineMode = 'firehose'): number {
   // Packing leaves air gaps. Reserve capacity for beads still falling/spilling,
   // so a settled pile cannot consume every slot and stop the visible overflow.
-  return Math.cbrt(BOX.width * BOX.depth * BOX.height / (capacity * 4 * Math.PI / 3));
+  const volume = mode === 'pachinko' ? 6 * PACHINKO.laneWidth * (PACHINKO.front - PACHINKO.back) * (PACHINKO.lip - PACHINKO.floor) / .6 : BOX.width * BOX.depth * BOX.height;
+  return Math.cbrt(volume / (capacity * 4 * Math.PI / 3));
 }
-export function capacityFor(coarse: boolean, quality: string): number {
+
+/** Pachinko represents a whole observed packet with one dot, never a drawn hop. */
+export function pachinkoShape(packet: PacketView): PacketShape | undefined {
+  const shape = packetShape(packet);
+  return shape ? { kind: shape.kind, nodes: shape.nodes, links: [] } : undefined;
+}
+export function capacityFor(coarse: boolean, quality: string, mode: MachineMode = 'firehose'): number {
+  if (mode === 'pachinko') return coarse ? quality === 'high' ? 1536 : quality === 'economy' ? 512 : 1024 : quality === 'high' ? 3072 : quality === 'economy' ? 1024 : 2048;
   return coarse ? quality === 'high' ? 2048 : quality === 'economy' ? 768 : 1280
     : quality === 'high' ? 4096 : quality === 'economy' ? 1536 : 3072;
 }

@@ -22,11 +22,11 @@
       <section id="time-panel" class="chrono-panel glass" aria-label="Time and activity settings" hidden>
         <header><strong>Time &amp; activity</strong><button type="button" data-close="time" aria-label="Close time settings">×</button></header>
         <label>View<select id="chrono-mode" aria-label="Chronoscope view"><option value="sculpture">Sculpture</option><option value="slice">Slice</option><option value="flat">Flat</option></select></label>
-        <label>Window<select id="chrono-window" aria-label="Activity time window"><option value="30">30 seconds</option><option value="60" selected>60 seconds</option><option value="120">2 minutes</option></select></label>
+        <label><span id="chrono-window-label">Fall time for new packets</span><select id="chrono-window" aria-label="Activity time window"><option value="30">30 seconds</option><option value="60" selected>60 seconds</option><option value="120">2 minutes</option></select></label>
         <div class="chrono-actions"><button id="freeze-button" type="button" aria-pressed="false">Freeze view</button><button id="live-button" type="button">Return to live</button></div>
         <label id="slice-control" hidden>Moment<output id="slice-output">Now · ±2s</output><input id="slice-time" aria-label="Moment to inspect" type="range" min="0" max="60" step="1" value="0"></label>
         <p>Bright marks are live packets. Earlier traces fade into the time volume. Freeze keeps a still view while new activity continues to arrive.</p>
-        <h2>Recent activity</h2><div id="recent-events" class="chrono-recent"><p>Waiting for activity.</p></div>
+        <h2>Recent activity</h2><button id="clear-sculpture" type="button">Clear session sculpture</button><div id="recent-events" class="chrono-recent"><p>Waiting for activity.</p></div>
       </section>
     </div>
     <div id="find-control" class="popover-control">
@@ -48,10 +48,10 @@
     </div>
     <button id="reset-button" class="control-button" type="button" aria-label="Fit the whole mesh">⌂ <span>Fit</span></button>
   </section>
-  <p id="chrono-help" class="visually-hidden">Drag to pan, pinch or scroll to zoom. Arrow keys pan, plus and minus zoom, Home fits the mesh. Shift-left and Shift-right rotate the sculpture. Time offers freeze, a moment slice, and keyboard-accessible recent packets. Depth represents elapsed time, not altitude.</p>
-  <aside id="legend" class="legend glass" aria-label="Chronoscope legend"><div class="packet-legend"><span><i data-kind="Advert"></i>Advert</span><span><i data-kind="Trace"></i>Trace</span><span><i data-kind="Text"></i>Text</span><span><i data-kind="ACK"></i>ACK</span><span><i data-kind="Control"></i>Control</span></div></aside>
+  <p id="chrono-help" class="visually-hidden">In Sculpture, drag to orbit in 3D. In Flat and Slice, drag to pan. Two fingers or right-drag pan; pinch or scroll zoom. Arrow keys pan, plus and minus zoom, Home fits the mesh. Shift-arrow keys rotate and tilt the sculpture. Time offers freeze, a moment slice, and keyboard-accessible recent packets. Fresh observations descend into a bounded session sculpture. Height is illustrative, not radio altitude or signal strength.</p>
+  <aside id="legend" class="legend glass" aria-label="Chronoscope legend"><div class="packet-legend"><span><i data-kind="Advert"></i>Advert</span><span><i data-kind="Trace"></i>Trace</span><span><i data-kind="Text"></i>Text</span><span><i data-kind="ACK"></i>ACK</span><span><i data-kind="Control"></i>Control</span><span><i data-kind="Other"></i>Other</span></div></aside>
   <aside id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected activity" hidden></aside>
-  <section id="fatal" class="fatal glass" role="alert" hidden><p>Chronoscope could not connect.</p><a class="control-button" href="">Try again</a><a class="control-button" href="/">Open map</a></section>
+  <section id="fatal" class="fatal glass" role="alert" hidden><p>Chronoscope could not connect.</p><a class="control-button" href="">Try again</a><a class="control-button" href="/netgraph/">Open Netgraph</a></section>
 </main>
 <script type="module" src="/src/chronoscope/main.ts"></script>
 </body>

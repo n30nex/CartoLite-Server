@@ -36,10 +36,10 @@ export async function visualFixture(page: Page, zoom = 10.2, detail = false): Pr
       private receive = (event: Event) => this.dispatchEvent(new MessageEvent('packet', { data: JSON.stringify((event as CustomEvent).detail) }));
       private hello = (event: Event) => this.dispatchEvent(new MessageEvent('hello', { data: JSON.stringify((event as CustomEvent).detail) }));
       constructor() {
-        super(); window.addEventListener('visual-packet', this.receive); window.addEventListener('visual-node', this.node); window.addEventListener('visual-hello', this.hello);
+        super(); document.documentElement.dataset.fixtureStreamsOpened=String(Number(document.documentElement.dataset.fixtureStreamsOpened??0)+1); document.documentElement.dataset.fixtureStreamsActive=String(Number(document.documentElement.dataset.fixtureStreamsActive??0)+1); window.addEventListener('visual-packet', this.receive); window.addEventListener('visual-node', this.node); window.addEventListener('visual-hello', this.hello);
         setTimeout(() => { this.onopen?.(new Event('open')); document.documentElement.dataset.fixtureStream = 'ready'; }, 0);
       }
-      close(): void { this.readyState = 2; window.removeEventListener('visual-packet', this.receive); window.removeEventListener('visual-node', this.node); window.removeEventListener('visual-hello', this.hello); }
+      close(): void { if(this.readyState===2)return;this.readyState = 2;document.documentElement.dataset.fixtureStreamsActive=String(Math.max(0,Number(document.documentElement.dataset.fixtureStreamsActive??0)-1)); window.removeEventListener('visual-packet', this.receive); window.removeEventListener('visual-node', this.node); window.removeEventListener('visual-hello', this.hello); }
     }
     Object.defineProperty(window, 'EventSource', { value: FixtureStream });
   }, { center: visualCenter, zoom, detail });

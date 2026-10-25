@@ -1,9 +1,11 @@
+import type { CartoView } from './viewNavigation';
+
 /** Rehome existing controls on phones; their handlers and saved state stay intact. */
-export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, view: 'Map' | 'Netgraph' | 'Terminal' | 'Chronoscope' | 'Firehose' | 'Labs'): void {
+export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, view: CartoView): void {
   const compact = matchMedia('(max-width: 900px), (pointer: coarse)');
   const root = document.documentElement;
   const host = document.createElement('div'); host.className = 'view-menu';
-  host.innerHTML = `<button id="view-button" class="control-button" type="button" aria-label="Switch view" aria-controls="view-panel" aria-expanded="false"><span aria-hidden="true">▾</span><span>${view === 'Netgraph' ? 'Graph' : view === 'Terminal' ? 'TTY' : view === 'Chronoscope' ? 'Chrono' : view === 'Firehose' ? 'Hose' : view}</span></button><section id="view-panel" class="glass" aria-label="Views and view tools" hidden><header><strong>View</strong><button type="button" aria-label="Close view menu">×</button></header><div class="view-actions"></div></section>`;
+  host.innerHTML = `<button id="view-button" class="control-button" type="button" aria-label="Switch view" aria-controls="view-panel" aria-expanded="false"><span aria-hidden="true">▾</span><span>${view === 'Netgraph' ? 'Graph' : view === 'Terminal' ? 'TTY' : view === 'Chronoscope' ? 'Chrono' : view === 'Firehose' ? 'Hose' : view === 'Pachinko' ? 'Pachi' : view}</span></button><section id="view-panel" class="glass" aria-label="Views and view tools" hidden><header><strong>View</strong><button type="button" aria-label="Close view menu">×</button></header><div class="view-actions"></div></section>`;
   controls.prepend(host);
   const button = host.querySelector<HTMLButtonElement>('#view-button')!;
   const panel = host.querySelector<HTMLElement>('#view-panel')!;
@@ -47,8 +49,8 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
     for (const item of controls.querySelectorAll<HTMLElement>(view === 'Labs'
       ? '#reset-button,#exhibit-button,#info-button,#labs-display-button,#labs-sound-options'
       : '#reset-button,#display-shortcut,#help-button')) move(item, actions);
-    if (view === 'Chronoscope' || view === 'Firehose') move(document.getElementById('display-button'), actions);
-    if (view === 'Firehose') move(document.getElementById('legend'), panel);
+    if (view === 'Chronoscope' || view === 'Firehose' || view === 'Pachinko') move(document.getElementById('display-button'), actions);
+    if (view === 'Firehose' || view === 'Pachinko' || view === 'Chronoscope') move(document.getElementById('legend'), panel);
     if (view === 'Netgraph') {
       const display = document.getElementById('display-panel')!;
       if (!traffic) { traffic = document.createElement('section'); traffic.className = 'mobile-network-controls'; traffic.setAttribute('aria-label', 'Traffic and regions'); display.querySelector('header')!.after(traffic); }

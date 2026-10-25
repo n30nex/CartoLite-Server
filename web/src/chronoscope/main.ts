@@ -16,7 +16,7 @@ import { mountSoundPreview } from '../soundPreview';
 import { NetgraphRegionResolver } from '../netgraph/areas';
 import { mountGraphFollow } from '../netgraph/follow';
 import { normalizePacketKind } from '../trafficVisuals';
-import { ChronoscopeRenderer } from './renderer';
+import { createChronoscopeRenderer, type ChronoscopeRenderer } from './renderer';
 import { normalizeChronoscope, type ChronoscopeMode, type Observation } from './timeline';
 import { UI_STORAGE_KEY } from '../preferences';
 
@@ -71,11 +71,12 @@ function sync() {
   sonifier?.setPaused(document.hidden||frozen);
   required('regions-button').toggleAttribute('data-filtered',settings.regions!==null);
   const missing=settings.regions?.length&&!renderer.regions.some(area=>settings.regions!.includes(area.code));
-  const time=settings.mode==='slice'?`around ${renderer.sliceSeconds}s ago (±2s)`:`${settings.seconds}s window`;
+  const time=settings.mode==='slice'?`around ${renderer.sliceSeconds}s ago (±2s)`:settings.mode==='sculpture'&&renderer.timeline.retainSculpture?`${settings.seconds}s fall · ${'settledCount' in renderer?renderer.settledCount:0} settled`:`${settings.seconds}s window`;
+  const timeLabel=document.getElementById('chrono-window-label');if(timeLabel)timeLabel.textContent=settings.mode==='sculpture'&&renderer.timeline.retainSculpture?'Fall time for new packets':'Recent time window';
   if(settings.mode==='slice'){slice.value=String(renderer.sliceSeconds);required<HTMLOutputElement>('slice-output').value=`${renderer.sliceSeconds===0?'Now':`${renderer.sliceSeconds}s ago`} · ±2s`;}
-  const copy=(frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${time}${renderer.timeline.trimmed?' · oldest trails capped':''}` :settings.mode==='slice'?`No observed events ${time}`:(frozen?'No events in this frozen window':'Waiting for activity'));
+  const copy=(stage.dataset.graphicsReady==='false'?'Restoring graphics · ':frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${time}${renderer.timeline.trimmed?' · oldest observations capped':''}` :settings.mode==='slice'?`No observed events ${time}`:(frozen?'No events in this frozen window':'Waiting for activity'));
   if(caption.textContent!==copy)caption.textContent=copy;
-  const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase();if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
+  const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase()+(stage.dataset.cameraMode==='canvas'?' · 2D FALLBACK':'');if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
   if(!required('time-panel').hidden)updateRecent();
 }
 function updateRecent() {
@@ -131,7 +132,7 @@ function dispose() {disposed=true;if(minuteTimer!==undefined)clearInterval(minut
 
 async function start() {
   try {
-    const scene=new ChronoscopeRenderer(stage,required<HTMLCanvasElement>('chrono-canvas'),required<HTMLCanvasElement>('chrono-effects'),{node:selectNode,packet:inspectPacket,change:sync});renderer=scene;
+    const scene=await createChronoscopeRenderer(stage,required<HTMLCanvasElement>('chrono-canvas'),required<HTMLCanvasElement>('chrono-effects'),{node:selectNode,packet:inspectPacket,change:sync});if(disposed){scene.destroy();return;}renderer=scene;
     const areas=new NetgraphRegionResolver();resolver=areas;
     const initial=await fetchState();if(disposed)return;
     try{scene.setAssignments(await areas.resolve(initial.nodes));}catch{/* Coordinate-derived fallback remains usable. */}
@@ -173,6 +174,7 @@ async function start() {
 }
 
 configurePanels();mountCinematicDock();
+required('clear-sculpture').addEventListener('click',()=>{renderer?.clear();recentSignature='';selected=null;rememberNode(null);inspector.hidden=true;sync();});
 mode.addEventListener('change',()=>{settings.mode=mode.value as ChronoscopeMode;if(settings.mode!=='slice')liveMode=settings.mode;renderer?.setMode(settings.mode);required('slice-control').hidden=settings.mode!=='slice';save();sync();});
 windowSize.addEventListener('change',()=>{settings=normalizeChronoscope({...settings,seconds:Number(windowSize.value)});renderer?.setWindow(settings.seconds);slice.max=String(settings.seconds);save();sync();});
 freeze.addEventListener('click',()=>{if(renderer?.frozen)returnLive();else renderer?.freeze();});required('live-button').addEventListener('click',returnLive);

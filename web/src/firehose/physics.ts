@@ -1,7 +1,7 @@
 import { BOX, HEADER, MAX_PACKET_BEADS, MAX_PACKET_LINKS, MAX_PENDING, PIT_Y, SPOUT, UPRIGHT,
-  approachRotation, frameSize, normalizedRotation, particleRadius, type PhysicalPacket, type Rotation } from './model';
+  approachRotation, frameSize, normalizedRotation, particleRadius, PACHINKO, laneCenter, type MachineMode, type PhysicalPacket, type Rotation } from './model';
 
-interface Group { id:number; kind:number; slots:number[]; links:[number,number][]; lengths:number[]; landed:boolean; born:number }
+interface Group { id:number; kind:number; slots:number[]; links:[number,number][]; lengths:number[]; landed:boolean; born:number; lastImpact:number }
 const DT=1/60, HASH_SIZE=16384;
 const walls=[
   [BOX.width/2+.09,.08,BOX.depth/2+.09,0,-BOX.height/2-.08,0],
@@ -31,37 +31,43 @@ export class FirehosePhysics {
   #kinds:Uint8Array;#owners:(Group|undefined)[];#active:Int32Array;#activeCount=0;
   #heads=new Int32Array(HASH_SIZE);#next:Int32Array;#cell:Int32Array;
   #rotation=new Float64Array(9);#oldRotation=new Float64Array(9);#inletCredit=16;#turning=false;
+  #drainUntil=0;
   onAccepted=(_id:number,_slots:number[])=>{};onRejected=(_id:number)=>{};onRemoved=(_ids:number[])=>{};
-  onImpact=(_x:number,_z:number,_kind:number)=>{};
-  constructor(readonly capacity:number){
+  onImpact=(_x:number,_z:number,_kind:number,_y=0)=>{};
+  constructor(readonly capacity:number,readonly mode:MachineMode='firehose'){
+    if(mode!=='firehose'&&mode!=='pachinko')throw new Error('Invalid machine mode');
     if(!Number.isInteger(capacity)||capacity<128||capacity>4096||capacity%128)throw new Error('Invalid physical capacity');
-    this.radius=particleRadius(capacity);this.free=Array.from({length:capacity},(_,i)=>capacity-1-i);this.generations=new Uint32Array(capacity);
+    this.radius=particleRadius(capacity,mode);this.free=Array.from({length:capacity},(_,i)=>capacity-1-i);this.generations=new Uint32Array(capacity);
     this.positions=new Float32Array(capacity*3);this.#before=new Float32Array(capacity*3);this.#velocity=new Float32Array(capacity*3);
     this.#sleep=new Uint8Array(capacity);this.#quiet=new Uint8Array(capacity);this.#contact=new Uint8Array(capacity);this.#kinds=new Uint8Array(capacity);
     this.#owners=new Array(capacity);this.#active=new Int32Array(capacity);this.#next=new Int32Array(capacity);this.#cell=new Int32Array(capacity*3);
     matrix(this.#rotation,this.rotation);
   }
   get count(){return this.capacity-this.free.length;}
+  get draining(){return this.steps<this.#drainUntil;}
+  drain(){if(this.mode!=='pachinko')return;this.#drainUntil=this.steps+180;for(const group of this.groups.values())for(const slot of group.slots)this.#wake(slot);}
   position(slot:number){const i=slot*3;return{x:this.positions[i]!,y:this.positions[i+1]!,z:this.positions[i+2]!};}
   enqueue(packet:PhysicalPacket):boolean{
     if(!Number.isSafeInteger(packet.id)||packet.id<1||this.groups.has(packet.id)||this.queue.some(p=>p.id===packet.id)
       ||!Number.isInteger(packet.beads)||packet.beads<1||packet.beads>MAX_PACKET_BEADS
       ||!Number.isInteger(packet.kind)||packet.kind<0||packet.kind>5||packet.links.length>MAX_PACKET_LINKS
+      ||(this.mode==='pachinko'&&(packet.beads!==1||packet.links.length!==0))
       ||packet.links.some(([a,b])=>!Number.isInteger(a)||!Number.isInteger(b)||a<0||b<0||a>=packet.beads||b>=packet.beads||a===b)
       ||this.queue.length>=MAX_PENDING){this.omitted++;this.onRejected(packet.id);return false;}
     this.queue.push(packet);return true;
   }
-  setRotation(value:Rotation){const target=normalizedRotation(value);if(target)this.target=target;}
+  setRotation(value:Rotation){if(this.mode==='pachinko')return;const target=normalizedRotation(value);if(target)this.target=target;}
   discardPending(){for(const packet of this.queue)this.onRejected(packet.id);this.omitted+=this.queue.length;this.queue.length=0;}
   #spawn(packet:PhysicalPacket){
     if(this.free.length<packet.beads||this.linkCount+packet.links.length>this.capacity*2){this.omitted++;this.onRejected(packet.id);return;}
     const noise=Math.sin(packet.id*12.9898)*43758.5453,phase=(noise-Math.floor(noise))*Math.PI*2,spread=this.radius*(1+Math.sqrt(packet.beads)*.34);
-    const group:Group={id:packet.id,kind:packet.kind,slots:[],links:packet.links,lengths:[],landed:false,born:this.steps};
+    const group:Group={id:packet.id,kind:packet.kind,slots:[],links:packet.links,lengths:[],landed:false,born:this.steps,lastImpact:-100};
     for(let n=0;n<packet.beads;n++){
       const slot=this.free.pop()!,i=slot*3,angle=phase+n*2.399963;group.slots.push(slot);this.#owners[slot]=group;
       this.generations[slot]=(this.generations[slot]!+1)%1_000_000;this.#kinds[slot]=packet.kind;this.#sleep[slot]=this.#quiet[slot]=0;
       this.positions[i]=SPOUT.x+Math.cos(angle)*spread;this.positions[i+1]=SPOUT.y+n*this.radius*.3;this.positions[i+2]=SPOUT.z+Math.sin(angle)*spread;
       this.#velocity[i]=.35+Math.cos(phase)*.3;this.#velocity[i+1]=-5;this.#velocity[i+2]=Math.sin(phase)*.35;
+      if(this.mode==='pachinko'){this.positions[i]=laneCenter(packet.kind)+Math.cos(phase)*this.radius*.6;this.positions[i+1]=PACHINKO.top;this.positions[i+2]=PACHINKO.back+this.radius+.03;this.#velocity[i]=Math.cos(phase)*.5;this.#velocity[i+1]=-2;this.#velocity[i+2]=0;}
     }
     for(const [a,b]of group.links){const i=group.slots[a]!*3,j=group.slots[b]!*3;
       group.lengths.push(Math.max(this.radius*2.6,Math.hypot(this.positions[i]!-this.positions[j]!,this.positions[i+1]!-this.positions[j+1]!,this.positions[i+2]!-this.positions[j+2]!)*1.04));}
@@ -141,6 +147,30 @@ export class FirehosePhysics {
     }
     if(hit){p[i]=m[0]!*x+m[1]!*y+m[2]!*z;p[i+1]=m[3]!*x+m[4]!*y+m[5]!*z+BOX.centerY;p[i+2]=m[6]!*x+m[7]!*y+m[8]!*z;this.#contact[slot]=1;}
   }
+  #pachinkoWalls(slot:number){
+    const i=slot*3,p=this.positions,r=this.radius,group=this.#owners[slot]!,center=laneCenter(group.kind),half=PACHINKO.laneWidth/2;
+    let x=p[i]!,y=p[i+1]!,z=p[i+2]!,contact=false;
+    if(y>PACHINKO.boardBottom){
+      const bounded=Math.max(center-half+r,Math.min(center+half-r,x));contact=bounded!==x;x=bounded;
+      z=PACHINKO.back+r+.03;
+      for(let row=0;row<PACHINKO.rows;row++){
+        const px=center+(row%2?.17:-.17),py=PACHINKO.pegTop-row*PACHINKO.rowGap,limit=PACHINKO.pegRadius+r;
+        if(Math.abs(y-py)>limit)continue;
+        let dx=x-px,dy=y-py,d=Math.hypot(dx,dy);if(d>=limit)continue;
+        if(Math.abs(dx)<.001){dx=(group.id%2?1:-1)*.001;d=Math.hypot(dx,dy);}
+        const scale=(limit-d)/Math.max(.0001,d);x+=dx*scale;y+=dy*scale;contact=true;
+        if(this.steps-group.lastImpact>12){group.lastImpact=this.steps;this.onImpact(px,z,group.kind,py);}
+      }
+    }else if(z<PACHINKO.front+r&&this.#before[i+1]!>=PACHINKO.floor-r){
+      const bounded=Math.max(center-half+r,Math.min(center+half-r,x));contact=bounded!==x;x=bounded;
+      if(z<PACHINKO.back+r){z=PACHINKO.back+r;contact=true;}
+      if(!this.draining){
+        if(y<PACHINKO.floor+r){y=PACHINKO.floor+r;contact=true;if(!group.landed){group.landed=true;this.onImpact(x,z,group.kind,y);}}
+        if(y<PACHINKO.lip+r&&z>PACHINKO.front-r){z=PACHINKO.front-r;contact=true;}
+      }
+    }
+    p[i]=x;p[i+1]=y;p[i+2]=z;if(contact)this.#contact[slot]=1;
+  }
   step(){const started=performance.now();this.#oldRotation.set(this.#rotation);
     this.#inletCredit=Math.min(MAX_PACKET_BEADS,this.#inletCredit+8);
     if(this.queue.length&&this.queue[0]!.beads<=this.#inletCredit){const packet=this.queue.shift()!;this.#inletCredit-=packet.beads;this.#spawn(packet);}
@@ -154,10 +184,10 @@ export class FirehosePhysics {
       // leave a suspended pile. Supported particles go straight back to sleep.
       if(this.#sleep[s]&&(s&15)===(this.steps&15)){this.#sleep[s]=0;this.#quiet[s]=44;}
       if(this.#sleep[s])continue;
-      v[i+1]!-=9.81*DT;for(let axis=0;axis<3;axis++)p[i+axis]!+=v[i+axis]!*DT;
+      v[i+1]!-=9.81*DT;if(this.mode==='pachinko'&&p[i+1]!<=PACHINKO.boardBottom)v[i+2]!+=.65*DT;for(let axis=0;axis<3;axis++)p[i+axis]!+=v[i+axis]!*DT;
     }
     for(let iteration=0;iteration<3;iteration++){
-      this.#contacts();this.#ropes();for(let n=0;n<this.#activeCount;n++){const s=this.#active[n]!;if(!this.#sleep[s])this.#walls(s);}
+      this.#contacts();this.#ropes();for(let n=0;n<this.#activeCount;n++){const s=this.#active[n]!;if(!this.#sleep[s]){if(this.mode==='pachinko')this.#pachinkoWalls(s);else this.#walls(s);}}
     }
     this.sleeping=0;
     for(let n=0;n<this.#activeCount;n++){const s=this.#active[n]!,i=s*3;if(this.#sleep[s]){this.sleeping++;continue;}
@@ -165,28 +195,29 @@ export class FirehosePhysics {
       let vx=(p[i]!-this.#before[i]!)/DT*friction,vy=(p[i+1]!-this.#before[i+1]!)/DT*friction,vz=(p[i+2]!-this.#before[i+2]!)/DT*friction;
       // The inlet guides fresh groups downward. Resolving their initial overlap
       // must not turn numerical separation into sideways launch energy.
-      if(p[i+1]!>SPOUT.y-.65&&this.steps-this.#owners[s]!.born<12){vx=Math.max(-.8,Math.min(.8,vx));vz=Math.max(-.8,Math.min(.8,vz));vy=Math.min(-3,vy);}
+      if(this.mode==='firehose'&&p[i+1]!>SPOUT.y-.65&&this.steps-this.#owners[s]!.born<12){vx=Math.max(-.8,Math.min(.8,vx));vz=Math.max(-.8,Math.min(.8,vz));vy=Math.min(-3,vy);}
       const speed=Math.hypot(vx,vy,vz);if(speed>10){const scale=10/speed;vx*=scale;vy*=scale;vz*=scale;}
       v[i]=vx;v[i+1]=vy;v[i+2]=vz;
-      this.#quiet[s]=!turning&&this.#contact[s]&&speed<.12?Math.min(45,this.#quiet[s]!+1):0;
+      this.#quiet[s]=!turning&&!this.draining&&(this.mode==='firehose'||p[i+1]!<PACHINKO.boardBottom)&&this.#contact[s]&&speed<.12?Math.min(45,this.#quiet[s]!+1):0;
       if(this.#quiet[s]===45){this.#sleep[s]=1;v[i]=v[i+1]=v[i+2]=0;this.sleeping++;}
     }
     const removed:number[]=[];
     for(const group of this.groups.values()){
-      let escaped=true,invalid=false;for(const s of group.slots){const i=s*3,x=p[i]!,y=p[i+1]!,z=p[i+2]!;if(y>PIT_Y&&Math.abs(x)<16&&Math.abs(z)<16)escaped=false;if(!Number.isFinite(x+y+z))invalid=true;}
+      let escaped=true,invalid=false;for(const s of group.slots){const i=s*3,x=p[i]!,y=p[i+1]!,z=p[i+2]!;if(y>(this.mode==='pachinko'?PACHINKO.pit:PIT_Y)&&Math.abs(x)<16&&Math.abs(z)<16)escaped=false;if(!Number.isFinite(x+y+z))invalid=true;}
       if(escaped||invalid){this.#remove(group);removed.push(group.id);if(escaped)this.drained++;else this.omitted++;}
     }
     if(removed.length)this.onRemoved(removed);this.steps++;this.stepMs=performance.now()-started;this.maxStepMs=Math.max(this.maxStepMs,this.stepMs);
   }
   #remove(group:Group){for(const s of group.slots){if(this.#sleep[s])this.sleeping--;this.#owners[s]=undefined;this.free.push(s);}this.linkCount-=group.links.length;this.groups.delete(group.id);}
-  clear(){this.discardPending();const ids=[...this.groups.keys()];for(const g of this.groups.values())this.#remove(g);this.sleeping=0;if(ids.length)this.onRemoved(ids);}
+  clear(){this.discardPending();this.#drainUntil=0;const ids=[...this.groups.keys()];for(const g of this.groups.values())this.#remove(g);this.sleeping=0;if(ids.length)this.onRemoved(ids);}
   snapshot(buffer:ArrayBuffer){const data=new Float32Array(buffer);if(data.length!==frameSize(this.capacity))throw new Error('Invalid frame buffer');data.fill(0);
     data.set([this.count,this.linkCount,this.groups.size,this.sleeping,this.stepMs,this.omitted,this.drained,this.accepted,this.rotation.x,this.rotation.y,this.rotation.z,this.rotation.w,this.radius,this.steps,this.queue.length,this.maxStepMs]);
     let link=HEADER+this.capacity*4;
     for(const g of this.groups.values()){
+      if(this.mode==='pachinko'&&g.slots.some(s=>this.positions[s*3+1]!<PACHINKO.boardBottom&&this.positions[s*3+1]!>=PACHINKO.floor&&this.positions[s*3+2]!<PACHINKO.front))data[16+g.kind]!++;
       for(const s of g.slots){const i=s*3,at=HEADER+s*4;data[at]=this.positions[i]!;data[at+1]=this.positions[i+1]!;data[at+2]=this.positions[i+2]!;data[at+3]=this.generations[s]!*8+this.#kinds[s]!+1;}
       for(const [a,b]of g.links){data[link++]=g.slots[a]!;data[link++]=g.slots[b]!;}
-    }return data;
+    }data[22]=this.draining?1:0;return data;
   }
   destroy(){this.queue.length=0;this.groups.clear();this.#owners.fill(undefined);}
 }

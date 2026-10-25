@@ -14,19 +14,19 @@ for (const path of ['/', '/netgraph/']) test(`operator pages control desktop and
     const body = (await response.text()).replace(/data-extra-pages="[^"]*"/, `data-extra-pages="${extraPages}"`);
     await route.fulfill({ response, body });
   });
-  for (const extras of ['', 'terminal,firehose']) {
+  for (const extras of ['', 'terminal,firehose', 'pachinko']) {
     extraPages = extras;
     await page.goto(path);
     await expect(page.locator('html')).toHaveAttribute('data-cinematic', 'true');
     await openViewMenu(page);
     await expect(page.getByRole('link', { name: 'Open CartoLite map', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open CartoLite Netgraph', exact: true })).toBeVisible();
-    for (const label of ['Terminal', 'Chronoscope', 'Firehose']) {
+    for (const label of ['Terminal', 'Chronoscope', 'Firehose', 'Pachinko']) {
       const link = page.getByRole('link', { name: `Open CartoLite ${label}`, exact: true });
       if (extras.includes(label.toLowerCase())) await expect(link).toBeVisible();
       else await expect(link).toHaveCount(0);
     }
     await expect(page.getByRole('link', { name: /Labs/ })).toHaveCount(0);
   }
-  expect(requests.filter(url => /\/assets\/(?:firehose|chronoscope|terminal)[^/]*\.js/.test(url))).toEqual([]);
+  expect(requests.filter(url => /\/assets\/(?:firehose|chronoscope|terminal|pachinko|arcade|scene3d)[^/]*\.js/.test(url))).toEqual([]);
 });
