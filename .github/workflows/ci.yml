@@ -166,12 +166,27 @@ jobs:
           path: |
             web/page-options-test-results/
             web/page-options-playwright-report/
+      - name: Pachinko physics, type buckets and responsive drawing
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: pachinko-playwright-report
+        run: bash ../scripts/browser-ci.sh pachinko.spec.ts --retries 0 --output pachinko-test-results
+      - name: Preserve Pachinko evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cartolite-server-pachinko-review
+          retention-days: 7
+          path: |
+            web/pachinko-test-results/
+            web/pachinko-playwright-report/
       - name: Firehose physics, GPU presentation and recovery
         if: matrix.arch == 'amd64'
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: firehose-playwright-report
-        run: bash ../scripts/browser-ci.sh firehose.spec.ts pachinko.spec.ts --retries 0 --output firehose-test-results
+        run: bash ../scripts/browser-ci.sh firehose.spec.ts --retries 0 --output firehose-test-results
       - name: Preserve Firehose evidence
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

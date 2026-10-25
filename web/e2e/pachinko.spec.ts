@@ -29,12 +29,14 @@ test('Pachinko camera, picker and labels fit a 320px phone',async({page},info)=>
 });
 
 test('Pachinko stays bounded, responsive and independent of basemap code',async({page},info)=>{
-  test.skip(info.project.name!=='desktop');test.setTimeout(60000);const requests:string[]=[];page.on('request',request=>requests.push(request.url()));await open(page);
+  test.skip(info.project.name!=='desktop');test.setTimeout(60000);const diagnosticLines:string[]=[];page.on('console',message=>{const line=message.text();if(line.startsWith('pachinko-probe ')){diagnosticLines.push(line);console.log(line);}});const requests:string[]=[];page.on('request',request=>requests.push(request.url()));await open(page);
   const result=await page.evaluate(async()=>{
+    const started=performance.now();
     let seq=0,ticks=0,maxDelay=0,previous=performance.now();const timer=setInterval(()=>{const at=performance.now();maxDelay=Math.max(maxDelay,at-previous-25);previous=at;ticks++;},25);
-    for(let i=0;i<600;i++){seq++;window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`stress-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control','Other'][seq%6],mode:'observer',observer:{id:'visual-a',label:'Visual Alpha',lat:43.45,lng:-80.35}}}));await new Promise(resolve=>setTimeout(resolve,10));}
-    clearInterval(timer);return{ticks,maxDelay,metrics:(window as any).__pachinko.metrics};
-  });
+    for(let i=0;i<600;i++){seq++;window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`stress-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control','Other'][seq%6],mode:'observer',observer:{id:'visual-a',label:'Visual Alpha',lat:43.45,lng:-80.35}}}));await new Promise(resolve=>setTimeout(resolve,10));if(i%50===0){const s=document.getElementById('pachinko-stage')!;console.debug('pachinko-probe '+JSON.stringify({sent:seq,elapsed:performance.now()-started,ticks,maxDelay,visibility:document.visibilityState,particles:s.dataset.beads,quality:s.dataset.quality,dpr:s.dataset.pixelRatio,physics:s.dataset.physicsMs,draw:s.dataset.drawMs,metrics:(window as any).__pachinko.metrics}));}}
+    clearInterval(timer);return{elapsed:performance.now()-started,visibility:document.visibilityState,ticks,maxDelay,metrics:(window as any).__pachinko.metrics};
+  }).catch(async error=>{await info.attach('pachinko-timeout-progress',{body:diagnosticLines.join('\n'),contentType:'text/plain'});throw error;});
+  await info.attach('pachinko-burst-progress',{body:diagnosticLines.join('\n'),contentType:'text/plain'});
   await info.attach('pachinko-resources',{body:JSON.stringify(result),contentType:'application/json'});
   expect(result.ticks).toBeGreaterThan(100);expect(result.maxDelay).toBeLessThan(300);expect(result.metrics.drawCalls).toBeLessThan(40);
   const stage=page.locator('#pachinko-stage');expect(Number(await stage.getAttribute('data-beads'))).toBeLessThanOrEqual(Number(await stage.getAttribute('data-capacity')));expect(Number(await stage.getAttribute('data-queue'))).toBeLessThanOrEqual(48);await expect(stage).toHaveAttribute('data-links','0');

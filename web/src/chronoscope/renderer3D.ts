@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DISPLAY_EVENT, displayColor, displayPreferences, lightScene, packetPalette, prefersReducedMotion } from '../displayPreferences';
-import { routeMotion } from '../packetAnimator';
-import { normalizePacketKind } from '../trafficVisuals';
+import { drawPacketSignature, routeMotion } from '../packetAnimator';
+import { normalizePacketKind, packetSignature, payloadColor } from '../trafficVisuals';
 import { buildNetgraphLayout, extendNetgraphLayout, graphTopologyChanged, routeTopology } from '../netgraph/layout';
 import { nearestNetgraphArea, type NetgraphAreaAnchor } from '../netgraph/areas';
 import { distanceToGraphPath } from '../netgraph/camera';
@@ -37,6 +37,7 @@ export class Chronoscope3DRenderer {
   #palette:THREE.Color[]=[];#roles=new Map<string,THREE.Color>();#accent=new THREE.Color('#ffd06c');#shadow=new THREE.Color('#020a10');
   #a:Position3={x:0,y:0,z:0};#b:Position3={x:0,y:0,z:0};#c:Position3={x:0,y:0,z:0};#vector=new THREE.Vector3();
   #down?:{x:number;y:number;id:number};#dragged=false;
+  #signatures:Array<{record:Observation;x:number;y:number;dx:number;dy:number;age:number}>=[];
   #sculpturePose?:{position:THREE.Vector3;target:THREE.Vector3};
   constructor(readonly stage:HTMLElement,readonly canvas:HTMLCanvasElement,readonly effects:HTMLCanvasElement,
     readonly callbacks:{node(id:string|null):void;packet(record:Observation):void;change?():void},context:WebGL2RenderingContext){
@@ -103,9 +104,11 @@ export class Chronoscope3DRenderer {
   projectEndpoint(endpoint:EndpointV2){if(!this.nodeInRegions(endpoint.id)||!this.world(endpoint,this.#a))return{x:-10000,y:-10000};return this.screen(this.#a);}
   projectSegment(segment:{from:EndpointV2;to:EndpointV2}):readonly SurfacePoint[]{if(!this.nodeInRegions(segment.from.id)||!this.nodeInRegions(segment.to.id))return[];return[{...this.projectEndpoint(segment.from),progress:0},{...this.projectEndpoint(segment.to),progress:1}];}
   private frameBounds(){
-    if(this.#framed)return;const areas=this.#regions?this.#layout.areas.filter(area=>this.#regions!.has(area.code)):[];
-    const b=areas.length?{minX:Math.min(...areas.map(a=>a.x-a.radius)),maxX:Math.max(...areas.map(a=>a.x+a.radius)),minY:Math.min(...areas.map(a=>a.y-a.radius)),maxY:Math.max(...areas.map(a=>a.y+a.radius))}:this.#layout.bounds;
-    this.#originX=(b.minX+b.maxX)/2;this.#originZ=(b.minY+b.maxY)/2;this.#scale=Math.min(12/Math.max(1,b.maxX-b.minX),8/Math.max(1,b.maxY-b.minY));this.#framed=this.#layout.positions.size>0;
+    if(this.#framed)return;let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const [id,point] of this.#layout.positions){if(!this.nodeInRegions(id))continue;minX=Math.min(minX,point.x);maxX=Math.max(maxX,point.x);minY=Math.min(minY,point.y);maxY=Math.max(maxY,point.y);}
+    if(!Number.isFinite(minX)){const bounds=this.#layout.bounds;minX=bounds.minX;maxX=bounds.maxX;minY=bounds.minY;maxY=bounds.maxY;}
+    const padding=Math.max(12,Math.max(maxX-minX,maxY-minY)*.08);minX-=padding;maxX+=padding;minY-=padding;maxY+=padding;
+    this.#originX=(minX+maxX)/2;this.#originZ=(minY+maxY)/2;this.#scale=Math.min(12/Math.max(1,maxX-minX),8/Math.max(1,maxY-minY));this.#framed=this.#layout.positions.size>0;
   }
   private world(endpoint:EndpointV2,out:Position3):boolean{
     let point:{x:number;y:number}|undefined=this.#layout.positions.get(endpoint.id);
@@ -116,7 +119,7 @@ export class Chronoscope3DRenderer {
   private stack(record:Observation):Stack{
     let stack=this.#stacks.get(record);if(stack)return stack;
     stack={nodes:new Map(),fallMs:this.#seconds*1000};
-    const add=(endpoint:EndpointV2)=>{if(stack!.nodes.has(endpoint.id))return;let level=this.#levels.get(endpoint.id);if(!level){level={next:0,refs:0};this.#levels.set(endpoint.id,level);}const slot=level.next++%MAX_EVENTS,ring=slot%24,angle=ring*2.399963,radius=Math.sqrt(ring)*.035;level.refs++;stack!.nodes.set(endpoint.id,{endpoint,dx:Math.cos(angle)*radius,dz:Math.sin(angle)*radius,height:.12+Math.floor(slot/24)*.048});};
+    const add=(endpoint:EndpointV2)=>{if(stack!.nodes.has(endpoint.id))return;let level=this.#levels.get(endpoint.id);if(!level){level={next:0,refs:0};this.#levels.set(endpoint.id,level);}const slot=level.next++%MAX_EVENTS,ring=slot%6,angle=ring*2.399963,radius=Math.sqrt(ring)*.045;level.refs++;stack!.nodes.set(endpoint.id,{endpoint,dx:Math.cos(angle)*radius,dz:Math.sin(angle)*radius,height:.12+2.55*(1-Math.exp(-Math.floor(slot/6)*.07))});};
     if(record.packet.mode==='observer')add(record.packet.observer);else for(const segment of record.packet.segments){add(segment.from);add(segment.to);}
     this.#stacks.set(record,stack);return stack;
   }
@@ -131,21 +134,23 @@ export class Chronoscope3DRenderer {
   private ring(center:Position3,radius:number,color:THREE.Color,alpha:number){let x=center.x+radius,z=center.z;for(let i=1;i<=16;i++){const angle=i*Math.PI/8,nx=center.x+Math.cos(angle)*radius,nz=center.z+Math.sin(angle)*radius;this.#a.x=x;this.#a.y=center.y;this.#a.z=z;this.#b.x=nx;this.#b.y=center.y;this.#b.z=nz;this.#strokes.add(this.#a,this.#b,color,alpha,1.2);x=nx;z=nz;}}
   private draw=(now:number)=>{
     this.#frame=0;if(this.#timer){clearTimeout(this.#timer);this.#timer=0;}if(this.#disposed||this.#lost||document.hidden||!this.#prepared)return;const started=performance.now(),prefs=displayPreferences(),reduced=prefersReducedMotion(),at=this.frameTime;
-    this.#reduced=reduced;this.controls.update();this.trimStacks();const records=this.inspectionRecords();this.#strokes.count=this.#dots.count=0;let active=0,settled=0,moving=false,rings=0,glows=0;
+    this.#reduced=reduced;this.controls.update();this.trimStacks();const records=this.inspectionRecords();this.#strokes.count=this.#dots.count=0;this.#signatures.length=0;let active=0,settled=0,moving=false,rings=0,glows=0,shadows=0;
     const background=prefs.detail==='complete'?1:Math.max(.25,Math.min(1,Math.sqrt(70/Math.max(1,records.length))));
     for(const record of records){
       const stack=this.stack(record),age=Math.max(0,at-record.started),fresh=record.animate&&age<record.duration+440,down=this.drop(record,at);if(down>=1)settled++;else moving=true;if(fresh&&!this.frozen)active++;
       const selected=this.#selectedEvent===record.packet.seq||Boolean(this.#selected&&stack.nodes.has(this.#selected));const dimmed=(this.#selected||this.#selectedEvent!==null)&&!selected;
       const kind=kinds.indexOf(normalizePacketKind(record.packet.payloadType)),color=this.#palette[kind]!,opacity=dimmed?.07:selected?1:fresh?.95:background*(this.#mode==='sculpture'?.68:Math.max(.15,.7*(1-age/(this.#seconds*1000))));
-      for(const node of stack.nodes.values())if(this.nodeInRegions(node.endpoint.id)&&this.packetPoint(record,node,at,this.#a))this.#dots.add(this.#a,selected?this.#accent:color,opacity,(fresh?5.8:3.8)*prefs.packetSize,kind+1);
+      for(const node of stack.nodes.values())if(this.nodeInRegions(node.endpoint.id)&&this.packetPoint(record,node,at,this.#a))this.#dots.add(this.#a,selected?this.#accent:color,opacity,(fresh?6.5:4.6)*prefs.packetSize);
       if(record.packet.mode==='route'){
         for(const segment of record.packet.segments){if(!this.nodeInRegions(segment.from.id)||!this.nodeInRegions(segment.to.id))continue;
           if(!this.packetPoint(record,stack.nodes.get(segment.from.id)!,at,this.#a)||!this.packetPoint(record,stack.nodes.get(segment.to.id)!,at,this.#b))continue;
           if(!reduced&&prefs.effects!=='minimal'&&prefs.quality!=='economy'&&(fresh||selected)&&glows++<512)this.#strokes.add(this.#a,this.#b,color,.16*prefs.glow*(prefs.effects==='calm'?.4:1),Math.max(1.4,prefs.width)+Math.min(7,4*prefs.glow),true);
-          this.#strokes.add(this.#a,this.#b,selected?this.#accent:color,opacity*prefs.opacity,Math.max(1.4,prefs.width)+(selected?1.2:0));
+          this.#strokes.add(this.#a,this.#b,selected?this.#accent:color,opacity*prefs.opacity,Math.max(this.#mode==='sculpture'?2.3:1.4,prefs.width)+(selected?1.2:0));
+          if(this.#mode==='sculpture'&&down>=1&&prefs.quality!=='economy'&&shadows++<256){const ax=this.#a.x,az=this.#a.z,bx=this.#b.x,bz=this.#b.z;this.#a.x=ax+this.#a.y*.3;this.#a.z=az-this.#a.y*.35;this.#b.x=bx+this.#b.y*.3;this.#b.z=bz-this.#b.y*.35;this.#a.y=this.#b.y=.012;this.#strokes.add(this.#a,this.#b,this.#shadow,.14*background,5,true);}
         }
         if(fresh&&record.animate&&!dimmed){const motion=routeMotion(record.weights,age,record.duration),segment=record.packet.segments[motion.segmentIndex];if(segment&&this.nodeInRegions(segment.from.id)&&this.nodeInRegions(segment.to.id)&&this.world(segment.from,this.#a)&&this.world(segment.to,this.#b)){
-          const t=reduced?.5:motion.localProgress;this.#c.x=this.#a.x+(this.#b.x-this.#a.x)*t;this.#c.y=this.#a.y;this.#c.z=this.#a.z+(this.#b.z-this.#a.z)*t;this.#dots.add(this.#c,color,1,8*prefs.packetSize,kind+1);
+          const t=reduced?.5:motion.localProgress;this.#c.x=this.#a.x+(this.#b.x-this.#a.x)*t;this.#c.y=this.#a.y;this.#c.z=this.#a.z+(this.#b.z-this.#a.z)*t;this.#dots.add(this.#c,color,1,9*prefs.packetSize);
+          if(!reduced&&prefs.effects!=='minimal'){const point=this.screen(this.#c),from=this.screen(this.#a),to=this.screen(this.#b);if(point.z>=-1&&point.z<=1){this.#signatures.push({record,x:point.x,y:point.y,dx:to.x-from.x,dy:to.y-from.y,age});if(this.#signatures.length>32)this.#signatures.shift();}}
           if(!reduced&&prefs.effects!=='minimal'){const tail=Math.max(0,t-.13*prefs.trailLength);this.#a.x+= (this.#b.x-this.#a.x)*tail;this.#a.z+=(this.#b.z-this.#a.z)*tail;this.#strokes.add(this.#a,this.#c,color,.9,2.8*prefs.packetSize);}
         }}
       }
@@ -156,7 +161,7 @@ export class Chronoscope3DRenderer {
     if(now-this.#lastStats>500){this.#lastStats=now;this.callbacks.change?.();}
     if(!this.#frame&&records.length&&!this.frozen){const delay=!reduced&&(moving||active)?prefs.quality==='economy'||this.#drawMS>12?33:16:1000;this.#timer=window.setTimeout(()=>{this.#timer=0;this.request();},delay);}
   };
-  private labels(){const c=this.#overlay;c.setTransform(this.#dpr,0,0,this.#dpr,0,0);c.clearRect(0,0,this.#width,this.#height);c.font=`${displayPreferences().textSize==='large'?14:11}px system-ui`;const used:{x:number;y:number;w:number}[]=[];
+  private labels(){const c=this.#overlay;c.setTransform(this.#dpr,0,0,this.#dpr,0,0);c.clearRect(0,0,this.#width,this.#height);for(const sign of this.#signatures)drawPacketSignature(c,{x:sign.x,y:sign.y},{x:sign.dx,y:sign.dy},payloadColor(sign.record.packet.payloadType),packetSignature(sign.record.packet.payloadType),sign.age);c.font=`${displayPreferences().textSize==='large'?14:11}px system-ui`;const used:{x:number;y:number;w:number}[]=[];
     const label=(text:string,point:Position3,strong=false)=>{const p=this.screen(point);if(p.z< -1||p.z>1||p.x<24||p.x>this.#width-24||p.y<70||p.y>this.#height-80)return;const w=c.measureText(text).width;if(!strong&&used.some(v=>Math.abs(v.y-p.y)<18&&Math.abs(v.x-p.x)<(v.w+w)/2+12))return;used.push({x:p.x,y:p.y,w});c.fillStyle=lightScene()?'#f3f5ede6':'#07131ce6';c.fillRect(p.x-w/2-5,p.y-12,w+10,18);c.textAlign='center';c.fillStyle=strong?packetPalette().Trace:displayColor('#d2e0ef');c.fillText(text,p.x,p.y+1);};
     const selected=this.#selected&&this.#nodes.get(this.#selected);if(selected&&this.world(selected,this.#a))label(selected.label,this.#a,true);
     for(const area of this.#layout.areas){if(this.#regions&&!this.#regions.has(area.code))continue;this.#a.x=(area.x-this.#originX)*this.#scale;this.#a.z=(area.y-this.#originZ)*this.#scale;this.#a.y=this.#mode==='sculpture'?NOW+.18:.18;label(area.name??area.code,this.#a);}

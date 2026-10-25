@@ -1,6 +1,6 @@
 # Chronoscope
 
-Open Chronoscope under Experimental. Known nodes and geographic groups occupy the Now plane. Newly observed packet shapes travel along their confirmed segments, descend, and settle into a growing 3D session sculpture. Color and glyph identify the sanitized packet type. Observer-only activity stays local. Positions and height are illustrative, not radio trajectories, antenna heights, signal strength or coverage.
+Open Chronoscope under Experimental. Known nodes and geographic groups occupy the Now plane. Newly observed packet shapes travel along their confirmed segments, descend, and settle into a growing 3D session sculpture. Color and the shared live-packet signature identify the sanitized packet type. Stack spacing compresses as it grows; height is not a linear measurement. Observer-only activity stays local. Positions and height are illustrative, not radio trajectories, antenna heights, signal strength or coverage.
 
 ## Explore
 

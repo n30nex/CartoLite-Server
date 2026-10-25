@@ -205,7 +205,7 @@ export class FirehoseRenderer {
   #label(title:string,subtitle:string,position:THREE.Vector3,width:number,height:number){
     const canvas=document.createElement('canvas');canvas.width=640;canvas.height=160;const c=canvas.getContext('2d')!;
     c.fillStyle='#071a23';c.fillRect(0,0,640,160);c.strokeStyle='#3d8b91';c.lineWidth=4;c.strokeRect(2,2,636,156);
-    c.textAlign='center';c.fillStyle='#dcfff6';c.font='600 55px monospace';c.fillText(title,320,72);
+    c.textAlign='center';c.fillStyle='#dcfff6';c.font='700 80px system-ui';c.fillText(title,320,82);
     c.fillStyle='#8cb7bd';c.font='22px monospace';c.fillText(subtitle,320,121);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;this.#canvasTextures.push(texture);
     const label=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,depthWrite:false,depthTest:false}));label.renderOrder=5;label.position.copy(position);label.scale.set(width,height,1);this.scene.add(label);
