@@ -12,8 +12,10 @@ test('grouped icon navigation keeps direct views, keyboard access and node conte
   await expect.poll(()=>new URL(page.url()).searchParams.get('node')).toBe('visual-a');await expect(page.locator('#node-inspector-sheet')).toContainText('Visual Alpha');
   await openViewMenu(page);const group=page.locator('#experimental-options').locator('..');await group.locator('summary').focus();await page.keyboard.press('Escape');await expect(group).not.toHaveAttribute('open','');await expect(group.locator('summary')).toBeFocused();
   await openViewMenu(page);await page.getByRole('link',{name:'Open CartoLite Firehose',exact:true}).focus();
+  const mobile=await page.locator('html').getAttribute('data-mobile-dock')==='true';
+  await expect.poll(()=>page.evaluate(()=>history.state?.cartolitePanel)).toBe(mobile?'view-panel':'experimental-options');
   await page.goBack();await expect(group).not.toHaveAttribute('open','');
-  if(await page.locator('html').getAttribute('data-mobile-dock')==='true'){await expect(page.locator('#view-panel')).toBeHidden();await expect(page.locator('#view-button')).toBeFocused();}
+  if(mobile){await expect(page.locator('#view-panel')).toBeHidden();await expect(page.locator('#view-button')).toBeFocused();}
   else await expect(group.locator('summary')).toBeFocused();
 });
 
