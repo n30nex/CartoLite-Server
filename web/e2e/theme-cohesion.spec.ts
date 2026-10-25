@@ -22,6 +22,12 @@ async function unreadableControls(page:Page):Promise<string[]> {
       const minimum=el.closest(':disabled')?3:4.5; // Inactive copy stays legible; ordinary text keeps AA contrast.
       if(contrast<minimum)failures.push(`${el.tagName}.${el.className}: ${(el.textContent??'').trim().slice(0,35)} ${contrast.toFixed(2)}`);
     }
+    for(const el of document.querySelectorAll<HTMLElement>('.route-legend-swatch')){
+      if(!el.getClientRects().length)continue;
+      const core=lum(rgb(getComputedStyle(el,'::after').backgroundColor)),background=lum(rgb(getComputedStyle(el).backgroundColor));
+      const ratio=(Math.max(core,background)+.05)/(Math.min(core,background)+.05);
+      if(ratio<3)failures.push(`Route swatch: ${el.parentElement?.getAttribute('aria-label')} ${ratio.toFixed(2)}`);
+    }
     const scene=getComputedStyle(document.documentElement).getPropertyValue('--scene-background').trim();
     const sceneRGB=[1,3,5].map(i=>Number.parseInt(scene.slice(i,i+2),16));
     for(const el of document.querySelectorAll<HTMLElement>('.chrono-caption strong,.chrono-caption small,.firehose-caption strong,.firehose-caption small')){
