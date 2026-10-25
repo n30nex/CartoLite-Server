@@ -14,7 +14,7 @@ curl --fail http://127.0.0.1:8080/healthz
 curl --fail http://127.0.0.1:8080/readyz
 ```
 
-The default pages are Map at `http://localhost:8080/` and Netgraph at `/netgraph/`. Terminal, Chronoscope and Firehose are optional. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains public map-provider settings and the enabled page names; the traffic API remains schema v2.
+The default pages are Map at `http://localhost:8080/` and Netgraph at `/netgraph/`. Terminal, Chronoscope, Firehose and Pachinko are optional. Default maps and buildings use OpenFreeMap without a key. `/api/config` contains public map-provider settings and the enabled page names; the traffic API remains schema v2.
 
 ## Configuration
 
