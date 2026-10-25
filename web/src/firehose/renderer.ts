@@ -74,7 +74,9 @@ export class FirehoseRenderer {
 
   constructor(readonly stage:HTMLElement,readonly canvas:HTMLCanvasElement,readonly capacity:number,readonly machine:MachineMode='firehose'){
     this.radius=particleRadius(capacity,machine);
-    this.gpu=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+    // Packet edges are shaded analytically. Reserve costly full-scene MSAA on
+    // the textured cabinet for an explicitly selected High graphics profile.
+    this.gpu=new THREE.WebGLRenderer({canvas,antialias:machine==='firehose'||displayPreferences().quality==='high',alpha:false,powerPreference:'high-performance'});
     this.gpu.outputColorSpace=THREE.SRGBColorSpace;this.gpu.toneMapping=THREE.ACESFilmicToneMapping;this.gpu.toneMappingExposure=1.1;
     this.controls=new OrbitControls(this.camera,canvas);this.controls.enableDamping=true;this.controls.dampingFactor=.12;
     this.controls.minDistance=3;this.controls.maxDistance=45;this.controls.maxPolarAngle=Math.PI-.02;this.mode=machine==='pachinko'?'orbit':'tilt';this.controls.enableRotate=this.mode==='orbit';
@@ -116,7 +118,7 @@ export class FirehoseRenderer {
     this.#resize=new ResizeObserver(this.#resized);this.#resize.observe(stage);this.#resized();
   }
   #material(color:number,metalness=.2,roughness=.48){const m=new THREE.MeshStandardMaterial({color,metalness,roughness});this.#materials.add(m);return m;}
-  #metal(color:number){const m=new THREE.MeshMatcapMaterial({color,matcap:this.#surfaces.metal});this.#materials.add(m);return m;}
+  #metal(color:number){const m=new THREE.MeshMatcapMaterial({color,matcap:this.#surfaces.metal,toneMapped:false});this.#materials.add(m);return m;}
   #mesh(geometry:THREE.BufferGeometry,material:THREE.Material,parent:THREE.Object3D,x=0,y=0,z=0){const mesh=new THREE.Mesh(geometry,material);mesh.position.set(x,y,z);parent.add(mesh);return mesh;}
   #buildStage(){
     this.scene.add(new THREE.HemisphereLight(0xc9f0ff,0x09252e,2.3));const key=new THREE.DirectionalLight(0xd3f8ff,3.3);key.position.set(-4,8,5);this.scene.add(key);
@@ -169,9 +171,10 @@ export class FirehoseRenderer {
     this.#prepared=true;this.stage.dataset.graphicsReady='true';this.stage.dataset.warmupMs=(performance.now()-started).toFixed(1);this.stage.dataset.programs=String(this.gpu.info.programs?.length??0);this.#changed();
   }
   #buildPachinko(){
-    this.scene.add(new THREE.HemisphereLight(0xd0f2ff,0x091e28,2.2));const key=new THREE.DirectionalLight(0xf1ffff,3);key.position.set(-5,8,6);this.scene.add(key);
-    this.scene.add(this.box);const metal=this.#metal(0xc4d5de),dark=this.#material(0x10232d,.2,.5);
-    const panel=new THREE.MeshBasicMaterial({map:this.#surfaces.enamel,color:0xdce5e7});this.#materials.add(panel);
+    // The generated materials already contain the machine's lighting. Avoid
+    // evaluating a full lighting model behind its opaque enamel playfield.
+    this.scene.add(this.box);const metal=this.#metal(0xc4d5de),dark=new THREE.MeshBasicMaterial({color:0x10232d,toneMapped:false});this.#materials.add(dark);
+    const panel=new THREE.MeshBasicMaterial({map:this.#surfaces.enamel,color:0xdce5e7,toneMapped:false});this.#materials.add(panel);
     this.#mesh(new THREE.BoxGeometry(6.85,9.65,.3),dark,this.box,0,.65,-.19);
     this.#mesh(new THREE.PlaneGeometry(6.65,9.45),panel,this.box,0,.65,-.025);
     const pegs=new THREE.InstancedMesh(new THREE.CylinderGeometry(PACHINKO.pegRadius,PACHINKO.pegRadius,.26,12),metal,6*PACHINKO.rows),dummy=new THREE.Object3D();
@@ -194,7 +197,7 @@ export class FirehoseRenderer {
       this.#mesh(new THREE.BoxGeometry(.72,.045,.04),light,this.box,x,PACHINKO.top+.03,.16);
       this.#label(KINDS[kind]!.toUpperCase(),'PACKETS',new THREE.Vector3(x,PACHINKO.floor-.35,1),.96,.25);
     }this.box.add(this.#bucketFloors,fronts,lips);
-    const pit=this.#mesh(new THREE.CylinderGeometry(3.8,3,1.35,48,1,true),dark,this.scene,0,-4.55,.6);(pit.material as THREE.MeshStandardMaterial).side=THREE.DoubleSide;
+    const pit=this.#mesh(new THREE.CylinderGeometry(3.8,3,1.35,48,1,true),dark,this.scene,0,-4.55,.6);(pit.material as THREE.Material).side=THREE.DoubleSide;
     const ring=this.#mesh(new THREE.TorusGeometry(3.82,.1,8,64),metal,this.scene,0,-3.88,.6);ring.rotation.x=Math.PI/2;
     const well=this.#mesh(new THREE.CircleGeometry(3,48),new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:wellVertex,fragmentShader:wellFragment,uniforms:this.#uniforms,toneMapped:false}),this.scene,0,-5.23,.6);well.rotation.x=-Math.PI/2;
     this.#pitLight=new THREE.MeshBasicMaterial({color:0x61e0ee,transparent:true,opacity:.2});this.#materials.add(this.#pitLight);
