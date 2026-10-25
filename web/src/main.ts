@@ -817,7 +817,7 @@ function renderRouteLegend(container: HTMLElement): void {
     const swatch = document.createElement('i');
     swatch.className = 'route-legend-swatch';
     swatch.setAttribute('aria-hidden', 'true');
-    swatch.style.setProperty('--route-color', `var(--ui-kind-${item.kind.toLowerCase()}, ${PACKET_KIND_COLORS[item.kind]})`);
+    swatch.style.setProperty('--route-color', `var(--kind-${item.kind.toLowerCase()}, ${PACKET_KIND_COLORS[item.kind]})`);
 
     const label = document.createElement('span');
     label.className = 'route-legend-label';

@@ -1,18 +1,19 @@
+@import './theme.css';
 /* Shared document defaults keep all views on the same readable type scale. */
-:root { color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-synthesis:none; }
+:root { color:var(--ink); font-family:var(--font-ui); font-synthesis:none; }
 * { box-sizing:border-box; }
 button,select,input { font:inherit; }
 .display-settings { display: grid; gap: 10px; min-width: 0; color: var(--ink, #d9e8ee); }
 .display-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 12px; }
-.display-settings select { min-width: 130px; max-width: 58%; min-height: 44px; border: 1px solid var(--panel-border, #41636a); border-radius: 8px; padding: 6px; background: var(--field-bg, #07141a); color: var(--ink-strong, #efffff); font: inherit; }
+.display-settings select { min-width: 130px; max-width: 58%; min-height: 44px; border: 1px solid var(--panel-border, #41636a); border-radius:var(--radius-control); padding: 6px; background: var(--field-bg, #07141a); color: var(--ink-strong, #efffff); font: inherit; }
 .display-settings .display-slider { display: grid; grid-template-columns: 1fr auto; gap: 5px; padding-block: 4px; }
-.display-slider input { grid-column: 1 / -1; width: 100%; margin: 0; min-height: 25px; accent-color: var(--kind-advert, #4de7c4); }
+.display-slider input { grid-column: 1 / -1; width: 100%; margin: 0; min-height: 25px; accent-color: var(--focus-ring); }
 .display-slider output { font-variant-numeric: tabular-nums; color: var(--ink-strong, #efffff); }
 .display-advanced { border-top: 1px solid var(--panel-border, #41636a); }
 .display-advanced summary { padding: 14px 0; cursor: pointer; font-size: 12px; font-weight: 650; }
-.display-reset { width: 100%; min-height: 44px; margin-top: 8px; border: 1px solid var(--panel-border, #41636a); border-radius: 8px; background: var(--field-bg, #07141a); color: var(--ink-strong, #efffff); cursor: pointer; }
+.display-reset { width: 100%; min-height: 44px; margin-top: 8px; border: 1px solid var(--panel-border, #41636a); border-radius:var(--radius-control); background: var(--field-bg, #07141a); color: var(--ink-strong, #efffff); cursor: pointer; }
 .display-note { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted, #9fb2bf); }
-.route-preview { position: relative; height: 54px; overflow: hidden; border-radius: 8px; background: var(--scene-background, #071319); color: var(--kind-text, #ff75b5); }
+.route-preview { position: relative; height: 54px; overflow: hidden; border-radius:var(--radius-control); background: var(--scene-background, #071319); color: var(--kind-text, #ff75b5); }
 .route-preview i { position: absolute; left: 12%; right: 12%; top: 18px; border-top: var(--preview-width) solid currentColor; opacity: var(--preview-opacity); filter: drop-shadow(0 0 var(--preview-glow) currentColor); }
 [data-pattern="dashed"] .route-preview i { border-top-style: dashed; }
 [data-pattern="dotted"] .route-preview i { border-top-style: dotted; }
@@ -27,8 +28,6 @@ button,select,input { font:inherit; }
 :where(button, select, input, summary, a):focus-visible { outline: 2px solid var(--focus-ring, #69d1ca) !important; outline-offset: 2px; }
 @media (max-width: 900px), (max-height: 520px) { .display-panel { position: fixed; top: 122px; left: auto; right: 8px; max-height: calc(100dvh - 140px); } }
 
-:root,:root[data-theme="dark"] { --ink: #d9e8ee; --ink-strong: #efffff; --muted: #a8bcc7; --field-bg: #07141a; --panel-solid: #08141a; --panel-border: #36545d; --focus-ring: #69d1ca; --selected: #193c3e; color-scheme: dark; }
-:root[data-theme="light"] { --ink: #28464c; --ink-strong: #15383f; --muted: #49656a; --field-bg: #f8faf4; --panel-solid: #f3f6ef; --panel-border: #9daeb0; --focus-ring: #006b60; --selected: #d5e7df; color-scheme: light; }
 :root[data-basemap] .netgraph-app, :root[data-basemap] .netgraph-stage { background: var(--scene-background); }
 :root[data-basemap="light"] .graph-grade, :root[data-basemap="streets"] .graph-grade { background: none; box-shadow: inset 0 0 80px rgba(72, 93, 85, 0.05); }
 .netgraph-app .glass { color: var(--ink); }
@@ -46,13 +45,7 @@ button,select,input { font:inherit; }
 .netgraph-app .role-legend i[data-role="companion"] { background: var(--ui-kind-ack); }
 .netgraph-app .role-legend i[data-role="room_server"] { background: var(--ui-kind-control); }
 .netgraph-app .role-legend i[data-role="sensor"] { background: var(--ui-kind-trace); }
-:root[data-theme="light"] :is(.netgraph-app, #app) :is(.brand, .workspace-link, .view-title, .status, .control-button, .reset-button, .scene-control, .volume-control, .route-window, .sound-state, .sound-description, .node-search-results, .node-inspector, .neighbor-row, .graph-summary, .legend, .empty-state, .fatal) { color: var(--ink); }
-:root[data-theme="light"] .netgraph-app :is(button, a, label, strong, h2, h3, dt, dd, p, small, .node-search-name, .node-search-meta, .node-role, .neighbor-label, .neighbor-meta) { color: var(--ink); }
-:root[data-theme="light"] .netgraph-app :is(input, select, .sound-toggle, .neighbor-row, .node-search-result) { background: var(--field-bg); color: var(--ink-strong); border-color: var(--panel-border); }
-:root[data-theme="light"] .netgraph-app :is(button, a):hover { color: var(--ink-strong); background-color: var(--selected); }
-:root[data-theme="light"] :is(.netgraph-app, #app) button:disabled { color: #5e7074; opacity: 1; }
-:root[data-theme="light"] :is(.sound-panel, .netgraph-app .graph-summary) :is(header span, output, strong) { color: var(--ink-strong); }
-:root[data-theme="light"] .netgraph-app :is(.neighbor-list, .node-inspector dl, .node-inspector header, .node-inspector h3) { border-color: var(--panel-border); }
+:root[data-theme="light"] :is(.netgraph-app, #app) button:disabled { color: var(--disabled); opacity: 1; }
 :root[data-theme="light"] :is(#app, .netgraph-app) { --traffic-rgb: 0, 105, 87; }
 :root[data-theme="light"] :is(#app, .netgraph-app)[data-traffic-kind="trace"] { --traffic-rgb: 133, 80, 0; }
 :root[data-theme="light"] :is(#app, .netgraph-app)[data-traffic-kind="text"] { --traffic-rgb: 162, 27, 88; }
@@ -72,7 +65,7 @@ button,select,input { font:inherit; }
 @media (orientation: landscape) and (max-height: 520px) { .display-panel { top: 62px; max-height: calc(100dvh - 80px); } }
 .map-notice { position: absolute; right: 12px; bottom: 72px; z-index: 6; display: flex; gap: 10px; align-items: center; max-width: min(390px, calc(100vw - 24px)); padding: 8px 12px; border-radius: 10px; font-size: 12px; color: var(--ink); }
 .map-notice[hidden] { display: none; }
-.map-notice button { min-height: 44px; min-width: 44px; color: var(--ink-strong); background: var(--field-bg); border: 1px solid var(--panel-border); border-radius: 7px; cursor: pointer; }
+.map-notice button { min-height: 44px; min-width: 44px; color: var(--ink-strong); background: var(--field-bg); border: 1px solid var(--panel-border); border-radius:var(--radius-control); cursor: pointer; }
 .map-grade { contain: paint; }
 /* Avoid repeated backdrop readback over a moving WebGL terrain surface. */
 #app:has(> #map[data-terrain3d="true"]) :is(.glass, .maplibregl-popup-content) {
@@ -88,7 +81,7 @@ button,select,input { font:inherit; }
 .view-help { width:min(520px,calc(100vw - 24px)); max-height:calc(var(--available-height,100dvh) - 24px); margin:auto; overflow:auto; padding:16px; color:var(--ink); background:var(--panel-solid); border:1px solid var(--panel-border); border-radius:14px; }
 .view-help::backdrop { background:#031018aa; }
 .view-help header { display:flex; justify-content:space-between; align-items:center; }
-.view-help button { min-width:44px; min-height:44px; color:var(--ink); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:8px; }
+.view-help button { min-width:44px; min-height:44px; color:var(--ink); background:var(--field-bg); border:1px solid var(--panel-border); border-radius:var(--radius-control); }
 .view-help h1 { font-size:20px; margin:0 44px 12px 0; color:var(--ink-strong); }
 .view-help h2 { font-size:15px; margin:12px 0 8px; color:var(--ink-strong); }
 .view-help :is(p,dd) { font-size:13px; line-height:1.5; color:var(--ink); }

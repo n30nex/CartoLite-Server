@@ -15,8 +15,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.12.0, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:138833e44336fbaa844bbfcb1e06203b80f84802eaa82226730a6985b1b3730a
+  # Exact published 0.12.1, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:83384dd2187bcfcaac1c475681bfa469d5a379e5163f99c9657d9911b55b64fc
 
 jobs:
   backend:
@@ -173,7 +173,7 @@ jobs:
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: polish-playwright-report
-        run: bash ../scripts/browser-ci.sh visual-polish.spec.ts --retries 0 --output polish-test-results
+        run: bash ../scripts/browser-ci.sh visual-polish.spec.ts theme-cohesion.spec.ts --retries 0 --output polish-test-results
       - name: Preserve visual polish evidence
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -294,7 +294,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|long session|Firehose|Pachinko|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|Theme cohesion|long session|Firehose|Pachinko|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

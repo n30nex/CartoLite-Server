@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DISPLAY, DISPLAY_STORAGE_KEY, ROUTE_PRESETS, displayColor, loadDisplayPreferences, normalizeDisplay, packetPalette } from './displayPreferences';
+import { DEFAULT_DISPLAY, DISPLAY_STORAGE_KEY, ROUTE_PRESETS, applyDisplayChrome, displayColor, loadDisplayPreferences, normalizeDisplay, packetPalette, updateDisplay } from './displayPreferences';
 
 describe('shared display preferences', () => {
+  it('migrates and bounds interface palettes without changing route styling', () => {
+    expect(normalizeDisplay({ palette: 'glacier', preset: 'neon', glow: .85 })).toMatchObject({ palette: 'glacier', preset: 'neon', glow: .85 });
+    expect(normalizeDisplay({ palette: '__proto__' })).toMatchObject({ palette: 'aurora' });
+    expect(normalizeDisplay({ palette: 'constructor' })).toMatchObject({ palette: 'aurora' });
+    expect(normalizeDisplay({ theme: 'light' })).toMatchObject({ palette: 'aurora', theme: 'light' });
+  });
+  it('keeps UI swatches readable when interface and scene brightness differ', () => {
+    for (const [basemap,theme] of [['dark','light'],['light','dark']] as const) {
+      updateDisplay({ basemap,theme,motion:'reduced' });
+      applyDisplayChrome();
+      expect(document.documentElement.style.getPropertyValue('--kind-advert')).toBe(packetPalette(basemap!=='dark').Advert);
+      expect(document.documentElement.style.getPropertyValue('--ui-kind-advert')).toBe(packetPalette(theme==='light').Advert);
+    }
+    updateDisplay({ ...DEFAULT_DISPLAY,motion:'reduced' });
+  });
   it('preserves existing route styling while enabling the cinematic defaults', () => {
     const previous = { basemap: 'light', preset: 'dotted', pattern: 'dotted', width: 3, glow: 0, opacity: .7, packetSize: 1.5, trailLength: .7, residueSeconds: 8 };
     expect(normalizeDisplay(previous)).toMatchObject({ ...previous, effects: 'spectacle', detail: 'auto', quality: 'auto', motion: 'system', textSize: 'standard' });

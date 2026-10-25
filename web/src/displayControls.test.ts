@@ -15,6 +15,9 @@ it('shows only settings that affect Labs while preserving saved network styling'
   const quality = host.querySelector<HTMLSelectElement>('[data-display="quality"]')!;
   quality.value = 'high'; quality.dispatchEvent(new Event('change', { bubbles: true }));
   expect(displayPreferences()).toMatchObject({ quality: 'high', basemap: 'streets', preset: 'dashed', width: 2.7, detail: 'complete' });
+  const palette = host.querySelector<HTMLSelectElement>('[data-display="palette"]')!;
+  palette.value = 'ember'; palette.dispatchEvent(new Event('change', { bubbles: true }));
+  expect(displayPreferences()).toMatchObject({ palette: 'ember', quality: 'high', basemap: 'streets', preset: 'dashed', width: 2.7 });
 });
 
 it('retains scene themes, all six route presets and advanced controls in Netgraph', () => {

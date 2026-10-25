@@ -3,7 +3,7 @@ import '../networkControls.css';
 import { required } from '../dom';
 import { fetchState, LiveFeed } from '../api';
 import { LiveStore, activityLabel } from '../state';
-import { initializeDisplay, DISPLAY_EVENT, packetPalette } from '../displayPreferences';
+import { initializeDisplay, DISPLAY_EVENT } from '../displayPreferences';
 import { mountNetgraphDisplay } from '../displayControls';
 import { mountCinematicDock } from '../cinematicChrome';
 import { buildNodeInspectorModel, createNodeInspectorContent, searchNodes } from '../nodeInspector';
@@ -88,7 +88,7 @@ function updateRecent() {
   const host=required('recent-events');host.replaceChildren();
   if(!records.length){const p=document.createElement('p');p.textContent=settings.mode==='slice'?'No events in this slice.':renderer.frozen?'No events in this frozen window.':'Waiting for activity.';host.append(p);}
   for(const record of records){const button=document.createElement('button'),dot=document.createElement('i'),text=document.createElement('span');button.type='button';
-    const packet=record.packet,kind=normalizePacketKind(packet.payloadType);dot.style.setProperty('--packet-color',packetPalette()[kind]);dot.setAttribute('aria-hidden','true');
+    const packet=record.packet,kind=normalizePacketKind(packet.payloadType);dot.style.setProperty('--packet-color',`var(--ui-kind-${kind.toLowerCase()})`);dot.setAttribute('aria-hidden','true');
     text.textContent=`${kind} · ${packet.mode==='observer'?packet.observer.label:packet.segments[0]?.from.label??'Observed link'}${packet.mode==='observer'?' · heard only':` · ${packet.segments.length} confirmed ${packet.segments.length===1?'segment':'segments'}`}`;
     button.append(dot,text);button.addEventListener('click',()=>{closePanels();inspectPacket(record);inspector.querySelector<HTMLButtonElement>('button')?.focus();});host.append(button);}
 }

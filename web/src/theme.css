@@ -1,0 +1,76 @@
+/* CartoLite's shared instrument panel. Scene/packet colours live separately in
+   displayPreferences; Terminal retains its user-authored phosphor palette. */
+:root {
+  --font-ui: Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-data: ui-monospace,"SFMono-Regular",Consolas,monospace;
+  --ink: #d3e4e9; --ink-strong: #f1fafb; --muted: #a5bdc7;
+  --panel-solid: #0e1c25; --panel-raised: #182d37; --field-bg: #08141d;
+  --panel-border: #547582; --divider: #2b424d; --selected: #1d4145;
+  --focus-ring: #71e5ce; --secondary: #e6c48c;
+  --good: #7be0b1; --warning: #f3ca79; --danger: #ff9cad;
+  --disabled: #9cabb5; --panel-shadow: 0 8px 28px #0004,inset 0 1px #ffffff0a;
+  --radius-panel: 12px; --radius-control: 8px;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --ink: #2e4954; --ink-strong: #132f3a; --muted: #4d6570;
+  --panel-solid: #f4f8f9; --panel-raised: #e6eef0; --field-bg: #ffffff;
+  --panel-border: #6d8791; --divider: #c7d5d9; --selected: #d7eae5;
+  --focus-ring: #006b5c; --secondary: #80531f;
+  --good: #176341; --warning: #805000; --danger: #a72747;
+  --disabled: #647580; --panel-shadow: 0 8px 28px #233d4d24,inset 0 1px #fff;
+  color-scheme: light;
+}
+:root[data-palette="glacier"] {
+  --panel-solid: #101c2e; --panel-raised: #1c3047; --field-bg: #091321;
+  --ink: #d9e6f4; --ink-strong: #f4f9ff; --muted: #aabed4;
+  --panel-border: #5c7797; --divider: #2a405d; --selected: #203e59;
+  --focus-ring: #8bd6ff; --secondary: #c5b5ff;
+}
+:root[data-theme="light"][data-palette="glacier"] {
+  --panel-solid: #f3f7fc; --panel-raised: #e4edf7; --field-bg: #ffffff;
+  --ink: #304861; --ink-strong: #192f49; --muted: #4d637e;
+  --panel-border: #75879e; --divider: #c8d6e6; --selected: #d8e9f6;
+  --focus-ring: #075e8e; --secondary: #65409a;
+}
+:root[data-palette="ember"] {
+  --panel-solid: #211b18; --panel-raised: #352923; --field-bg: #171310;
+  --ink: #e8dacf; --ink-strong: #fff7ee; --muted: #c5b3a5;
+  --panel-border: #8d7562; --divider: #49392e; --selected: #483326;
+  --focus-ring: #ffc28d; --secondary: #86dcca;
+}
+:root[data-theme="light"][data-palette="ember"] {
+  --panel-solid: #faf6ef; --panel-raised: #eee5d9; --field-bg: #fffdf8;
+  --ink: #584435; --ink-strong: #34251b; --muted: #75604e;
+  --panel-border: #97806a; --divider: #ddcebc; --selected: #f1dfc9;
+  --focus-ring: #8b4b16; --secondary: #19695b;
+}
+:root[data-palette="violet"] {
+  --panel-solid: #1b172a; --panel-raised: #2c2540; --field-bg: #110f1c;
+  --ink: #e5dff0; --ink-strong: #faf6ff; --muted: #bfb1d1;
+  --panel-border: #807096; --divider: #3f3454; --selected: #3d2e53;
+  --focus-ring: #d6b4ff; --secondary: #ffaac9;
+}
+:root[data-theme="light"][data-palette="violet"] {
+  --panel-solid: #f8f5fc; --panel-raised: #ece5f4; --field-bg: #ffffff;
+  --ink: #4e405f; --ink-strong: #322341; --muted: #6d5e80;
+  --panel-border: #917da4; --divider: #dbcee6; --selected: #e8daf5;
+  --focus-ring: #713a9c; --secondary: #9d355f;
+}
+/* Warm paper is the light Aurora companion to the Streets scene. */
+:root[data-theme="light"][data-basemap="streets"][data-palette="aurora"] {
+  --panel-solid: #f7f4eb; --panel-raised: #eae7da; --field-bg: #fffdf6;
+  --ink: #3b514c; --ink-strong: #233a35; --muted: #536b63;
+  --panel-border: #7b8c7d; --divider: #d0d6c8; --selected: #dce8d8;
+}
+.palette-preview { display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--panel-border);border-radius:var(--radius-control);background:var(--panel-raised);font-size:12px; }
+.palette-preview i { width:9px;height:9px;border:2px solid var(--focus-ring);border-radius:50%; }
+.palette-preview strong { color:var(--ink-strong);letter-spacing:.02em; }
+.palette-preview span { margin-left:auto;color:var(--muted);font:11px var(--font-data); }
+.palette-preview b { width:6px;height:6px;border-radius:50%;background:var(--secondary); }
+:where(button,input,select,summary,a) { -webkit-tap-highlight-color:transparent; }
+:where(input[type="range"],input[type="checkbox"],progress) { accent-color:var(--focus-ring); }
+:where(input,textarea)::placeholder { color:var(--muted);opacity:1; }
+:where(button,input,select):disabled { cursor:not-allowed; }
+:where(.node-inspector dt,.graph-summary span,.map-options-label,.labs-title,.experiment-status,.view-title,.chrono-caption strong,.firehose-caption strong) { font-family:var(--font-data); }
+:where(output,.graph-summary strong,.inspector-region,.follow-badge) { font-variant-numeric:tabular-nums; }

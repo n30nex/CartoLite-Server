@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Theme cohesion (0.12.2)
+
+[All-page palette and interface audit](theme-cohesion-audit-2026-10-25.md): shared semantic colours, coordinated palettes, readable mixed scene/interface themes, consistent controls and preserved Terminal customization. Actions qualification and release evidence accompany the versioned release.
+
 ## Visual polish (0.12.1)
 
 [All-page audit and patch](visual-polish-audit-2026-10-25.md): responsive 3D framing, readable Terminal recovery, compact navigation and reachable packet inspection. Validation and release status are recorded in the versioned release notes.
