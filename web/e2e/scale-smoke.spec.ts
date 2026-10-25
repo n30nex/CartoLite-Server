@@ -45,6 +45,12 @@ for (const viewPath of ['/', '/terminal/']) test('keeps a 4k-node / 7k-route fir
   try { await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 15_000 }); }
   catch(error) { console.log('Route readiness diagnostic',await map.evaluate(element=>({...((element as HTMLElement).dataset)}))); throw error; }
   await expect(map).toHaveAttribute('data-rendered-route-segments', '7000');
+  // The fixture's live packet intentionally schedules an eight-second route
+  // batch. Let it finish before asserting that a window-only change does not
+  // rebuild geometry. First-view timing above still includes the same packet.
+  await expect(page.locator('#packet-canvas')).toHaveAttribute('data-last-packet-kind', 'Text');
+  await page.waitForTimeout(8_800);
+  await expect(map).toHaveAttribute('data-exact-routes-ready', 'true', { timeout: 10_000 });
   if(viewPath === '/terminal/') {
     // First-view timing above exercises the new High/Neon/unclustered defaults.
     // Stage the same off-to-on route and clustered-to-individual interactions
