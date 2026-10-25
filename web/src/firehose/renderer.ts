@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fitSceneCamera, sceneViewport } from '../sceneFraming';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { displayPreferences, lightScene, packetPalette } from '../displayPreferences';
 import { NetgraphQuality } from '../netgraph/quality';
@@ -29,6 +30,8 @@ export class FirehoseRenderer {
   #preparation=0;
   #surfaces=new SceneMaterials();
   #resize:ResizeObserver;
+  #homeView=true;
+  #frameLayout='';
   #textures:[THREE.DataTexture,THREE.DataTexture];
   #dots:THREE.Points;
   #halos:THREE.Points;
@@ -80,7 +83,7 @@ export class FirehoseRenderer {
     this.gpu.outputColorSpace=THREE.SRGBColorSpace;this.gpu.toneMapping=THREE.ACESFilmicToneMapping;this.gpu.toneMappingExposure=1.1;
     this.controls=new OrbitControls(this.camera,canvas);this.controls.enableDamping=true;this.controls.dampingFactor=.12;
     this.controls.minDistance=3;this.controls.maxDistance=45;this.controls.maxPolarAngle=Math.PI-.02;this.mode=machine==='pachinko'?'orbit':'tilt';this.controls.enableRotate=this.mode==='orbit';
-    this.controls.addEventListener('change',this.#changed);
+    this.controls.addEventListener('change',this.#changed);this.controls.addEventListener('start',this.#navigate);
     const empty=new Float32Array(capacity*4);
     const texture=()=>{const t=new THREE.DataTexture(empty,TEXTURE_WIDTH,capacity/TEXTURE_WIDTH,THREE.RGBAFormat,THREE.FloatType);t.needsUpdate=true;return t;};
     this.#textures=[texture(),texture()];
@@ -115,7 +118,7 @@ export class FirehoseRenderer {
     canvas.addEventListener('pointerdown',this.#down);canvas.addEventListener('pointermove',this.#move);canvas.addEventListener('pointerup',this.#release);canvas.addEventListener('pointercancel',this.#cancel);
     canvas.addEventListener('webglcontextlost',this.#contextLost);canvas.addEventListener('webglcontextrestored',this.#contextRestored);
     stage.addEventListener('keydown',this.#key);document.addEventListener('visibilitychange',this.#visibility);
-    this.#resize=new ResizeObserver(this.#resized);this.#resize.observe(stage);this.#resized();
+    this.#resize=new ResizeObserver(this.#resized);this.#resize.observe(stage);for(const node of document.querySelectorAll('.controls,.firehose-caption,.pachinko-buckets'))this.#resize.observe(node);this.#resized();
   }
   #material(color:number,metalness=.2,roughness=.48){const m=new THREE.MeshStandardMaterial({color,metalness,roughness});this.#materials.add(m);return m;}
   #metal(color:number){const m=new THREE.MeshMatcapMaterial({color,matcap:this.#surfaces.metal,toneMapped:false});this.#materials.add(m);return m;}
@@ -220,7 +223,7 @@ export class FirehoseRenderer {
     const dpr=Math.min(devicePixelRatio||1,quality==='low'?.75:quality==='balanced'?1:coarse?1.35:1.75);
     if(this.gpu.getPixelRatio()!==dpr||this.canvas.width!==Math.floor(w*dpr)||this.canvas.height!==Math.floor(h*dpr)){this.gpu.setPixelRatio(dpr);this.gpu.setSize(w,h,false);}
     // Preserve the whole box and pit in portrait without moving a user's camera.
-    this.camera.aspect=w/h;this.camera.zoom=Math.min(1,this.camera.aspect/(this.machine==='pachinko'?.52:.85));this.camera.updateProjectionMatrix();this.#uniforms.uHeight!.value=h*dpr;this.#uniforms.uDpr!.value=dpr;this.#uniforms.uResolution!.value.set(w*dpr,h*dpr);this.#changed();
+    this.camera.aspect=w/h;this.camera.updateProjectionMatrix();const frame=sceneViewport(this.stage),key=JSON.stringify(frame);if(this.#homeView&&key!==this.#frameLayout){this.#frameLayout=key;fitSceneCamera(this.camera,this.machine==='pachinko'?new THREE.Box3(new THREE.Vector3(-4.05,-5.3,-3.4),new THREE.Vector3(4.05,6.05,4.6)):new THREE.Box3(new THREE.Vector3(-4.3,-3.85,-4.3),new THREE.Vector3(4.3,5.45,4.3)),frame);}this.#uniforms.uHeight!.value=h*dpr;this.#uniforms.uDpr!.value=dpr;this.#uniforms.uResolution!.value.set(w*dpr,h*dpr);this.#changed();
     this.#uniforms.uWidth!.value=Math.max(1.4,p.width)*dpr;
     this.#halos.visible=p.effects!=='minimal'&&quality!=='low';this.stage.dataset.quality=quality;this.stage.dataset.pixelRatio=dpr.toFixed(2);
     this.#trails.visible=p.effects!=='minimal';this.#ripples.visible=p.effects!=='minimal'&&quality!=='low';
@@ -264,7 +267,8 @@ export class FirehoseRenderer {
   setMode(mode:'tilt'|'orbit'){this.mode=this.machine==='pachinko'?'orbit':mode;this.controls.enableRotate=this.mode==='orbit'||this.paused;this.stage.dataset.controlMode=this.mode;this.stage.style.cursor=this.mode==='tilt'&&!this.paused?'grab':'move';}
   setPaused(value:boolean){if(value!==this.paused){const now=performance.now();if(value)this.#pauseTime=now;else{const gap=now-this.#pauseTime;for(let i=0;i<this.capacity;i++)if(this.#births[i]!>=0)this.#births[i]!+=gap/1000;for(let i=0;i<24;i++)if(this.#impactData[i*4+2]!>=0)this.#impactData[i*4+2]!+=gap/1000;this.#emitTime+=gap/1000;this.#drainTime+=gap/1000;this.#received+=gap;this.#effectUntil+=gap;this.#birthTexture.needsUpdate=true;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;}}
     this.paused=value;const p=displayPreferences();this.#uniforms.uMotion!.value=value?0:p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.controls.enableRotate=this.mode==='orbit'||value;this.#changed();}
-  home(){if(this.machine==='pachinko'){this.camera.position.set(8,5,20);this.controls.target.set(0,.2,0);}else{this.camera.position.set(8,10,10);this.controls.target.set(0,.7,0);}this.controls.update();this.#changed();}
+  #navigate=()=>{this.#homeView=false;};
+  home(){const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;this.#homeView=true;this.#frameLayout='';if(this.machine==='pachinko'){this.camera.position.set(8,5,20);this.controls.target.set(0,.2,0);}else{this.camera.position.set(8,10,10);this.controls.target.set(0,.7,0);}this.controls.update();this.#resized();this.#changed();}
   upright(){this.target.set(0,0,0,1);this.#sendRotation();}
   pour(){this.target.setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI);this.#sendRotation();}
   #sendRotation(){this.onRotation({x:this.target.x,y:this.target.y,z:this.target.z,w:this.target.w});this.#changed();}
@@ -296,9 +300,9 @@ export class FirehoseRenderer {
     else if(e.key==='+'||e.key==='=')this.zoom(.88);else if(e.key==='-')this.zoom(1.12);else used=false;
     if(used)e.preventDefault();
   };
-  #orbit(x:number,y:number){const offset=this.camera.position.clone().sub(this.controls.target),s=new THREE.Spherical().setFromVector3(offset);s.theta+=x;s.phi=Math.max(.02,Math.min(Math.PI-.02,s.phi+y));this.camera.position.copy(this.controls.target).add(offset.setFromSpherical(s));this.controls.update();this.#changed();}
-  #pan(x:number,y:number){const scale=this.camera.position.distanceTo(this.controls.target)*.035;this.#right.set(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar(x*scale);this.#up.set(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar(y*scale);this.#right.add(this.#up);this.camera.position.add(this.#right);this.controls.target.add(this.#right);this.controls.update();this.#changed();}
-  zoom(scale:number){this.camera.position.sub(this.controls.target).multiplyScalar(scale).clampLength(3,45).add(this.controls.target);this.controls.update();this.#changed();}
+  #orbit(x:number,y:number){this.#homeView=false;const offset=this.camera.position.clone().sub(this.controls.target),s=new THREE.Spherical().setFromVector3(offset);s.theta+=x;s.phi=Math.max(.02,Math.min(Math.PI-.02,s.phi+y));this.camera.position.copy(this.controls.target).add(offset.setFromSpherical(s));this.controls.update();this.#changed();}
+  #pan(x:number,y:number){this.#homeView=false;const scale=this.camera.position.distanceTo(this.controls.target)*.035;this.#right.set(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar(x*scale);this.#up.set(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar(y*scale);this.#right.add(this.#up);this.camera.position.add(this.#right);this.controls.target.add(this.#right);this.controls.update();this.#changed();}
+  zoom(scale:number){this.#homeView=false;this.camera.position.sub(this.controls.target).multiplyScalar(scale).clampLength(3,45).add(this.controls.target);this.controls.update();this.#changed();}
   #contextLost=(e:Event)=>{e.preventDefault();this.lost=true;this.#prepared=false;this.#preparation++;this.stage.dataset.graphicsReady='false';if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;this.onContext(true);};
   #contextRestored=()=>{if(this.#disposed)return;this.lost=false;this.#textures.forEach(t=>t.needsUpdate=true);this.#birthTexture.needsUpdate=true;this.#selected.needsUpdate=true;void this.prepare().then(()=>{if(this.#disposed||this.lost)return;this.onContext(false);this.#changed();}).catch(()=>{this.lost=true;this.onContext(true);});};
   #visibility=()=>{this.#quality.resetSamples();if(document.hidden){if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#frame=undefined;}else{this.#lastDraw=0;this.#resized();this.#changed();}};
@@ -322,7 +326,7 @@ export class FirehoseRenderer {
   };
   get graphicsReady(){return this.#prepared&&!this.lost;}
   get metrics(){return{frames:this.#visualFrames,maxFrameGap:this.#maxFrameGap,drawCalls:this.gpu.info.render.calls,geometries:this.gpu.info.memory.geometries,textures:this.gpu.info.memory.textures,programs:this.gpu.info.programs?.length??0,capacity:this.capacity,impacts:this.#impactIndex};}
-  destroy(){this.#disposed=true;if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#resize.disconnect();this.controls.removeEventListener('change',this.#changed);this.controls.dispose();
+  destroy(){this.#disposed=true;if(this.#frame!==undefined)cancelAnimationFrame(this.#frame);this.#resize.disconnect();this.controls.removeEventListener('change',this.#changed);this.controls.removeEventListener('start',this.#navigate);this.controls.dispose();
     this.canvas.removeEventListener('pointerdown',this.#down);this.canvas.removeEventListener('pointermove',this.#move);this.canvas.removeEventListener('pointerup',this.#release);this.canvas.removeEventListener('pointercancel',this.#cancel);
     this.canvas.removeEventListener('webglcontextlost',this.#contextLost);this.canvas.removeEventListener('webglcontextrestored',this.#contextRestored);this.stage.removeEventListener('keydown',this.#key);document.removeEventListener('visibilitychange',this.#visibility);
     const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();

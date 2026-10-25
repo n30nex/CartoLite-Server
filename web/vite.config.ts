@@ -18,7 +18,7 @@ export default defineConfig({
         codeSplitting: { groups: [
           { name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 30, includeDependenciesRecursively: false },
           { name: 'arcade', test: /[\\/]src[\\/](?:firehose|pachinko)[\\/]/, priority: 20, includeDependenciesRecursively: false },
-          { name: 'scene3d', test: /[\\/]src[\\/]sceneMaterials\.ts$/, priority: 25, includeDependenciesRecursively: false },
+          { name: 'scene3d', test: /[\\/]src[\\/](?:sceneMaterials|sceneFraming)\.ts$/, priority: 25, includeDependenciesRecursively: false },
           { name: 'terminal', test: /[\\/]src[\\/]terminal(?:Grid|Graphics)?\.ts$/, priority: 20, includeDependenciesRecursively: false },
           { name: 'chronoscope', test: /[\\/]src[\\/]chronoscope[\\/]/, priority: 20, includeDependenciesRecursively: false },
           { name: 'shared', test: /[\\/]src[\\/]/, minShareCount: 2 },

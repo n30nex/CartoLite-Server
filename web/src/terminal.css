@@ -84,3 +84,11 @@ html:root[data-terminal] .terminal-settings input[type=range] { accent-color:#79
   html:root .terminal-settings :is(input,select,button,summary) { min-height:44px; }
 }
 @media(max-height:480px) { #terminal-status { top: 8px; left: 205px; right: 8px; max-width: calc(100% - 220px); } #terminal-status strong, .terminal-help { display: none; } }
+
+/* Emergency entry points inherit a fixed palette only when custom UI ink is unreadable. */
+html:root[data-terminal][data-terminal-recovery="true"] :is(#view-panel,#layers-panel > header,#layers-panel > .map-options-header,#view-button,#layers-summary,#display-shortcut) {
+ --panel-solid:#050b10;--field-bg:#08121a;--panel-border:#527885;--ink:#d5e6df;--ink-strong:#efffdf;--muted:#a5bdbb;--focus-ring:#79f8c4;--selected:#193c3e;
+ color:var(--ink);background:var(--panel-solid);border-color:var(--panel-border);
+}
+html:root[data-terminal][data-terminal-recovery="true"] #layers-panel > :is(header,.map-options-header) :is(button,strong,span) { color:#efffdf; }
+html:root .terminal-settings .terminal-contrast-note { color:#ffe0a0; }

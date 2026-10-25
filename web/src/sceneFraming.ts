@@ -1,0 +1,34 @@
+import { Box3, PerspectiveCamera, Vector3 } from 'three';
+
+export interface SceneViewport { width:number; height:number; left:number; right:number; top:number; bottom:number }
+
+/** Reserve permanent chrome, not temporary menus or inspectors. Read only on resize/Home. */
+export function sceneViewport(stage:HTMLElement):SceneViewport {
+  const bounds=stage.getBoundingClientRect(), width=stage.clientWidth, height=stage.clientHeight;
+  const frame={width,height,left:14,right:14,top:14,bottom:14};
+  for(const selector of ['#topbar','.chrono-caption','.firehose-caption']) {
+    const node=document.querySelector<HTMLElement>(selector);
+    if(node?.getClientRects().length)frame.top=Math.max(frame.top,node.getBoundingClientRect().bottom-bounds.top+14);
+  }
+  for(const selector of ['.controls','.pachinko-buckets']) {
+    const node=document.querySelector<HTMLElement>(selector);
+    if(node?.getClientRects().length)frame.bottom=Math.max(frame.bottom,bounds.bottom-node.getBoundingClientRect().top+14);
+  }
+  return frame;
+}
+
+/** Fit a Home view without changing its orientation, position, or control target. */
+export function fitSceneCamera(camera:PerspectiveCamera, volume:Box3, frame:SceneViewport):void {
+  const {width,height,left,right,top,bottom}=frame;
+  if(width<=0||height<=0||Math.max(left,right)>=width/2||Math.max(top,bottom)>=height/2||volume.isEmpty())return;
+  const limits=[1-2*left/width,1-2*right/width,1-2*top/height,1-2*bottom/height];
+  const oldZoom=camera.zoom, point=new Vector3();let zoom=1;
+  camera.zoom=1;camera.updateProjectionMatrix();camera.updateMatrixWorld();
+  for(const x of [volume.min.x,volume.max.x])for(const y of [volume.min.y,volume.max.y])for(const z of [volume.min.z,volume.max.z]) {
+    point.set(x,y,z).project(camera);
+    if(!Number.isFinite(point.x+point.y+point.z)||point.z< -1||point.z>1){camera.zoom=oldZoom;camera.updateProjectionMatrix();return;}
+    if(point.x<0)zoom=Math.min(zoom,limits[0]!/-point.x);else if(point.x>0)zoom=Math.min(zoom,limits[1]!/point.x);
+    if(point.y>0)zoom=Math.min(zoom,limits[2]!/point.y);else if(point.y<0)zoom=Math.min(zoom,limits[3]!/-point.y);
+  }
+  camera.zoom=Math.max(.04,zoom*.96);camera.updateProjectionMatrix();
+}

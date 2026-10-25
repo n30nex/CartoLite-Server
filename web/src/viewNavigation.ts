@@ -59,7 +59,8 @@ export function createViewNavigation(view: CartoView, extras: ReadonlySet<string
   document.getElementById('labs-link')?.remove();
   if (labs) {
     const list = group('Labs', 'labs', view === 'Labs');
-    const selected = new URLSearchParams(location.search).get('experiment') ?? 'packet-pond';
+    const picker = view === 'Labs' ? document.querySelector<HTMLSelectElement>('#experiment-select') : null;
+    const selected = picker?.value || new URLSearchParams(location.search).get('experiment') || 'packet-pond';
     for (const [id, title] of [['packet-pond', 'Packet Pond'], ['firefly-meadow', 'Firefly Meadow'], ['mesh-loom', 'Mesh Loom'], ['little-mesh-villages', 'Little Mesh Villages']]) {
       const a = link(title!, `/labs/?experiment=${id}`, title!, view === 'Labs' && selected === id); a.dataset.lab = id;
       a.addEventListener('click', event => {
@@ -70,6 +71,11 @@ export function createViewNavigation(view: CartoView, extras: ReadonlySet<string
       });
       list.append(a);
     }
+    picker?.addEventListener('change', () => {
+      for (const item of list.querySelectorAll<HTMLAnchorElement>('a[data-lab]')) {
+        if (item.dataset.lab === picker.value) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
+      }
+    });
   }
   nav.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a') : null;

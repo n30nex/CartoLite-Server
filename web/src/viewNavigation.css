@@ -1,5 +1,5 @@
 .dock-views .view-icon { width:18px; height:18px; flex:none; color:var(--focus-ring, #67ead2); filter:drop-shadow(0 0 4px #4ddfc322); }
-.dock-views .control-button { gap:6px; }
+.dock-views .control-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; }
 .dock-views .nav-group { position:relative; }
 .dock-views .nav-group > summary { list-style:none; user-select:none; }
 .dock-views .nav-group > summary::-webkit-details-marker { display:none; }

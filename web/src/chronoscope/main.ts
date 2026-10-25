@@ -31,6 +31,7 @@ let connected=false, disposed=false, selected: string | null=null, recentSignatu
 let minuteTimer: number | undefined;
 let settings=load();
 let liveMode: 'sculpture' | 'flat'=settings.mode==='flat'?'flat':'sculpture';
+const coarsePointer=matchMedia('(pointer:coarse)');
 initializeDisplay();
 const closeDisplay=mountNetgraphDisplay(()=>closePanels());
 populateSoundScenes(required<HTMLSelectElement>('sound-scene'));
@@ -67,6 +68,7 @@ function applySettings() {
 function sync() {
   if(!renderer)return;
   const records=renderer.inspectionRecords(),frozen=renderer.frozen;
+  const hint=required('chrono-hint');hint.textContent=(settings.mode==='sculpture'&&stage.dataset.cameraMode!=='canvas'?'Drag to orbit':'Drag to pan')+(coarsePointer.matches?' · Pinch to zoom':' · Scroll to zoom');
   freeze.setAttribute('aria-pressed',String(frozen));
   sonifier?.setPaused(document.hidden||frozen);
   required('regions-button').toggleAttribute('data-filtered',settings.regions!==null);
@@ -74,8 +76,8 @@ function sync() {
   const time=settings.mode==='slice'?`around ${renderer.sliceSeconds}s ago (±2s)`:settings.mode==='sculpture'&&renderer.timeline.retainSculpture?`${settings.seconds}s fall · ${'settledCount' in renderer?renderer.settledCount:0} settled`:`${settings.seconds}s window`;
   const timeLabel=document.getElementById('chrono-window-label');if(timeLabel)timeLabel.textContent=settings.mode==='sculpture'&&renderer.timeline.retainSculpture?'Fall time for new packets':'Recent time window';
   if(settings.mode==='slice'){slice.value=String(renderer.sliceSeconds);required<HTMLOutputElement>('slice-output').value=`${renderer.sliceSeconds===0?'Now':`${renderer.sliceSeconds}s ago`} · ±2s`;}
-  const copy=(stage.dataset.graphicsReady==='false'?'Restoring graphics · ':frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+' regions · ':'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed events · ${time}${renderer.timeline.trimmed?' · oldest observations capped':''}` :settings.mode==='slice'?`No observed events ${time}`:(frozen?'No events in this frozen window':'Waiting for activity'));
-  if(caption.textContent!==copy)caption.textContent=copy;
+  const copy=(stage.dataset.graphicsReady==='false'?'Restoring graphics · ':frozen?'Frozen · ':!connected?'Reconnecting · ':'')+(settings.regions?.length?String(settings.regions.length)+(settings.regions.length===1?' region · ':' regions · '):'')+(settings.regions?.length===0?'No regions selected':missing?'Selected regions unavailable · choose All regions':records.length?`${records.length.toLocaleString()} observed ${records.length===1?'event':'events'} · ${time}${renderer.timeline.trimmed?' · oldest observations capped':''}` :settings.mode==='slice'?`No observed events ${time}`:(frozen?'No events in this frozen window':'Waiting for activity'));
+  if(caption.textContent!==copy){caption.textContent=copy;caption.title=copy;}
   const heading=caption.previousElementSibling,headingText='CHRONOSCOPE · '+settings.mode.toUpperCase()+(stage.dataset.cameraMode==='canvas'?' · 2D FALLBACK':'');if(heading&&heading.textContent!==headingText)heading.textContent=headingText;
   if(!required('time-panel').hidden)updateRecent();
 }
@@ -87,7 +89,7 @@ function updateRecent() {
   if(!records.length){const p=document.createElement('p');p.textContent=settings.mode==='slice'?'No events in this slice.':renderer.frozen?'No events in this frozen window.':'Waiting for activity.';host.append(p);}
   for(const record of records){const button=document.createElement('button'),dot=document.createElement('i'),text=document.createElement('span');button.type='button';
     const packet=record.packet,kind=normalizePacketKind(packet.payloadType);dot.style.setProperty('--packet-color',packetPalette()[kind]);dot.setAttribute('aria-hidden','true');
-    text.textContent=`${kind} · ${packet.mode==='observer'?packet.observer.label:packet.segments[0]?.from.label??'Observed link'}${packet.mode==='observer'?' · heard only':` · ${packet.segments.length} confirmed segments`}`;
+    text.textContent=`${kind} · ${packet.mode==='observer'?packet.observer.label:packet.segments[0]?.from.label??'Observed link'}${packet.mode==='observer'?' · heard only':` · ${packet.segments.length} confirmed ${packet.segments.length===1?'segment':'segments'}`}`;
     button.append(dot,text);button.addEventListener('click',()=>{closePanels();inspectPacket(record);inspector.querySelector<HTMLButtonElement>('button')?.focus();});host.append(button);}
 }
 function renderRegions() {
@@ -121,7 +123,7 @@ function inspectPacket(record: Observation) {
   required('chronoscope-app').dataset.followInspect='true';
   const packet=record.packet,card=document.createElement('article');card.className='chrono-inspector';
   const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(packet.payloadType)} · observed activity`;close.type='button';close.textContent='×';close.className='node-inspector-close';close.setAttribute('aria-label','Close activity details');close.addEventListener('click',()=>{inspector.hidden=true;delete required('chronoscope-app').dataset.followInspect;renderer!.selectNode(null);stage.focus();});header.append(title,close);
-  const detail=document.createElement('p');detail.textContent=`${Math.max(0,Math.round((renderer.frameTime-record.started)/1_000))} seconds ago in this view · ${packet.mode==='observer'?'Observer-only reception':`${packet.segments.length} confirmed segments`}`;card.append(header,detail);
+  const detail=document.createElement('p');detail.textContent=`${Math.max(0,Math.round((renderer.frameTime-record.started)/1_000))} seconds ago in this view · ${packet.mode==='observer'?'Observer-only reception':`${packet.segments.length} confirmed ${packet.segments.length===1?'segment':'segments'}`}`;card.append(header,detail);
   const nodeButton=(id:string,label:string)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.nodeId=id;button.addEventListener('click',()=>selectNode(id));return button;};
   if(packet.mode==='observer'){card.append(nodeButton(packet.observer.id,packet.observer.label));const p=document.createElement('p');p.textContent='A receiver heard this packet. No public route was confirmed.';card.append(p);}
   else for(const segment of packet.segments){const row=document.createElement('div');row.className='chrono-hop';const arrow=document.createElement('span');arrow.textContent='→';arrow.setAttribute('aria-hidden','true');row.append(nodeButton(segment.from.id,segment.from.label),arrow,nodeButton(segment.to.id,segment.to.label));card.append(row);}

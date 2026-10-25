@@ -27,6 +27,7 @@ let retryTimer:number|undefined,inspectorTimer:number|undefined,refreshSearch=()
 const pending=new Map<number,{packet:PacketView;shape:PacketShape}>();
 const events=new Map<number,{packet:PacketView;shape:PacketShape;slots:number[]}>();
 let owners:Int32Array;
+const coarsePointer=matchMedia('(pointer:coarse)');
 initializeDisplay();scenePaused=prefersReducedMotion();let motionKey=`${displayPreferences().motion}:${prefersReducedMotion()}`;
 const closeDisplay=mountNetgraphDisplay(()=>closePanels());
 // Physical links have no time residue; the remaining shared styles apply directly.
@@ -46,10 +47,10 @@ document.addEventListener('keydown',e=>{if(e.key!=='Escape'||document.querySelec
 function setMode(mode:'tilt'|'orbit') {renderer?.setMode(mode);required('tilt-mode').setAttribute('aria-pressed',String(mode==='tilt'));required('orbit-mode').setAttribute('aria-pressed',String(mode==='orbit'));sync();}
 function sync(){
  const count=Number(stage.dataset.beads??0),groups=Number(stage.dataset.events??0),drained=Number(stage.dataset.drained??0);
- const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?(pachinko?'Empty buckets. Waiting for live packets.':'An empty box. Waiting for live packets.'):pachinko?`${count.toLocaleString()} packets · ${drained.toLocaleString()} drained${stage.dataset.draining==='true'?' · draining buckets':''}`:`${count.toLocaleString()} particles · ${groups.toLocaleString()} packets · ${drained.toLocaleString()} drained`;
+ const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?(pachinko?'Empty buckets. Waiting for live packets.':'An empty box. Waiting for live packets.'):pachinko?`${count.toLocaleString()} ${count===1?'packet':'packets'} · ${drained.toLocaleString()} drained${stage.dataset.draining==='true'?' · draining buckets':''}`:`${count.toLocaleString()} ${count===1?'particle':'particles'} · ${groups.toLocaleString()} ${groups===1?'packet':'packets'} · ${drained.toLocaleString()} drained`;
  if(pachinko){const counts=JSON.parse(stage.dataset.buckets??'[0,0,0,0,0,0]') as number[];for(let i=0;i<6;i++){const output=document.querySelector<HTMLOutputElement>(`[data-bucket="${KINDS[i]}"]`);if(output&&output.value!==String(counts[i]??0))output.value=String(counts[i]??0);}}
- if(required('pile-status').textContent!==text)required('pile-status').textContent=text;
- const hint=scenePaused?'Orbit to inspect · Resume to collect fresh activity':renderer?.mode==='orbit'?'Drag to orbit · right-drag or two fingers pan':'Drag to tilt the box · pinch or scroll to zoom';if(required('gesture-hint').textContent!==hint)required('gesture-hint').textContent=hint;
+ if(required('pile-status').textContent!==text){required('pile-status').textContent=text;required('pile-status').title=text;}
+ const touch=coarsePointer.matches;const hint=scenePaused?'Drag to inspect · Resume for new packets':renderer?.mode==='orbit'?(touch?'Drag to orbit · Two fingers pan/zoom':'Drag to orbit · Right-drag to pan · Scroll to zoom'):(touch?'Drag to tilt · Pinch to zoom':'Drag to tilt · Scroll to zoom');if(required('gesture-hint').textContent!==hint)required('gesture-hint').textContent=hint;
  const cap=omitted?`${omitted.toLocaleString()} events omitted at the detail cap · never replayed`:'';if(required('capacity-status').textContent!==cap)required('capacity-status').textContent=cap;
  const button=required('pause-button'),label=scenePaused?'Resume':'Pause';if(button.getAttribute('aria-pressed')!==String(scenePaused))button.setAttribute('aria-pressed',String(scenePaused));button.setAttribute('aria-label',scenePaused?'Resume physics and new packets':'Pause physics and new packets');if(button.querySelector('span')!.textContent!==label)button.querySelector('span')!.textContent=label;
  stage.dataset.paused=String(scenePaused);stage.dataset.clientOmitted=String(omitted);
@@ -67,7 +68,7 @@ function selectNode(id:string|null){
 }
 function inspect(id:number){const event=events.get(id);if(!event)return;selectedNode=null;rememberNode(null);renderer?.highlight(event.slots);
  const card=document.createElement('article');card.className='chrono-inspector';const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(event.packet.payloadType)} · observed packet`;close.textContent='×';close.type='button';close.className='node-inspector-close';close.setAttribute('aria-label','Close packet details');close.addEventListener('click',()=>{inspector.hidden=true;renderer?.highlight([]);stage.focus();});header.append(title,close);card.append(header);
- const detail=document.createElement('p');detail.textContent=event.packet.mode==='observer'?'Observer-only reception. A single dot does not imply a confirmed route.':`${event.packet.segments.length} confirmed segments. The physical arrangement is not geography or a radio trajectory.`;card.append(detail);
+ const detail=document.createElement('p');detail.textContent=event.packet.mode==='observer'?'Observer-only reception. A single dot does not imply a confirmed route.':`${event.packet.segments.length} confirmed ${event.packet.segments.length===1?'segment':'segments'}. The physical arrangement is not geography or a radio trajectory.`;card.append(detail);
  const node=(id:string,label:string)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.nodeId=id;b.addEventListener('click',()=>selectNode(id));return b;};
  if(event.packet.mode==='observer')card.append(node(event.packet.observer.id,event.packet.observer.label));
  else for(const edge of event.packet.segments){const row=document.createElement('div');row.className='chrono-hop';const arrow=document.createElement('span');arrow.textContent='→';row.append(node(edge.from.id,edge.from.label),arrow,node(edge.to.id,edge.to.label));card.append(row);}
@@ -100,7 +101,7 @@ async function connect(){
  finally{connecting=false;}
 }
 async function start(){let phase='graphics';try{
- const capacity=capacityFor(matchMedia('(pointer:coarse)').matches,displayPreferences().quality,machine);owners=new Int32Array(capacity).fill(-1);
+ const capacity=capacityFor(coarsePointer.matches,displayPreferences().quality,machine);owners=new Int32Array(capacity).fill(-1);
  renderer=new FirehoseRenderer(stage,required<HTMLCanvasElement>(`${machine}-canvas`),capacity,machine);renderer.onRotation=rotation=>post({type:'rotation',rotation});renderer.onPick=slot=>{const id=owners[slot];if(id!==undefined&&id>=0)inspect(id);};
  renderer.onContext=lost=>{required('graphics-notice').hidden=!lost;pause();};
  await renderer.prepare();if(disposed)return;if(!renderer.graphicsReady)throw new Error('Graphics were interrupted during initialization');

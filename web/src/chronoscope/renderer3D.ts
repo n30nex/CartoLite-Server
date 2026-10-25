@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { fitSceneCamera, sceneViewport } from '../sceneFraming';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DISPLAY_EVENT, displayColor, displayPreferences, lightScene, packetPalette, prefersReducedMotion } from '../displayPreferences';
 import { drawPacketSignature, routeMotion } from '../packetAnimator';
@@ -33,18 +34,20 @@ export class Chronoscope3DRenderer {
   #mode:ChronoscopeMode='sculpture';#seconds=60;#slice=0;#framed=false;#originX=0;#originZ=0;#scale=1;
   #stacks=new Map<Observation,Stack>();#levels=new Map<string,{next:number;refs:number}>();
   #frame=0;#timer=0;#prepared=false;#disposed=false;#lost=false;#resumeAfterContext=false;
+  #homeView=true;#frameLayout='';
+  readonly #volume=new THREE.Box3(new THREE.Vector3(-6.5,-.3,-4.5),new THREE.Vector3(6.5,5.3,4.5));
   #width=1;#height=1;#dpr=1;#reduced=false;#drawMS=0;#lastStats=0;#frames=0;
   #palette:THREE.Color[]=[];#roles=new Map<string,THREE.Color>();#accent=new THREE.Color('#ffd06c');#shadow=new THREE.Color('#020a10');
   #a:Position3={x:0,y:0,z:0};#b:Position3={x:0,y:0,z:0};#c:Position3={x:0,y:0,z:0};#vector=new THREE.Vector3();
   #down?:{x:number;y:number;id:number};#dragged=false;
   #signatures:Array<{record:Observation;x:number;y:number;dx:number;dy:number;age:number}>=[];
-  #sculpturePose?:{position:THREE.Vector3;target:THREE.Vector3};
+  #sculpturePose?:{position:THREE.Vector3;target:THREE.Vector3;zoom:number;home:boolean};
   constructor(readonly stage:HTMLElement,readonly canvas:HTMLCanvasElement,readonly effects:HTMLCanvasElement,
     readonly callbacks:{node(id:string|null):void;packet(record:Observation):void;change?():void},context:WebGL2RenderingContext){
     const overlay=effects.getContext('2d');if(!overlay)throw new Error('Canvas labels are unavailable');this.#overlay=overlay;
     this.gpu=new THREE.WebGLRenderer({canvas,context,antialias:true,alpha:false,powerPreference:'high-performance'});this.gpu.outputColorSpace=THREE.SRGBColorSpace;this.gpu.toneMapping=THREE.ACESFilmicToneMapping;
     this.controls=new OrbitControls(this.camera,stage);this.controls.enableDamping=true;this.controls.dampingFactor=.12;this.controls.minDistance=3;this.controls.maxDistance=65;this.controls.minPolarAngle=.03;this.controls.maxPolarAngle=Math.PI-.03;
-    this.controls.addEventListener('change',this.request);this.controls.addEventListener('start',this.navigate);
+    this.controls.addEventListener('change',this.request);this.controls.addEventListener('start',this.manualNavigate);
     this.scene.add(this.#strokes.mesh,this.#dots.mesh,this.#known.mesh);
     this.scene.add(new THREE.HemisphereLight(0xd6f4ff,0x09232f,2));const key=new THREE.DirectionalLight(0xd5f7ff,2.4);key.position.set(-6,9,7);this.scene.add(key);
     const plinth=new THREE.Mesh(new THREE.BoxGeometry(13,.14,9),this.#floorMaterial);plinth.position.y=-.12;this.scene.add(plinth);
@@ -53,7 +56,7 @@ export class Chronoscope3DRenderer {
     stage.addEventListener('pointerdown',this.pointerDown);stage.addEventListener('pointermove',this.pointerMove);stage.addEventListener('pointerup',this.pointerUp);stage.addEventListener('pointercancel',this.pointerCancel);stage.addEventListener('keydown',this.keydown);
     canvas.addEventListener('webglcontextlost',this.contextLost);canvas.addEventListener('webglcontextrestored',this.contextRestored);
     window.addEventListener(DISPLAY_EVENT,this.appearance);document.addEventListener('visibilitychange',this.visibility);
-    this.#resize=new ResizeObserver(this.resize);this.#resize.observe(stage);this.appearance();this.home();this.resize();
+    this.#resize=new ResizeObserver(this.resize);this.#resize.observe(stage);for(const node of document.querySelectorAll('.controls,.chrono-caption'))this.#resize.observe(node);this.appearance();this.home();this.resize();
   }
   async prepare(){await this.gpu.compileAsync(this.scene,this.camera);if(this.#disposed||this.#lost)return;this.#prepared=true;this.stage.dataset.graphicsReady='true';this.request();}
   get nodes():ReadonlyMap<string,NodeV2>{return this.#nodes;}get regions(){return this.#layout.areas;}get selected(){return this.#selected;}
@@ -70,11 +73,11 @@ export class Chronoscope3DRenderer {
     if(changed||changes.nodes?.length)this.updateKnown();this.request();Object.assign(this.stage.dataset,{totalNodes:String(state.nodes.length),totalRoutes:String(state.routes.length),renderApplyMs:String(performance.now()-started),renderState:'idle'});
   }
   setMode(mode:ChronoscopeMode){
-    if(this.#mode==='sculpture'&&mode!=='sculpture')this.#sculpturePose={position:this.camera.position.clone(),target:this.controls.target.clone()};
+    if(this.#mode==='sculpture'&&mode!=='sculpture')this.#sculpturePose={position:this.camera.position.clone(),target:this.controls.target.clone(),zoom:this.camera.zoom,home:this.#homeView};
     const changed=this.#mode!==mode;this.#mode=mode;if(mode==='slice')this.freeze();
     this.controls.enableRotate=mode==='sculpture';this.controls.minPolarAngle=mode==='sculpture'?.03:0;this.controls.mouseButtons.LEFT=mode==='sculpture'?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN;this.controls.touches.ONE=mode==='sculpture'?THREE.TOUCH.ROTATE:THREE.TOUCH.PAN;
     this.#frameGeometry.visible=mode==='sculpture';
-    if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.controls.update();}else this.home();}
+    if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.camera.zoom=this.#sculpturePose.zoom;this.#homeView=this.#sculpturePose.home;this.camera.updateProjectionMatrix();this.controls.update();}else this.home();}
     this.updateKnown();this.request();
   }
   setWindow(seconds:number){this.#seconds=seconds;this.#slice=Math.min(this.#slice,seconds);this.request();}
@@ -88,11 +91,11 @@ export class Chronoscope3DRenderer {
   nodeInRegions(id:string){return !this.#regions||this.#regions.has(this.#layout.positions.get(id)?.areaCode??this.#assignments.get(id)?.code??'');}
   selectNode(id:string|null){this.#selected=id;this.#selectedEvent=null;this.updateKnown();this.request();}
   selectPacket(record:Observation){this.#selectedEvent=record.packet.seq;this.#selected=null;this.updateKnown();this.request();}
-  focusNode(id:string){const node=this.#nodes.get(id);if(!node||!this.world(node,this.#a))return;const delta=this.camera.position.clone().sub(this.controls.target);this.controls.target.set(this.#a.x,this.#a.y,this.#a.z);this.camera.position.copy(this.controls.target).add(delta);this.controls.update();this.request();}
-  home(){this.#framed=false;this.frameBounds();if(this.#mode==='sculpture'){this.camera.position.set(11,10,15);this.controls.target.set(0,2.25,0);}else{this.camera.position.set(0,19,.001);this.controls.target.set(0,.1,0);}this.controls.update();this.updateKnown();this.request();}
-  panBy(x:number,y:number){const scale=this.camera.position.distanceTo(this.controls.target)/Math.max(100,this.#height);const right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar(x*scale),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar(-y*scale);right.add(up);this.camera.position.add(right);this.controls.target.add(right);this.controls.update();this.request();}
-  zoomBy(factor:number){this.camera.position.sub(this.controls.target).multiplyScalar(1/factor).clampLength(3,65).add(this.controls.target);this.controls.update();this.request();}
-  rotateBy(delta:number,pitch=0){if(this.#mode!=='sculpture')return;const offset=this.camera.position.clone().sub(this.controls.target),spherical=new THREE.Spherical().setFromVector3(offset);spherical.theta+=delta;spherical.phi=Math.max(.03,Math.min(Math.PI-.03,spherical.phi+pitch));this.camera.position.copy(this.controls.target).add(offset.setFromSpherical(spherical));this.controls.update();this.request();}
+  focusNode(id:string){this.#homeView=false;const node=this.#nodes.get(id);if(!node||!this.world(node,this.#a))return;const delta=this.camera.position.clone().sub(this.controls.target);this.controls.target.set(this.#a.x,this.#a.y,this.#a.z);this.camera.position.copy(this.controls.target).add(delta);this.controls.update();this.request();}
+  home(){const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;this.#homeView=true;this.#frameLayout='';this.#framed=false;this.frameBounds();if(this.#mode==='sculpture'){this.camera.position.set(11,10,15);this.controls.target.set(0,2.25,0);}else{this.camera.position.set(0,19,.001);this.controls.target.set(0,.1,0);}this.controls.update();this.resize();this.updateKnown();this.request();}
+  panBy(x:number,y:number){this.#homeView=false;const scale=this.camera.position.distanceTo(this.controls.target)/Math.max(100,this.#height);const right=new THREE.Vector3(1,0,0).applyQuaternion(this.camera.quaternion).multiplyScalar(x*scale),up=new THREE.Vector3(0,1,0).applyQuaternion(this.camera.quaternion).multiplyScalar(-y*scale);right.add(up);this.camera.position.add(right);this.controls.target.add(right);this.controls.update();this.request();}
+  zoomBy(factor:number){this.#homeView=false;this.camera.position.sub(this.controls.target).multiplyScalar(1/factor).clampLength(3,65).add(this.controls.target);this.controls.update();this.request();}
+  rotateBy(delta:number,pitch=0){this.#homeView=false;if(this.#mode!=='sculpture')return;const offset=this.camera.position.clone().sub(this.controls.target),spherical=new THREE.Spherical().setFromVector3(offset);spherical.theta+=delta;spherical.phi=Math.max(.03,Math.min(Math.PI-.03,spherical.phi+pitch));this.camera.position.copy(this.controls.target).add(offset.setFromSpherical(spherical));this.controls.update();this.request();}
   freeze(){this.timeline.freeze(performance.now());this.navigate();this.request();this.callbacks.change?.();}
   live(){this.timeline.resume();this.#selectedEvent=null;this.request();this.callbacks.change?.();}
   clear(){this.timeline.clear();this.#stacks.clear();this.#levels.clear();this.#selectedEvent=null;this.request();this.callbacks.change?.();}
@@ -167,9 +170,10 @@ export class Chronoscope3DRenderer {
     for(const area of this.#layout.areas){if(this.#regions&&!this.#regions.has(area.code))continue;this.#a.x=(area.x-this.#originX)*this.#scale;this.#a.z=(area.y-this.#originZ)*this.#scale;this.#a.y=this.#mode==='sculpture'?NOW+.18:.18;label(area.name??area.code,this.#a);}
     if(this.#mode==='sculpture'){label('NOW',{x:-6.25,y:NOW,z:4.25},true);label('SESSION SCULPTURE',{x:-5,y:.1,z:4.25},true);}
   }
-  private resize=()=>{if(this.#disposed||document.hidden)return;this.#width=Math.max(1,this.stage.clientWidth);this.#height=Math.max(1,this.stage.clientHeight);const prefs=displayPreferences();this.#dpr=Math.min(devicePixelRatio||1,prefs.quality==='economy'?1:1.5);this.gpu.setPixelRatio(this.#dpr);this.gpu.setSize(this.#width,this.#height,false);this.effects.width=Math.round(this.#width*this.#dpr);this.effects.height=Math.round(this.#height*this.#dpr);this.camera.aspect=this.#width/this.#height;this.camera.zoom=Math.min(1,this.camera.aspect/.85);this.camera.updateProjectionMatrix();this.#uniforms.uResolution!.value.set(this.#width*this.#dpr,this.#height*this.#dpr);this.#uniforms.uDpr!.value=this.#dpr;this.request();};
+  private resize=()=>{if(this.#disposed||document.hidden)return;this.#width=Math.max(1,this.stage.clientWidth);this.#height=Math.max(1,this.stage.clientHeight);const prefs=displayPreferences();this.#dpr=Math.min(devicePixelRatio||1,prefs.quality==='economy'?1:1.5);this.gpu.setPixelRatio(this.#dpr);this.gpu.setSize(this.#width,this.#height,false);this.effects.width=Math.round(this.#width*this.#dpr);this.effects.height=Math.round(this.#height*this.#dpr);this.camera.aspect=this.#width/this.#height;this.camera.updateProjectionMatrix();const frame=sceneViewport(this.stage),key=JSON.stringify(frame);if(this.#homeView&&key!==this.#frameLayout){this.#frameLayout=key;if(this.#mode==='sculpture')fitSceneCamera(this.camera,this.#volume,frame);else{this.camera.zoom=Math.min(1,this.camera.aspect/1.1);this.camera.updateProjectionMatrix();}}this.#uniforms.uResolution!.value.set(this.#width*this.#dpr,this.#height*this.#dpr);this.#uniforms.uDpr!.value=this.#dpr;this.request();};
   private appearance=()=>{this.#reduced=prefersReducedMotion();const p=displayPreferences(),light=lightScene(),palette=packetPalette();this.#palette=kinds.map(kind=>new THREE.Color(palette[kind]));this.#accent.set(palette.Trace);this.#roles=new Map(Object.entries(roleColors).map(([role,color])=>[role,new THREE.Color(displayColor(color))]));this.#uniforms.uLight!.value=light?1:0;this.#uniforms.uPattern!.value=p.pattern==='dashed'?1:p.pattern==='dotted'?2:0;this.scene.background=new THREE.Color(light?(p.basemap==='streets'?'#e7dfc9':'#e7eff0'):'#071319');this.#floorMaterial.color.set(light?'#dbe5e6':'#0b2230');this.updateKnown();this.resize();this.request();};
   private request=()=>{if(this.#timer){clearTimeout(this.#timer);this.#timer=0;}if(!this.#frame&&!this.#disposed&&!this.#lost&&this.#prepared&&!document.hidden)this.#frame=requestAnimationFrame(this.draw);};
+  private manualNavigate=()=>{this.#homeView=false;this.navigate();};
   private navigate=()=>{this.stage.dispatchEvent(new Event('graphnavigate'));};
   private visibility=()=>{if(document.hidden){if(this.#frame)cancelAnimationFrame(this.#frame);if(this.#timer)clearTimeout(this.#timer);this.#frame=this.#timer=0;}else this.request();};
   private pointerDown=(event:PointerEvent)=>{if(this.#down){this.#dragged=true;return;}this.#down={x:event.clientX,y:event.clientY,id:event.pointerId};this.#dragged=false;this.stage.focus({preventScroll:true});};
@@ -184,7 +188,7 @@ export class Chronoscope3DRenderer {
   private keydown=(event:KeyboardEvent)=>{if(event.target!==this.stage)return;let used=true;switch(event.key){case'Home':this.home();break;case'+':case'=':this.zoomBy(1.12);break;case'-':this.zoomBy(1/1.12);break;case'ArrowLeft':event.shiftKey?this.rotateBy(-.12):this.panBy(24,0);break;case'ArrowRight':event.shiftKey?this.rotateBy(.12):this.panBy(-24,0);break;case'ArrowUp':event.shiftKey?this.rotateBy(0,-.12):this.panBy(0,24);break;case'ArrowDown':event.shiftKey?this.rotateBy(0,.12):this.panBy(0,-24);break;default:used=false;}if(used){event.preventDefault();this.navigate();}};
   private contextLost=(event:Event)=>{event.preventDefault();this.#lost=true;this.#prepared=false;this.#resumeAfterContext=!this.frozen;if(this.#resumeAfterContext)this.timeline.freeze(performance.now());this.stage.dataset.graphicsReady='false';if(this.#frame)cancelAnimationFrame(this.#frame);if(this.#timer)clearTimeout(this.#timer);this.#frame=this.#timer=0;this.callbacks.change?.();};
   private contextRestored=()=>{if(this.#disposed)return;this.#lost=false;void this.prepare().then(()=>{if(this.#disposed||this.#lost)return;if(this.#resumeAfterContext)this.timeline.resume();this.updateKnown();this.request();this.callbacks.change?.();}).catch(()=>{this.#lost=true;const fatal=document.getElementById('fatal');if(fatal){fatal.hidden=false;const text=fatal.querySelector('p');if(text)text.textContent='Graphics could not recover. Reload this view, or open Netgraph.';}});};
-  destroy(){this.#disposed=true;if(this.#frame)cancelAnimationFrame(this.#frame);if(this.#timer)clearTimeout(this.#timer);this.#resize.disconnect();this.controls.removeEventListener('change',this.request);this.controls.removeEventListener('start',this.navigate);this.controls.dispose();
+  destroy(){this.#disposed=true;if(this.#frame)cancelAnimationFrame(this.#frame);if(this.#timer)clearTimeout(this.#timer);this.#resize.disconnect();this.controls.removeEventListener('change',this.request);this.controls.removeEventListener('start',this.manualNavigate);this.controls.dispose();
     this.stage.removeEventListener('pointerdown',this.pointerDown);this.stage.removeEventListener('pointermove',this.pointerMove);this.stage.removeEventListener('pointerup',this.pointerUp);this.stage.removeEventListener('pointercancel',this.pointerCancel);this.stage.removeEventListener('keydown',this.keydown);this.canvas.removeEventListener('webglcontextlost',this.contextLost);this.canvas.removeEventListener('webglcontextrestored',this.contextRestored);window.removeEventListener(DISPLAY_EVENT,this.appearance);document.removeEventListener('visibilitychange',this.visibility);
     const geometry=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();this.scene.traverse(object=>{if(object instanceof THREE.Mesh||object instanceof THREE.Points||object instanceof THREE.LineSegments){geometry.add(object.geometry);for(const material of Array.isArray(object.material)?object.material:[object.material])materials.add(material);}});geometry.forEach(item=>item.dispose());materials.forEach(item=>item.dispose());this.gpu.dispose();this.gpu.forceContextLoss();this.timeline.clear();this.#stacks.clear();this.#levels.clear();this.#nodes.clear();
   }
