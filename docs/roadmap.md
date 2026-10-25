@@ -1,8 +1,8 @@
 # CartoLite delivery roadmap
 
-## Firehose motion and spectacle (0.11.1)
+## Firehose spectacle and operator page choices (0.11.1)
 
-Implementation and release qualification: [luminous packet and solver update](firehose-spectacle.md).
+Implementation and release qualification: [luminous packet and solver update](firehose-spectacle.md). Includes operator-selected optional pages through `EXTRA_PAGES`, default/subset/all routing and navigation checks, and checkpoint-preserving Compose upgrades. [Install and page choices](deployment.md#choose-the-pages-on-your-server).
 
 
 ## Firehose delivery (0.11.0)

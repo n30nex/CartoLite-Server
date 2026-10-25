@@ -19,6 +19,7 @@ services:
       STATE_PATH: ${STATE_PATH:-/data/state-v1.json}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       BASEMAP_PROVIDER: openfreemap
+      EXTRA_PAGES: ${EXTRA_PAGES:-}
     volumes:
       - cartolite-data:/data
     read_only: true

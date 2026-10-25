@@ -13,7 +13,9 @@ export function mountCinematicDock(): void {
   const terminal = location.pathname.startsWith('/terminal');
   const chrono = location.pathname.startsWith('/chronoscope');
   const firehose = location.pathname.startsWith('/firehose');
+  const extraPages = new Set((document.documentElement.dataset.extraPages ?? '').split(','));
   for (const [label, path, active] of [['Map', '/', !graph && !terminal && !chrono && !firehose], ['Netgraph', '/netgraph/', graph], ['Terminal', '/terminal/', terminal], ['Chronoscope', '/chronoscope/', chrono], ['Firehose', '/firehose/', firehose]] as const) {
+    if (label !== 'Map' && label !== 'Netgraph' && !extraPages.has(label.toLowerCase())) continue;
     const link = (label === 'Netgraph' ? topbar.querySelector<HTMLAnchorElement>('#netgraph-link') : null) ?? document.createElement('a');
     link.href = path; link.classList.add('control-button'); link.textContent = label;
     link.setAttribute('aria-label', `Open CartoLite ${label === 'Map' ? 'map' : label}`);

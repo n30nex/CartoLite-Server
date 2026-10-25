@@ -9,7 +9,7 @@ import (
 )
 
 func TestTerminalPageAndCanonicalURL(t *testing.T) {
-	server := &Server{static: fstest.MapFS{
+	server := &Server{extraPages: []string{"terminal"}, static: fstest.MapFS{
 		"terminal/index.html": {Data: []byte("<title>CartoLite Terminal</title>")},
 	}}
 	handler := server.Handler()

@@ -9,10 +9,10 @@ import (
 )
 
 func TestFirehosePageRetainsStrictScriptPolicy(t *testing.T) {
-	server := &Server{static: fstest.MapFS{
-		"firehose/index.html": {Data: []byte("<title>CartoLite Firehose</title>")},
+	server := &Server{extraPages: []string{"firehose"}, static: fstest.MapFS{
+		"firehose/index.html":                 {Data: []byte("<title>CartoLite Firehose</title>")},
 		"assets/firehose.worker-synthetic.js": {Data: []byte("/* synthetic worker */")},
-		"assets/shared-synthetic.js": {Data: []byte("/* synthetic shared module */")},
+		"assets/shared-synthetic.js":          {Data: []byte("/* synthetic shared module */")},
 	}}
 	handler := server.Handler()
 	for _, method := range []string{http.MethodGet, http.MethodHead} {

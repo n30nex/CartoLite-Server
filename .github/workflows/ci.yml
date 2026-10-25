@@ -139,6 +139,7 @@ jobs:
             --mount source=cartolite-server-ci-data,target=/data \
             -e MQTT_BROKER_URL=tcp://cartolite-server-mqtt:1883 \
             -e MQTT_TOPIC=meshcore/# -e MQTT_CLIENT_ID=cartolite-server-ci \
+            -e EXTRA_PAGES=terminal,chronoscope,firehose \
             cartolite-server:ci
           for _ in $(seq 1 90); do
             curl --fail --silent http://127.0.0.1:39476/readyz >/dev/null && exit 0

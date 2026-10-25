@@ -2,7 +2,7 @@
 
 The traffic API publishes schema v2 nodes, routes, status, and sanitized packet kinds. It never publishes full node or observer keys, raw paths, packet hashes, packet payloads, message text, server credentials, resolver reasons, or MQTT region labels.
 
-The separate `/api/config` response contains only public map-provider settings. Optional CARTO browser keys are intentionally client-visible; MQTT credentials and other server configuration are never included. The default OpenFreeMap provider needs no key, and published images contain no operator or CI map key.
+The separate `/api/config` response contains only public map-provider settings and enabled page names. Optional CARTO browser keys are intentionally client-visible; MQTT credentials and other server configuration are never included. The default OpenFreeMap provider needs no key, and published images contain no operator or CI map key.
 
 The Node Finder searches already-downloaded public labels in the browser. Queries are neither sent nor persisted. Inspector content is built with DOM text nodes rather than HTML insertion.
 

@@ -91,4 +91,5 @@ export type ResetV2 = { seq: number; bootId: string };
 export interface PublicMapConfig {
   schemaVersion: 1;
   basemap: { provider: 'openfreemap' | 'carto'; cartoBrowserKey?: string };
+  pages: Array<'map' | 'netgraph' | 'terminal' | 'chronoscope' | 'firehose'>;
 }
