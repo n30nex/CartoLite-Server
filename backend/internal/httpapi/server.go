@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -29,16 +30,22 @@ type PublicBasemapConfig struct {
 }
 
 type Server struct {
-	engine    *engine.Engine
-	hub       *Hub
-	mqttReady func() bool
-	static    fs.FS
-	version   string
-	gitSHA    string
-	basemap   PublicBasemapConfig
+	engine     *engine.Engine
+	hub        *Hub
+	mqttReady  func() bool
+	static     fs.FS
+	version    string
+	gitSHA     string
+	basemap    PublicBasemapConfig
+	extraPages []string
 }
 
-func New(engineState *engine.Engine, hub *Hub, mqttReady func() bool, version, gitSHA string, basemap PublicBasemapConfig) (*Server, error) {
+func New(engineState *engine.Engine, hub *Hub, mqttReady func() bool, version, gitSHA string, basemap PublicBasemapConfig, extraPages []string) (*Server, error) {
+	for _, page := range extraPages {
+		if page != "terminal" && page != "chronoscope" && page != "firehose" {
+			return nil, fmt.Errorf("unsupported optional page")
+		}
+	}
 	if basemap.Provider == "" {
 		basemap.Provider = "openfreemap"
 	}
@@ -55,7 +62,7 @@ func New(engineState *engine.Engine, hub *Hub, mqttReady func() bool, version, g
 	if _, err := fs.Stat(assets, "index.html"); err != nil {
 		return nil, fmt.Errorf("embedded frontend has no index.html: %w", err)
 	}
-	return &Server{engine: engineState, hub: hub, mqttReady: mqttReady, static: assets, version: version, gitSHA: gitSHA, basemap: basemap}, nil
+	return &Server{engine: engineState, hub: hub, mqttReady: mqttReady, static: assets, version: version, gitSHA: gitSHA, basemap: basemap, extraPages: append([]string(nil), extraPages...)}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -73,7 +80,8 @@ func (s *Server) publicConfig(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, struct {
 		SchemaVersion int                 `json:"schemaVersion"`
 		Basemap       PublicBasemapConfig `json:"basemap"`
-	}{SchemaVersion: 1, Basemap: s.basemap})
+		Pages         []string            `json:"pages"`
+	}{SchemaVersion: 1, Basemap: s.basemap, Pages: append([]string{"map", "netgraph"}, s.extraPages...)})
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -181,6 +189,22 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	page := strings.Split(strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/"), "/")[0]
+	if page == "terminal" || page == "chronoscope" || page == "firehose" {
+		enabled := false
+		for _, extra := range s.extraPages {
+			enabled = enabled || extra == page
+		}
+		if !enabled {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(http.StatusNotFound)
+			if r.Method != http.MethodHead {
+				_, _ = fmt.Fprint(w, `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page unavailable · CartoLite</title><h1>This page is not enabled on this server</h1><p>Choose <a href="/">Map</a> or <a href="/netgraph/">Netgraph</a> to see live activity.</p></html>`)
+			}
+			return
+		}
+	}
 	if r.URL.Path == "/netgraph" {
 		target := "/netgraph/"
 		if r.URL.RawQuery != "" {
@@ -213,6 +237,8 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if path.Ext(name) == ".html" {
+		// Embed the startup choice before the dock mounts, with no extra fetch or flash of disabled links.
+		body = bytes.Replace(body, []byte("<html "), []byte(`<html data-extra-pages="`+strings.Join(s.extraPages, ",")+`" `), 1)
 		// Public HTML still requires revalidation; intermediaries must not inject scripts.
 		w.Header().Set("Cache-Control", "public, no-cache, no-transform")
 	} else if strings.HasPrefix(name, "assets/") {
@@ -304,10 +330,6 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
 		w.Header().Set("Permissions-Policy", "accelerometer=(), bluetooth=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), serial=(), usb=()")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.basemaps.cartocdn.com https://tiles.mapterhorn.com https://tiles.openfreemap.org; worker-src 'self' blob:; child-src blob:")
-		// Only the dedicated physics worker may compile WebAssembly; JS eval stays blocked.
-		if strings.HasPrefix(r.URL.Path, "/assets/firehose") && strings.HasSuffix(r.URL.Path, ".js") {
-			w.Header().Set("Content-Security-Policy", w.Header().Get("Content-Security-Policy")+"; script-src 'self' 'wasm-unsafe-eval'")
-		}
 		next.ServeHTTP(w, r)
 	})
 }

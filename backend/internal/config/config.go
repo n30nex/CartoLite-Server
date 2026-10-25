@@ -24,6 +24,7 @@ type Config struct {
 	GitSHA          string
 	MapProvider     string
 	CartoBrowserKey string
+	ExtraPages      []string
 }
 
 func Load(version, gitSHA string) (Config, error) {
@@ -46,6 +47,10 @@ func Load(version, gitSHA string) (Config, error) {
 		return Config{}, err
 	}
 	c.Regions = regions
+	c.ExtraPages, err = extraPages()
+	if err != nil {
+		return Config{}, err
+	}
 	if c.MQTTClientID == "" {
 		c.MQTTClientID, err = defaultClientID()
 		if err != nil {
@@ -84,6 +89,28 @@ func Load(version, gitSHA string) (Config, error) {
 		return Config{}, fmt.Errorf("MQTT_INGEST_QUEUE_SIZE must be between 64 and 65536")
 	}
 	return c, nil
+}
+
+func extraPages() ([]string, error) {
+	selected := make(map[string]bool)
+	for _, item := range strings.Split(strings.TrimSpace(os.Getenv("EXTRA_PAGES")), ",") {
+		item = strings.TrimSpace(item)
+		switch item {
+		case "":
+			continue
+		case "terminal", "chronoscope", "firehose":
+			selected[item] = true
+		default:
+			return nil, fmt.Errorf("EXTRA_PAGES accepts only terminal, chronoscope and firehose (comma-separated)")
+		}
+	}
+	var pages []string
+	for _, page := range []string{"terminal", "chronoscope", "firehose"} {
+		if selected[page] {
+			pages = append(pages, page)
+		}
+	}
+	return pages, nil
 }
 
 func regionAllowlist() (map[string]struct{}, error) {

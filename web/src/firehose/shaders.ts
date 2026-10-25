@@ -1,115 +1,109 @@
-// Positions interpolate on the GPU; a frame updates two small float textures.
-export const positionFunctions = `
-uniform sampler2D uPrevious;
-uniform sampler2D uCurrent;
-uniform float uBlend;
-vec4 bead(float slot) {
-  ivec2 cell=ivec2(int(slot)%128,int(slot)/128);
-  vec4 b=texelFetch(uCurrent,cell,0),a=texelFetch(uPrevious,cell,0);
-  if(floor(a.w/8.0)!=floor(b.w/8.0))a=b;
-  return vec4(mix(a.xyz,b.xyz,uBlend),b.w);
-}
+// Shared pose interpolation; reused slots never streak from a previous packet.
+export const positionFunctions=`
+uniform sampler2D uPrevious,uCurrent,uBirth;uniform float uBlend;
+ivec2 cell(float slot){return ivec2(int(slot)%128,int(slot)/128);}
+vec4 bead(float slot){vec4 b=texelFetch(uCurrent,cell(slot),0),a=texelFetch(uPrevious,cell(slot),0);if(floor(a.w/8.0)!=floor(b.w/8.0))a=b;return vec4(mix(a.xyz,b.xyz,uBlend),b.w);}
+vec3 movement(float slot){vec4 b=texelFetch(uCurrent,cell(slot),0),a=texelFetch(uPrevious,cell(slot),0);return floor(a.w/8.0)==floor(b.w/8.0)?b.xyz-a.xyz:vec3(0.0);}
+float birth(float slot){return texelFetch(uBirth,cell(slot),0).r;}
 `;
-export const beadVertex = `
+const colour=`
+uniform vec3 uPalette[6],uDarkPalette[6];uniform float uLight;
+vec3 ink(float kind,float y){int k=int(clamp(kind,0.0,5.0));return y<-.6?uDarkPalette[k]:uPalette[k];}
+vec3 srgb(vec3 c){return pow(max(c,vec3(0.0)),vec3(1.0/2.2));}
+`;
+export const dotVertex=`
 ${positionFunctions}
-in float aSlot;in float aBorn;
-uniform float uRadius;uniform float uHeight;uniform float uDpr;uniform float uTime;uniform float uGlow;
-out float vKind;out float vBorn;out float vWorldY;
-void main(){
- vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vBorn=aBorn;vWorldY=b.y;
+in float aSlot,aSelected;uniform float uRadius,uHeight,uDpr,uCore,uTime;
+out float vKind,vSelected,vY,vAge;
+void main(){vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vSelected=aSelected;vY=b.y;vAge=max(0.0,uTime-birth(aSlot));
  vec4 eye=modelViewMatrix*vec4(b.xyz,1.0);gl_Position=projectionMatrix*eye;
- float pixels=uRadius*uHeight*projectionMatrix[1][1]/max(0.1,-eye.z);
- gl_PointSize=clamp(pixels,2.5*uDpr,48.0*uDpr)*1.8;
- if(b.w<0.5||eye.z>=-0.05||uTime-aBorn>2.8||uGlow<.005){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}
-}
+ gl_PointSize=clamp(uRadius*uHeight*projectionMatrix[1][1]/max(.1,-eye.z)*.62*uCore,3.2*uDpr,32.0*uDpr);
+ if(b.w<.5||eye.z>=-.05||b.y>3.19){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}}
 `;
-export const beadFragment = `
-uniform vec3 uPalette[6];uniform float uTime;uniform float uGlow;
-in float vKind;in float vBorn;in float vWorldY;
-out vec4 outColor;
-void main(){
- vec2 p=gl_PointCoord*2.0-1.0;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;
- vec3 color=uPalette[int(clamp(vKind,0.0,5.0))];
- float fade=1.0-smoothstep(2.7,4.7,-vWorldY);
- float age=max(0.0,uTime-vBorn);float alpha=exp(-r2*4.5)*max(0.0,1.0-age/2.8)*uGlow*.23*fade;
- if(alpha<.005)discard;outColor=vec4(pow(color,vec3(1.0/2.2)),alpha);
-}
+export const dotFragment=`
+${colour}
+in float vKind,vSelected,vY,vAge;out vec4 outColor;
+void main(){vec2 p=gl_PointCoord*2.0-1.0;float r=length(p);if(r>1.0||vKind<0.0)discard;
+ vec3 c=ink(vKind,vY);bool light=uLight>.5&&vY>-.6;
+ float core=1.0-smoothstep(.08,.62,r),fresh=1.0-smoothstep(.5,3.0,vAge);
+ vec3 lit=light?c*(.55+.45*r):c*(.8+fresh*.65)+vec3(core*(.55+fresh*.3));
+ if(vSelected>.5)lit=mix(lit,vec3(1.0,.72,.2),smoothstep(.55,.8,r));
+ lit*=1.0-smoothstep(3.6,4.7,-vY);outColor=vec4(srgb(lit),1.0);}
 `;
-// Opaque instanced spheres allow early depth rejection through a dense pile.
-// Writing per-fragment sphere depth on thousands of overlapping sprites defeats it.
-export const solidVertex = `
+export const beadVertex=`
 ${positionFunctions}
-in float aSlot;in float aSelected;uniform float uRadius;
-out vec3 vNormal;out float vKind;out float vSelected;out float vWorldY;
-void main(){
- vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vSelected=aSelected;vWorldY=b.y;
- vNormal=normalMatrix*normalize(position);
- gl_Position=projectionMatrix*modelViewMatrix*vec4(b.xyz+position*uRadius,1.0);
- if(b.w<.5)gl_Position=vec4(2.0,2.0,2.0,1.0);
-}
-`;
-const lighting = `
-uniform vec3 uPalette[6];uniform vec3 uDarkPalette[6];uniform float uLight;uniform float uCore;
-vec3 shadeBead(vec3 n,float kindValue,float selected,float worldY){
- int kind=int(clamp(kindValue,0.0,5.0));vec3 color=worldY< -1.3?uDarkPalette[kind]:uPalette[kind];
- float diffuse=.35+.65*max(0.0,dot(n,normalize(vec3(-.4,.7,1.0))));
- float spec=pow(max(0.0,dot(n,normalize(vec3(-.3,.55,1.0)))),24.0);
- float core=pow(max(0.0,n.z),5.0/max(.5,uCore));
- bool light=uLight>.5&&worldY> -1.3;
- vec3 shade=light?color*(.4+diffuse*.6)+vec3(spec*.25):color*(diffuse*.85+core*.3)+vec3(spec*.65);
- if(selected>.5)shade=mix(shade,vec3(1.0,.9,.55),smoothstep(.6,1.0,1.0-n.z));
- shade*=1.0-smoothstep(3.6,4.7,-worldY);return pow(max(shade,vec3(0.0)),vec3(1.0/2.2));
-}
-`;
-export const solidFragment = `
-${lighting}
-in vec3 vNormal;in float vKind;in float vSelected;in float vWorldY;out vec4 outColor;
-void main(){if(vKind<0.0)discard;outColor=vec4(shadeBead(normalize(vNormal),vKind,vSelected,vWorldY),1.0);}
-`;
-// Economy uses centre-depth shaded dots. High retains true sphere geometry for
-// close inspection; both render every physical bead with the same type/selection.
-export const dotVertex = `
-${positionFunctions}
-in float aSlot;in float aSelected;uniform float uRadius;uniform float uHeight;uniform float uDpr;
-out float vKind;out float vSelected;out float vWorldY;
-void main(){
- vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vSelected=aSelected;vWorldY=b.y;
+in float aSlot;uniform float uRadius,uHeight,uDpr,uTime,uGlow;
+out float vKind,vAge,vY;
+void main(){vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vAge=max(0.0,uTime-birth(aSlot));vY=b.y;
  vec4 eye=modelViewMatrix*vec4(b.xyz,1.0);gl_Position=projectionMatrix*eye;
- gl_PointSize=clamp(uRadius*uHeight*projectionMatrix[1][1]/max(.1,-eye.z),2.5*uDpr,96.0*uDpr);
- if(b.w<.5||eye.z>=-.05){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}
-}
+ gl_PointSize=clamp(uRadius*uHeight*projectionMatrix[1][1]/max(.1,-eye.z)*1.5,7.0*uDpr,48.0*uDpr);
+ if(b.w<.5||eye.z>=-.05||b.y>3.19||vAge>3.2||uGlow<.005){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}}
 `;
-export const dotFragment = `
-${lighting}
-in float vKind;in float vSelected;in float vWorldY;out vec4 outColor;
-void main(){
- vec2 p=gl_PointCoord*2.0-1.0;p.y=-p.y;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;
- outColor=vec4(shadeBead(vec3(p,sqrt(max(0.0,1.0-r2))),vKind,vSelected,vWorldY),1.0);
-}
+export const beadFragment=`
+${colour}
+uniform float uGlow;in float vKind,vAge,vY;out vec4 outColor;
+void main(){vec2 p=gl_PointCoord*2.0-1.0;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;
+ float alpha=exp(-r2*4.5)*max(0.0,1.0-vAge/3.2)*uGlow*.28*(1.0-smoothstep(3.6,4.7,-vY));
+ if(alpha<.005)discard;outColor=vec4(srgb(ink(vKind,vY)),alpha);}
 `;
-export const linkVertex = `
+export const trailVertex=`
 ${positionFunctions}
-in vec2 aEnds;uniform vec2 uResolution;uniform float uWidth;
-out float vAcross;out float vAlong;out float vKind;out float vWorldY;
-void main(){
- vec4 a=bead(aEnds.x),b=bead(aEnds.y);
- vec4 pa=projectionMatrix*modelViewMatrix*vec4(a.xyz,1.0),pb=projectionMatrix*modelViewMatrix*vec4(b.xyz,1.0);
- vec2 delta=(pb.xy/max(.01,pb.w)-pa.xy/max(.01,pa.w))*uResolution;
- float lengthPx=length(delta)*.5;vec2 perpendicular=lengthPx>.01?normalize(vec2(-delta.y,delta.x)):vec2(0.0,1.0);
- vec4 point=mix(pa,pb,position.x);point.xy+=perpendicular*position.y*uWidth/uResolution*point.w;
- gl_Position=point;vAcross=position.y;vAlong=position.x*lengthPx;vKind=mod(a.w,8.0)-1.0;vWorldY=mix(a.y,b.y,position.x);
- if(a.w<.5||b.w<.5||pa.w<.05||pb.w<.05)gl_Position=vec4(2.0,2.0,2.0,1.0);
-}
+in float aSlot;uniform vec2 uResolution;uniform float uDpr,uTime,uTrail,uMotion;
+out float vAcross,vAlong,vKind,vY,vStrength;
+void main(){vec4 b=bead(aSlot);vec3 delta=movement(aSlot);vec4 head=projectionMatrix*modelViewMatrix*vec4(b.xyz,1.0);
+ vec4 back=projectionMatrix*modelViewMatrix*vec4(b.xyz-delta,1.0);
+ vec2 pixels=(head.xy/max(.01,head.w)-back.xy/max(.01,back.w))*uResolution*.5;float speed=length(pixels);
+ vec2 direction=speed>.01?pixels/speed:vec2(0.0,1.0),normal=vec2(-direction.y,direction.x);
+ float lengthPx=min(30.0*uDpr,speed*1.8*uTrail);vec4 p=head;
+ p.xy+=(-direction*position.x*lengthPx+normal*position.y*1.6*uDpr)/uResolution*2.0*p.w;
+ gl_Position=p;vAcross=position.y;vAlong=position.x;vKind=mod(b.w,8.0)-1.0;vY=b.y;vStrength=smoothstep(.5,2.0,speed)*uMotion;
+ if(b.w<.5||head.w<.05||b.y>3.19||vStrength<.01)gl_Position=vec4(2.0,2.0,2.0,1.0);}
 `;
-export const linkFragment = `
-uniform vec3 uPalette[6];uniform float uOpacity;uniform float uPattern;uniform float uLight;
-in float vAcross;in float vAlong;in float vKind;in float vWorldY;out vec4 outColor;
-void main(){
- if(vKind<0.0)discard;
- if(uPattern>.5&&uPattern<1.5&&mod(vAlong,13.0)>8.0)discard;
- if(uPattern>1.5&&mod(vAlong,6.0)>2.0)discard;
- float alpha=(1.0-smoothstep(.35,1.0,abs(vAcross)))*uOpacity*(1.0-smoothstep(2.7,4.7,-vWorldY));
- vec3 color=uPalette[int(clamp(vKind,0.0,5.0))];
- outColor=vec4(pow(color*(uLight>.5?.7:1.05),vec3(1.0/2.2)),alpha);
-}
+export const trailFragment=`
+${colour}
+in float vAcross,vAlong,vKind,vY,vStrength;out vec4 outColor;
+void main(){if(vKind<0.0)discard;float alpha=(1.0-smoothstep(.1,1.0,abs(vAcross)))*pow(1.0-vAlong,1.8)*vStrength*.65*(1.0-smoothstep(3.6,4.7,-vY));
+ if(alpha<.005)discard;outColor=vec4(srgb(ink(vKind,vY)*1.2),alpha);}
+`;
+export const linkVertex=`
+${positionFunctions}
+in vec2 aEnds;uniform vec2 uResolution;uniform float uWidth,uTime;
+out float vAcross,vAlong,vKind,vY,vAge,vProgress;
+void main(){vec4 a=bead(aEnds.x),b=bead(aEnds.y);vec4 pa=projectionMatrix*modelViewMatrix*vec4(a.xyz,1.0),pb=projectionMatrix*modelViewMatrix*vec4(b.xyz,1.0);
+ vec2 delta=(pb.xy/max(.01,pb.w)-pa.xy/max(.01,pa.w))*uResolution;float len=length(delta)*.5;
+ vec2 normal=len>.01?normalize(vec2(-delta.y,delta.x)):vec2(0.0,1.0);vec4 p=mix(pa,pb,position.x);p.xy+=normal*position.y*uWidth/uResolution*p.w;
+ gl_Position=p;vAcross=position.y;vAlong=position.x*len;vProgress=position.x;vKind=mod(a.w,8.0)-1.0;vY=mix(a.y,b.y,position.x);vAge=max(0.0,uTime-birth(aEnds.x));
+ if(a.w<.5||b.w<.5||pa.w<.05||pb.w<.05)gl_Position=vec4(2.0,2.0,2.0,1.0);}
+`;
+export const linkFragment=`
+${colour}
+uniform float uOpacity,uPattern,uMotion;in float vAcross,vAlong,vKind,vY,vAge,vProgress;out vec4 outColor;
+void main(){if(vKind<0.0||vY>3.19)discard;
+ if(uPattern>.5&&uPattern<1.5&&mod(vAlong,13.0)>8.0)discard;if(uPattern>1.5&&mod(vAlong,6.0)>2.0)discard;
+ float fresh=1.0-smoothstep(.7,3.0,vAge),pulse=exp(-pow((vProgress-fract(vAge*.9))*9.0,2.0))*fresh*uMotion;
+ float alpha=(1.0-smoothstep(.25,1.0,abs(vAcross)))*uOpacity*(.55+fresh*.3+pulse*.15)*(1.0-smoothstep(3.6,4.7,-vY));
+ vec3 c=ink(vKind,vY);if(uLight<.5||vY<-.6)c=c*(1.0+pulse)+vec3(pulse*.4);
+ outColor=vec4(srgb(c),alpha);}
+`;
+export const rippleVertex=`
+in vec4 aImpact;uniform float uTime;out vec2 vUV,vLocal;out float vAge,vKind;
+void main(){vAge=uTime-aImpact.z;vKind=aImpact.w;vUV=position.xy;float radius=.08+max(0.0,vAge)*1.1;
+ vLocal=aImpact.xy+position.xy*radius;gl_Position=projectionMatrix*modelViewMatrix*vec4(vLocal.x,-.438,vLocal.y,1.0);
+ if(vAge<0.0||vAge>1.15)gl_Position=vec4(2.0,2.0,2.0,1.0);}
+`;
+export const rippleFragment=`
+${colour}
+uniform float uMotion;in vec2 vUV,vLocal;in float vAge,vKind;out vec4 outColor;
+void main(){if(abs(vLocal.x)>2.4||abs(vLocal.y)>1.6)discard;float r=length(vUV),ring=1.0-smoothstep(.025,.075,abs(r-.88));
+ float alpha=ring*pow(max(0.0,1.0-vAge/1.15),2.0)*uMotion*.65;if(alpha<.005)discard;
+ outColor=vec4(srgb(ink(vKind,0.0)*1.25),alpha);}
+`;
+export const wellVertex=`
+out vec2 vUV;void main(){vUV=uv*2.0-1.0;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}
+`;
+export const wellFragment=`
+uniform float uDrainEnergy,uTime,uMotion;in vec2 vUV;out vec4 outColor;
+void main(){float r=length(vUV);float ring=pow(.5+.5*cos(r*46.0-uTime*4.0*uMotion),16.0);
+ vec3 light=vec3(.015,.24,.32)*(pow(r,4.0)*.14+ring*uDrainEnergy*.24);
+ outColor=vec4(pow(vec3(.001,.004,.008)+light,vec3(1.0/2.2)),1.0);}
 `;

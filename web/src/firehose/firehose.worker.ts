@@ -13,7 +13,8 @@ function schedule(){if(!paused&&!disposed&&physics&&timer===undefined)timer=setT
 function publish(){if(physics&&pool.length){const buffer=pool.pop()!;physics.snapshot(buffer);post({type:'frame',buffer},[buffer]);lastFrame=performance.now();}}
 function tick(){timer=undefined;if(!physics||paused||disposed)return;try{
   const now=performance.now();accumulator=Math.min(accumulator+(now-last)/1000,1/30);last=now;
-  while(accumulator>=1/60){physics.step();accumulator-=1/60;}
+  const started=performance.now();
+  if(idle()){accumulator=0;}else while(accumulator>=1/60){physics.step();accumulator-=1/60;if(performance.now()-started>10)break;}
   if(pool.length&&now-lastFrame>=(idle()?500:1000/30))publish();
   schedule();
 }catch{fail();}}
@@ -23,13 +24,14 @@ port.onmessage=event=>{const message=event.data;
     if(initializing||physics)return;initializing=true;
     void initializePhysics().then(()=>{if(disposed)return;physics=new FirehosePhysics(message.capacity);
       physics.onAccepted=(id,slots)=>post({type:'accepted',id,slots});physics.onRejected=id=>post({type:'rejected',id});physics.onRemoved=ids=>post({type:'removed',ids});
+      physics.onImpact=(x,z,kind)=>post({type:'impact',x,z,kind});
       post({type:'ready',capacity:physics.capacity,radius:physics.radius});last=performance.now();schedule();
     }).catch(fail);return;
   }
   if(message.type==='recycle'){if(physics&&message.buffer.byteLength===frameSize(physics.capacity)*4&&pool.length<3){pool.push(message.buffer);if(lastFrame===0)publish();}return;}
   if(message.type==='pause'){paused=message.paused;physics?.discardPending();if(timer)clearTimeout(timer);timer=undefined;accumulator=0;last=performance.now();schedule();return;}
-  if(message.type==='packet'){if(physics&&!paused)physics.enqueue(message.packet);else post({type:'rejected',id:message.packet.id});return;}
-  if(message.type==='rotation'){physics?.setRotation(message.rotation);return;}
+  if(message.type==='packet'){if(physics&&!paused){const wasIdle=idle();physics.enqueue(message.packet);if(wasIdle&&timer!==undefined){clearTimeout(timer);timer=undefined;schedule();}}else post({type:'rejected',id:message.packet.id});return;}
+  if(message.type==='rotation'){const wasIdle=idle();physics?.setRotation(message.rotation);if(wasIdle&&timer!==undefined){clearTimeout(timer);timer=undefined;schedule();}return;}
   if(message.type==='clear'){physics?.clear();publish();return;}
   if(message.type==='dispose'){disposed=true;if(timer)clearTimeout(timer);physics?.destroy();physics=undefined;pool.length=0;}
 };

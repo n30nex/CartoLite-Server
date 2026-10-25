@@ -28,7 +28,7 @@ let owners:Int32Array;
 initializeDisplay();scenePaused=prefersReducedMotion();let motionKey=`${displayPreferences().motion}:${prefersReducedMotion()}`;
 const closeDisplay=mountNetgraphDisplay(()=>closePanels());
 // Physical links have no time residue; the remaining shared styles apply directly.
-for(const key of ['trailLength','residueSeconds','detail'])document.querySelector(`[data-display="${key}"]`)?.closest('label')?.remove();
+for(const key of ['residueSeconds','detail'])document.querySelector(`[data-display="${key}"]`)?.closest('label')?.remove();
 const note=document.querySelector<HTMLElement>('#display-panel .display-note');if(note)note.textContent='Shared colours, link styles, effects, motion and text. Terminal keeps its own settings. Physics never changes which hops were confirmed.';
 populateSoundScenes(required<HTMLSelectElement>('sound-scene'));
 function post(message:Input,transfer:Transferable[]=[]){worker?.postMessage(message,transfer);}
@@ -43,7 +43,7 @@ document.addEventListener('keydown',e=>{if(e.key!=='Escape'||document.querySelec
 function setMode(mode:'tilt'|'orbit') {renderer?.setMode(mode);required('tilt-mode').setAttribute('aria-pressed',String(mode==='tilt'));required('orbit-mode').setAttribute('aria-pressed',String(mode==='orbit'));sync();}
 function sync(){
  const count=Number(stage.dataset.beads??0),groups=Number(stage.dataset.events??0),drained=Number(stage.dataset.drained??0);
- const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?'An empty box. Waiting for live packets.':`${count.toLocaleString()} beads · ${groups.toLocaleString()} packets · ${drained.toLocaleString()} drained`;
+ const text=scenePaused?'Paused · no new packets are collected':!ready?'Starting the 3D scene…':!count?'An empty box. Waiting for live packets.':`${count.toLocaleString()} particles · ${groups.toLocaleString()} packets · ${drained.toLocaleString()} drained`;
  if(required('pile-status').textContent!==text)required('pile-status').textContent=text;
  const hint=scenePaused?'Orbit to inspect · Resume to collect fresh activity':renderer?.mode==='orbit'?'Drag to orbit · right-drag or two fingers pan':'Drag to tilt the box · pinch or scroll to zoom';if(required('gesture-hint').textContent!==hint)required('gesture-hint').textContent=hint;
  const cap=omitted?`${omitted.toLocaleString()} events omitted at the detail cap · never replayed`:'';if(required('capacity-status').textContent!==cap)required('capacity-status').textContent=cap;
@@ -58,12 +58,12 @@ function selectNode(id:string|null){
  const nodes=new Map(store.snapshot.nodes.map(n=>[n.id,n]));const model=buildNodeInspectorModel(id,nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
  replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:selectNode}));
  const slots:number[]=[];for(const event of events.values())event.shape.nodes.forEach((node,i)=>{if(node===id)slots.push(event.slots[i]!);});renderer?.highlight(slots);
- const p=document.createElement('p');p.className='firehose-selection-note';p.textContent=slots.length?`${slots.length} beads from this node are in this session's pile.`:'No bead from this node is in this session’s pile yet.';inspector.append(p);
+ const p=document.createElement('p');p.className='firehose-selection-note';p.textContent=slots.length?`${slots.length} particles from this node are in this session's pile.`:'No dot from this node is in this session’s pile yet.';inspector.append(p);
  const links=document.createElement('div');links.className='chrono-links';for(const [label,path]of [['Open Map','/'],['Open Netgraph','/netgraph/']]as const){const a=document.createElement('a');a.textContent=label;a.href=`${path}?node=${encodeURIComponent(id)}`;links.append(a);}inspector.append(links);inspector.hidden=false;
 }
 function inspect(id:number){const event=events.get(id);if(!event)return;selectedNode=null;rememberNode(null);renderer?.highlight(event.slots);
  const card=document.createElement('article');card.className='chrono-inspector';const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(event.packet.payloadType)} · observed packet`;close.textContent='×';close.type='button';close.className='node-inspector-close';close.setAttribute('aria-label','Close packet details');close.addEventListener('click',()=>{inspector.hidden=true;renderer?.highlight([]);stage.focus();});header.append(title,close);card.append(header);
- const detail=document.createElement('p');detail.textContent=event.packet.mode==='observer'?'Observer-only reception. A single bead does not imply a confirmed route.':`${event.packet.segments.length} confirmed segments. The physical arrangement is not geography or a radio trajectory.`;card.append(detail);
+ const detail=document.createElement('p');detail.textContent=event.packet.mode==='observer'?'Observer-only reception. A single dot does not imply a confirmed route.':`${event.packet.segments.length} confirmed segments. The physical arrangement is not geography or a radio trajectory.`;card.append(detail);
  const node=(id:string,label:string)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.nodeId=id;b.addEventListener('click',()=>selectNode(id));return b;};
  if(event.packet.mode==='observer')card.append(node(event.packet.observer.id,event.packet.observer.label));
  else for(const edge of event.packet.segments){const row=document.createElement('div');row.className='chrono-hop';const arrow=document.createElement('span');arrow.textContent='→';row.append(node(edge.from.id,edge.from.label),arrow,node(edge.to.id,edge.to.label));card.append(row);}
@@ -73,9 +73,10 @@ function acceptPacket(packet:PacketView){if(!ready||effectivePause||disposed)ret
  const id=nextId++;pending.set(id,{packet,shape});post({type:'packet',packet:{id,kind:shape.kind,beads:shape.nodes.length,links:shape.links}});
 }
 function workerMessage(message:Output){if(disposed)return;
+ if(message.type==='impact'){renderer?.impact(message.x,message.z,message.kind);return;}
  if(message.type==='ready'){ready=true;for(let i=0;i<3;i++){const buffer=new ArrayBuffer(frameSize(message.capacity)*4);post({type:'recycle',buffer},[buffer]);}stage.dataset.capacity=String(message.capacity);stage.dataset.renderState='ready';pause();sync();window.dispatchEvent(new CustomEvent('cartolite-firehose-ready',{detail:{scene:renderer}}));return;}
  if(message.type==='frame'){const old=renderer?.accept(message.buffer);if(old)post({type:'recycle',buffer:old},[old]);sync();return;}
- if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots,message.slots.filter((_,i)=>entry.shape.nodes[i]===selectedNode));if(!effectivePause)sonifier?.play(entry.packet);}return;}
+ if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots,message.slots.filter((_,i)=>entry.shape.nodes[i]===selectedNode),entry.shape.kind);if(!effectivePause)sonifier?.play(entry.packet);}return;}
  if(message.type==='rejected'){if(pending.delete(message.id)&&!effectivePause)omitted++;sync();return;}
  if(message.type==='removed'){for(const id of message.ids){const entry=events.get(id);if(entry)for(const slot of entry.slots)if(owners[slot]===id)owners[slot]=-1;events.delete(id);}return;}
  fail('The physics scene stopped. Reload to start a fresh box.');
@@ -112,7 +113,7 @@ required('pause-button').addEventListener('click',()=>{scenePaused=!scenePaused;
 required('pour-button').addEventListener('click',()=>{resumeMotion();renderer?.pour();});required('upright-button').addEventListener('click',()=>{resumeMotion();renderer?.upright();});
 for(const button of document.querySelectorAll<HTMLButtonElement>('[data-tip]'))button.addEventListener('click',()=>{resumeMotion();const [x,y]=button.dataset.tip!.split(',').map(Number);renderer?.tilt(x!*.25,y!*.25);});
 for(const id of ['reset-button','camera-home'])required(id).addEventListener('click',()=>renderer?.home());required('zoom-in').addEventListener('click',()=>renderer?.zoom(.85));required('zoom-out').addEventListener('click',()=>renderer?.zoom(1.15));
-required('clear-button').addEventListener('click',()=>{post({type:'clear'});selectNode(null);});required<HTMLInputElement>('show-links').addEventListener('change',e=>renderer?.setLinks((e.target as HTMLInputElement).checked));
+required('clear-button').addEventListener('click',()=>{pending.clear();renderer?.clearEffects();post({type:'clear'});selectNode(null);});required<HTMLInputElement>('show-links').addEventListener('change',e=>renderer?.setLinks((e.target as HTMLInputElement).checked));
 required('retry-feed').addEventListener('click',()=>{if(feed)void feed.resume();else void connect();});
 window.addEventListener(DISPLAY_EVENT,()=>{renderer?.applyDisplay();const key=`${displayPreferences().motion}:${prefersReducedMotion()}`;if(key!==motionKey){motionKey=key;scenePaused=prefersReducedMotion();pause();}});
 document.addEventListener('visibilitychange',()=>{pause();if(!document.hidden){if(feed)void feed.resume();else void connect();}});

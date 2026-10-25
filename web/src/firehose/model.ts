@@ -18,6 +18,7 @@ export type Input = { type: 'init'; capacity: number } | { type: 'packet'; packe
   | { type: 'rotation'; rotation: Rotation } | { type: 'pause'; paused: boolean }
   | { type: 'recycle'; buffer: ArrayBuffer } | { type: 'clear' } | { type: 'dispose' };
 export type Output = { type: 'ready'; capacity: number; radius: number }
+  | { type: 'impact'; x:number; z:number; kind:number }
   | { type: 'accepted'; id: number; slots: number[] }
   | { type: 'removed'; ids: number[] } | { type: 'rejected'; id: number }
   | { type: 'frame'; buffer: ArrayBuffer } | { type: 'fatal' };

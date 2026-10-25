@@ -19,7 +19,8 @@ describe('Firehose public topology and real physics',()=>{
      for(let i=0;i<420;i++)sim.step();
      expect(sim.count).toBe(4);expect(sim.linkCount).toBe(3);
      const group=sim.groups.get(1)!;
-     for(const body of group.bodies){const p=body.translation();expect(p.y).toBeGreaterThan(-.02);expect(p.y).toBeLessThan(.7);}
+     for(const slot of group.slots){const p=sim.position(slot);expect(p.y).toBeGreaterThan(-.02);expect(p.y).toBeLessThan(.7);}
+     expect(sim.sleeping).toBeGreaterThan(0);
      sim.setRotation({x:0,y:0,z:1,w:0});
      for(let i=0;i<480&&sim.count;i++)sim.step();
      expect(sim.count).toBe(0);expect(sim.drained).toBe(1);expect(sim.linkCount).toBe(0);
@@ -35,7 +36,7 @@ describe('Firehose public topology and real physics',()=>{
      const target={...sim.target};sim.setRotation({x:NaN,y:0,z:0,w:1});expect(sim.target).toEqual(target);
      sim.clear();expect(sim.count).toBe(0);expect(sim.linkCount).toBe(0);expect(sim.queue).toHaveLength(0);
      expect(sim.snapshot(frame.buffer as ArrayBuffer).slice(HEADER).every(v=>v===0)).toBe(true);
-     expect(sim.world.bodies.len()).toBe(1);expect(sim.world.impulseJoints.len()).toBe(0);
+     expect(sim.groups.size).toBe(0);expect(sim.free).toHaveLength(128);
    }finally{sim.destroy();}
  });
  it('fills an upright box and naturally overflows into the pit, recycling drained slots',()=>{
@@ -56,4 +57,20 @@ describe('Firehose public topology and real physics',()=>{
    for(let i=0;i<100;i++)q=approachRotation(q,target,.04);
    expect(q.z).toBeCloseTo(1);expect(Math.hypot(q.x,q.y,q.z,q.w)).toBeCloseTo(1);
  });
+ it('keeps a small arrival burst inside the box and wakes a settled pile when tilted',()=>{
+   const sim=new FirehosePhysics(3072);try{
+     for(let id=1;id<=20;id++)sim.enqueue({id,kind:id%5,beads:id%3===0?1:2,links:id%3===0?[]:[[0,1]]});
+     for(let i=0;i<300;i++)sim.step();
+     expect(sim.groups.size).toBe(20);expect(sim.drained).toBe(0);expect(sim.sleeping).toBeGreaterThan(10);
+     sim.setRotation({x:0,y:0,z:Math.sin(.5),w:Math.cos(.5)});sim.step();expect(sim.sleeping).toBe(0);
+     for(let i=0;i<600&&sim.count;i++)sim.step();
+     // A half-full tray need not spill at 57 degrees: it should slide into
+     // the low corner. Turning past vertical then empties it through the mouth.
+     const points=[...sim.groups.values()].flatMap(g=>g.slots.map(slot=>sim.position(slot)));
+     const localX=points.reduce((sum,p)=>sum+Math.cos(1)*p.x+Math.sin(1)*(p.y-.45),0)/points.length;
+     expect(localX).toBeLessThan(-1.5);
+     sim.setRotation({x:0,y:0,z:1,w:0});for(let i=0;i<480&&sim.count;i++)sim.step();
+     expect(sim.count).toBe(0);expect(sim.drained).toBe(20);
+   }finally{sim.destroy();}
+ },15000);
 });

@@ -20,19 +20,20 @@ async function setup(page:Page) {
   return state;
 }
 async function open(page:Page){await page.goto('/firehose/');await expect(page.locator('#firehose-stage')).toHaveAttribute('data-render-state','ready',{timeout:20000});await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');}
+async function sameCamera(page:Page,position:number[]){const current:number[]=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());for(let i=0;i<3;i++)expect(current[i]).toBeCloseTo(position[i]!,10);}
 async function packet(page:Page,seq:number,observer=false){await page.evaluate(({seq,observer})=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`firehose-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],...(observer?{mode:'observer',observer:{id:'visual-a',label:'Visual Alpha',lat:43.45,lng:-80.35}}:{mode:'route',segments:[{routeId:'visual-hop',fromId:'visual-a',toId:'visual-b'}]})}})),{seq,observer});}
 
 test('Firehose starts empty, preserves links and never refills paused time',async({page},info)=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await setup(page);await open(page);const stage=page.locator('#firehose-stage');
- await expect(stage).toHaveAttribute('data-beads','0');await expect(page.locator('.dock-views [aria-current=page]')).toHaveText('Firehose');
+ await expect(stage).toHaveAttribute('data-beads','0');await expect(stage).toHaveAttribute('data-visual-profile','luminous');await expect(page.locator('.dock-views [aria-current=page]')).toHaveText('Firehose');
  await packet(page,1);await packet(page,2,true);await expect(stage).toHaveAttribute('data-beads','3');await expect(stage).toHaveAttribute('data-links','1');await expect(stage).toHaveAttribute('data-events','2');
  await page.locator('#pause-button').click();await expect(stage).toHaveAttribute('data-paused','true');await page.waitForTimeout(100);
  const steps=await stage.getAttribute('data-steps');await packet(page,3);await page.waitForTimeout(150);expect(await stage.getAttribute('data-steps')).toBe(steps);
  await page.locator('#pause-button').click();await page.waitForTimeout(180);await expect(stage).toHaveAttribute('data-events','2');
  await packet(page,4);await expect(stage).toHaveAttribute('data-events','3');
  await page.locator('#find-button').click();await page.locator('#node-search').fill('Alpha');await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter');
- await expect(page.locator('#node-inspector-sheet')).toContainText('Visual Alpha');await expect(page.locator('#node-inspector-sheet')).toContainText('beads from this node');
+ await expect(page.locator('#node-inspector-sheet')).toContainText('Visual Alpha');await expect(page.locator('#node-inspector-sheet')).toContainText('particles from this node');
  await page.keyboard.press('Escape');await page.screenshot({path:info.outputPath('firehose-live.png')});expect(errors).toEqual([]);
 });
 
@@ -43,10 +44,10 @@ test('Firehose settles a real pile, tilts and pours it into the pit',async({page
  await page.waitForTimeout(1700);await page.screenshot({path:info.outputPath('firehose-settling.png')});
  const before=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());
  await stage.focus();await page.keyboard.press('ArrowRight');await page.waitForTimeout(180);
- expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).toEqual(before);
+ await sameCamera(page,before);
  expect(await page.evaluate(()=>Math.abs((window as any).__hose.box.quaternion.y)+Math.abs((window as any).__hose.box.quaternion.z))).toBeGreaterThan(.01);
  await page.locator('#box-button').click();await page.locator('#orbit-mode').click();await page.keyboard.press('Escape');await stage.focus();await page.keyboard.press('ArrowRight');
- expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).not.toEqual(before);
+ const orbited:number[]=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());expect(Math.hypot(...orbited.map((v,i)=>v-before[i]))).toBeGreaterThan(.1);
  await page.locator('#pour-button').click();await expect.poll(async()=>Number(await stage.getAttribute('data-drained')),{timeout:12000}).toBeGreaterThan(0);
  await expect(stage).toHaveAttribute('data-beads','0',{timeout:12000});await page.screenshot({path:info.outputPath('firehose-poured.png')});
  await page.locator('#box-button').click();await page.locator('#upright-button').click();await page.keyboard.press('Escape');
@@ -55,10 +56,11 @@ test('Firehose settles a real pile, tilts and pours it into the pit',async({page
 
 test('Firehose scene themes preserve the pile and camera',async({page},info)=>{
  await setup(page);await open(page);await packet(page,1);await expect(page.locator('#firehose-stage')).toHaveAttribute('data-beads','2');
+ await page.locator('#box-button').click();await page.locator('#orbit-mode').click();await page.keyboard.press('Escape');await page.locator('#firehose-stage').focus();await page.keyboard.press('ArrowRight');
  const camera=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());
  for(const theme of ['dark','light','streets']){await openDisplay(page);await page.getByLabel('Scene style',{exact:true}).selectOption(theme);await page.keyboard.press('Escape');
    await expect(page.locator('html')).toHaveAttribute('data-basemap',theme);await expect(page.locator('#firehose-stage')).toHaveAttribute('data-events','1');
-   expect(await page.evaluate(()=>(window as any).__hose.camera.position.toArray())).toEqual(camera);
+   await sameCamera(page,camera);
    const contrast=await page.evaluate(()=>{
      const luminance=(color:string)=>{const [r,g,b]=(color.match(/[\d.]+/g)??[]).slice(0,3).map(c=>{const n=Number(c)/255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;});return .2126*r!+.7152*g!+.0722*b!;};
      return ['#topbar','.controls'].map(selector=>{const panel=document.querySelector(selector)!;const ink=getComputedStyle(panel.querySelector('button,a')!),back=getComputedStyle(panel);const a=luminance(ink.color),b=luminance(back.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);});
@@ -101,14 +103,14 @@ test('Firehose stays bounded under synthetic load and keeps its dependencies iso
  const state:StateV2={schemaVersion:2,bootId:'visual-fixture',seq:0,serverTime:now,status:{feed:'connected',activity:'active',dropped:0,version:'test',gitSha:'synthetic'},map:{center:[-80,43],zoom:8},nodes,routes:[]};
  await page.route('**/api/state',r=>r.fulfill({json:state}));await open(page);
  const result=await page.evaluate(async()=>{
-  let seq=0,ticks=0,maxDelay=0,previous=performance.now();const timer=setInterval(()=>{const now=performance.now();maxDelay=Math.max(maxDelay,now-previous-25);previous=now;ticks++;},25);
+  const physics:number[]=[];let seq=0,ticks=0,maxDelay=0,previous=performance.now();const timer=setInterval(()=>{const now=performance.now();maxDelay=Math.max(maxDelay,now-previous-25);previous=now;ticks++;const s=document.querySelector<HTMLElement>('#firehose-stage');if(Number(s?.dataset.beads)>1000)physics.push(Number(s?.dataset.physicsMs));},25);
   const send=()=>{seq++;window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`pile-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:Array.from({length:15},(_,i)=>({routeId:`chain-${i}`,fromId:`pile-${i}`,toId:`pile-${i+1}`}))}}));};
   for(let i=0;i<240;i++){send();await new Promise(r=>setTimeout(r,25));}
-  clearInterval(timer);return{ticks,maxDelay};
+  clearInterval(timer);physics.sort((a,b)=>a-b);return{ticks,maxDelay,physicsP95:physics[Math.floor(physics.length*.95)]??0,samples:physics.length};
  });
  const stage=page.locator('#firehose-stage');expect(Number(await stage.getAttribute('data-beads'))).toBeLessThanOrEqual(Number(await stage.getAttribute('data-capacity')));
  expect(Number(await stage.getAttribute('data-beads'))).toBeGreaterThan(500);expect(Number(await stage.getAttribute('data-queue'))).toBeLessThanOrEqual(48);
- expect(result.ticks).toBeGreaterThan(100);expect(result.maxDelay).toBeLessThan(300);expect(Number(await stage.getAttribute('data-draw-calls'))).toBeLessThan(40);
+ expect(result.samples).toBeGreaterThan(10);expect(result.physicsP95).toBeLessThan(25);expect(result.ticks).toBeGreaterThan(100);expect(result.maxDelay).toBeLessThan(300);expect(Number(await stage.getAttribute('data-draw-calls'))).toBeLessThan(40);
  await page.screenshot({path:info.outputPath('firehose-dense-pile.png')});
  const resources=await page.evaluate(()=>{const m=(window as any).__hose.metrics;return{geometries:m.geometries,textures:m.textures};});
  await page.locator('#pause-button').click();await page.locator('#box-button').click();await page.locator('#box-panel summary').click();await page.locator('#clear-button').click();await expect(stage).toHaveAttribute('data-beads','0');
@@ -120,6 +122,17 @@ test('Firehose stays bounded under synthetic load and keeps its dependencies iso
 
 test('Firehose navigation is available alongside the existing views',async({page},info)=>{
  test.skip(info.project.name!=='desktop');await setup(page);await page.goto('/chronoscope/');await openViewMenu(page);await page.getByRole('link',{name:'Open CartoLite Firehose',exact:true}).click();await expect(page.locator('#firehose-stage')).toHaveAttribute('data-render-state','ready');
+});
+
+test('Firehose luminous arrivals keep floor effects bounded and freeze with Pause',async({page},info)=>{
+ await setup(page);await open(page);
+ await page.evaluate(()=>{let seq=0;(window as any).__arrivalTimer=setInterval(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:++seq,id:`arrival-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:[{routeId:'visual-hop',fromId:'visual-a',toId:'visual-b'}]}})),100);});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__hose.metrics.impacts)).toBeGreaterThan(2);
+ await page.screenshot({path:info.outputPath('firehose-active-flow.png')});
+ await page.evaluate(()=>clearInterval((window as any).__arrivalTimer));
+ await page.locator('#pause-button').click();await page.waitForTimeout(100);
+ const before=await page.locator('#firehose-stage').getAttribute('data-render-frames');await page.waitForTimeout(160);
+ expect(await page.locator('#firehose-stage').getAttribute('data-render-frames')).toBe(before);
 });
 
 test('Firehose suspends hidden physics and resumes only fresh packets',async({page},info)=>{

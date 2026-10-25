@@ -2,7 +2,7 @@ name: cartolite-server
 
 services:
   cartolite:
-    image: ${CARTOLITE_IMAGE:-ghcr.io/n30nex/cartolite-server:0.11.0}
+    image: ${CARTOLITE_IMAGE:-ghcr.io/n30nex/cartolite-server:0.11.1}
     restart: unless-stopped
     ports:
       - "${CARTOLITE_BIND_ADDR:-127.0.0.1}:${CARTOLITE_PORT:-8080}:8080"
@@ -19,6 +19,7 @@ services:
       STATE_PATH: ${STATE_PATH:-/data/state-v1.json}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       BASEMAP_PROVIDER: openfreemap
+      EXTRA_PAGES: ${EXTRA_PAGES:-}
     volumes:
       - cartolite-data:/data
     read_only: true

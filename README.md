@@ -66,6 +66,16 @@ CartoLite Server renders public MeshCore activity as a living map: packet trails
 | **Responsive and resilient** | Desktop and phone layouts, Live Follow, saved views, and automatic recovery after sleep or network loss. |
 | **Small operational footprint** | One dependency-light Go service, one atomic checkpoint, no database, and a hardened container. |
 
+## Choose your pages
+
+Map and Netgraph are enabled by default. To offer the extra views, set this in `.env` and apply the matching release's Compose file:
+
+```dotenv
+EXTRA_PAGES=terminal,chronoscope,firehose
+```
+
+Choose any subset, or leave it empty for Map and Netgraph only. Navigation on desktop and phones follows the operator's selection. **Upgrading an existing server?** Set this before upgrading to keep all five pages; extra pages now default to off. Labs remains Canada-only. [Configuration and upgrade details](docs/deployment.md#choose-the-pages-on-your-server).
+
 ## Privacy is the product boundary
 
 The public API exposes only the minimum sanitized data needed to draw the live topology. CartoLite Server does **not** publish public keys, observer keys, raw paths, packet bodies, decoded messages, or resolver details. It includes no visitor analytics, accounts, chat, or message history.
@@ -189,7 +199,7 @@ Layout, region choices and route visibility are remembered in this browser.
 
 ### Terminal view
 
-Open /terminal/ or choose **Terminal** beside Map and Netgraph (in the View picker on phones). This BBS-style geographic view uses live Braille/ASCII graphics with ANSI, amber or green phosphor. Find, inspection, layer toggles, route windows, Follow, optional 3D and opt-in sounds use the same live data and controls as Map. Set characters and cell size under **Display → Terminal display**. The character renderer is downloaded only when you open Terminal; no extra map key or service is required.
+When enabled with `EXTRA_PAGES`, open /terminal/ or choose **Terminal** beside Map and Netgraph (in the View picker on phones). This BBS-style geographic view uses live Braille/ASCII graphics with ANSI, amber or green phosphor. Find, inspection, layer toggles, route windows, Follow, optional 3D and opt-in sounds use the same live data and controls as Map. Set characters and cell size under **Display → Terminal display**. The character renderer is downloaded only when you open Terminal; no extra map key or service is required.
 
 See [implementation and validation plan](docs/terminal-view-plan-2026-10-17.md).
 
@@ -212,8 +222,8 @@ customizations remain. Reset all display settings restores these Terminal defaul
 
 ## Chronoscope
 
-Open /chronoscope/ or choose **Chronoscope** in the dock. A bright Now plane and fading traces show the last minute of activity observed by this page. Explore Sculpture, Slice or Flat, freeze time, select regions and inspect confirmed packet segments. Display and live sound use the existing shared controls; phone Display settings live in the View picker. The bounded session window starts empty, stays silent while frozen and never reconstructs traffic from route totals. [View guide](docs/chronoscope.md).
+When enabled with `EXTRA_PAGES`, open /chronoscope/ or choose **Chronoscope** in the dock. A bright Now plane and fading traces show the last minute of activity observed by this page. Explore Sculpture, Slice or Flat, freeze time, select regions and inspect confirmed packet segments. Display and live sound use the existing shared controls; phone Display settings live in the View picker. The bounded session window starts empty, stays silent while frozen and never reconstructs traffic from route totals. [View guide](docs/chronoscope.md).
 
 ## Firehose
 
-Open `/firehose/` for a fully 3D live packet box. Tilt the box, orbit the camera, or pour linked packet beads into the pit. The pile starts empty, preserves confirmed hops and uses GPU rendering with worker physics and bounded resources. [View and controls guide](docs/firehose.md).
+When enabled with `EXTRA_PAGES`, open `/firehose/` for a fully 3D live packet box. Tilt the box, orbit the camera, or pour linked packet beads into the pit. The pile starts empty, preserves confirmed hops and uses GPU rendering with worker physics and bounded resources. [View and controls guide](docs/firehose.md).

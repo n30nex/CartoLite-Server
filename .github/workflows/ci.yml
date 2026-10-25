@@ -15,8 +15,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.10.0, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:a5cd8abaef6236fa293a9cf95ee7b3414e184f9db1972af17395bf11eeed8945
+  # Exact published 0.11.0, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:c2c3459c8369027e2bec54493db0df428c12e34008d7c22a6ab910b0d1c619bc
 
 jobs:
   backend:
@@ -139,6 +139,7 @@ jobs:
             --mount source=cartolite-server-ci-data,target=/data \
             -e MQTT_BROKER_URL=tcp://cartolite-server-mqtt:1883 \
             -e MQTT_TOPIC=meshcore/# -e MQTT_CLIENT_ID=cartolite-server-ci \
+            -e EXTRA_PAGES=terminal,chronoscope,firehose \
             cartolite-server:ci
           for _ in $(seq 1 90); do
             curl --fail --silent http://127.0.0.1:39476/readyz >/dev/null && exit 0
@@ -150,6 +151,21 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
+      - name: Operator page choices on desktop and phones
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: page-options-playwright-report
+        run: bash ../scripts/browser-ci.sh page-options.spec.ts --retries 0 --output page-options-test-results
+      - name: Preserve page selection evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cartolite-server-page-options-review
+          overwrite: true
+          path: |
+            web/page-options-test-results/
+            web/page-options-playwright-report/
       - name: Firehose physics, GPU presentation and recovery
         if: matrix.arch == 'amd64'
         working-directory: web

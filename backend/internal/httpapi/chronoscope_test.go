@@ -9,7 +9,7 @@ import (
 )
 
 func TestChronoscopePageAndCanonicalURL(t *testing.T) {
-	server := &Server{static: fstest.MapFS{
+	server := &Server{extraPages: []string{"chronoscope"}, static: fstest.MapFS{
 		"chronoscope/index.html": {Data: []byte("<title>CartoLite Chronoscope</title>")},
 	}}
 	handler := server.Handler()

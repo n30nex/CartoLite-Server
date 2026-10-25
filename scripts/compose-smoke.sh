@@ -57,7 +57,7 @@ write_env "$image"
 "${compose[@]}" up -d --no-build --force-recreate
 wait_ready
 curl --fail --silent http://127.0.0.1:39479/api/state > "$scratch/after.json"
-curl --fail --silent http://127.0.0.1:39479/api/config | jq -e '. == {schemaVersion:1,basemap:{provider:"openfreemap"}}' >/dev/null || { echo 'Upgraded public map configuration is not key-free OpenFreeMap' >&2; exit 1; }
+curl --fail --silent http://127.0.0.1:39479/api/config | jq -e '. == {schemaVersion:1,basemap:{provider:"openfreemap"},pages:["map","netgraph"]}' >/dev/null || { echo 'Upgraded public configuration is not key-free Map and Netgraph' >&2; exit 1; }
 jq -n --slurpfile before "$scratch/before.json" --slurpfile after "$scratch/after.json" '{before:{nodes:($before[0].nodes|length),routes:($before[0].routes|length)},after:{revision:$after[0].status.gitSha,nodes:($after[0].nodes|length),routes:($after[0].routes|length)}}' > "$output/upgrade-comparison.json"
 jq -n -e --arg sha "$revision" --slurpfile before "$scratch/before.json" --slurpfile after "$scratch/after.json" '
   $after[0].status.gitSha == $sha and $after[0].schemaVersion == 2 and
@@ -72,4 +72,30 @@ docker inspect "$container" | jq -e --arg sha "$revision" '.[0] |
   .HostConfig.PortBindings["8080/tcp"][0].HostIp == "127.0.0.1"
 ' >/dev/null || { echo 'Upgraded container identity or hardening failed verification' >&2; exit 1; }
 jq --arg image "$image" --arg previous "$previous_image" '{revision:.status.gitSha,version:.status.version,image:$image,previousImage:$previous,nodes:(.nodes|length),routes:(.routes|length),checkpointPreserved:true,keyFreeConfiguration:true,hardeningVerified:true}' "$scratch/after.json" > "$output/verification.json"
-echo 'Compose install and checkpoint-preserving upgrade passed.'
+# Core pages stay available; optional documents must be gated on fresh/upgrade defaults.
+for page in terminal chronoscope firehose; do
+  test "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:39479/$page/")" = 404
+done
+printf '\nEXTRA_PAGES=terminal,firehose\n' >> "$scratch/install.env"
+"${compose[@]}" up -d --no-build --force-recreate
+wait_ready
+curl --fail --silent http://127.0.0.1:39479/api/config | jq -e '.pages == ["map","netgraph","terminal","firehose"]' >/dev/null
+for page in terminal firehose; do
+  curl --fail --silent "http://127.0.0.1:39479/$page/" | grep 'data-extra-pages="terminal,firehose"' >/dev/null
+done
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:39479/chronoscope/index.html)" = 404
+# Selection survives an ordinary restart and never rewrites the checkpoint.
+"${compose[@]}" restart cartolite
+wait_ready
+curl --fail --silent http://127.0.0.1:39479/api/config | jq -e '.pages == ["map","netgraph","terminal","firehose"]' >/dev/null
+curl --fail --silent http://127.0.0.1:39479/api/state > "$scratch/selected.json"
+jq -n -e --slurpfile before "$scratch/after.json" --slurpfile after "$scratch/selected.json" '($before[0].nodes | map(.id) | sort) == ($after[0].nodes | map(.id) | sort) and ($before[0].routes | map(.id) | sort) == ($after[0].routes | map(.id) | sort)' >/dev/null
+write_env "$image"
+"${compose[@]}" up -d --no-build --force-recreate
+wait_ready
+for page in terminal chronoscope firehose; do
+  test "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:39479/$page/")" = 404
+done
+jq '. + {optionalPagesVerified:true}' "$output/verification.json" > "$scratch/verification.json"
+cp "$scratch/verification.json" "$output/verification.json"
+echo 'Compose install, checkpoint-preserving upgrade and optional pages passed.'
