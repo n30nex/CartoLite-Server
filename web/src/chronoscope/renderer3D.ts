@@ -77,7 +77,7 @@ export class Chronoscope3DRenderer {
     const changed=this.#mode!==mode;this.#mode=mode;if(mode==='slice')this.freeze();
     this.controls.enableRotate=mode==='sculpture';this.controls.minPolarAngle=mode==='sculpture'?.03:0;this.controls.mouseButtons.LEFT=mode==='sculpture'?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN;this.controls.touches.ONE=mode==='sculpture'?THREE.TOUCH.ROTATE:THREE.TOUCH.PAN;
     this.#frameGeometry.visible=mode==='sculpture';
-    if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.camera.zoom=this.#sculpturePose.zoom;this.#homeView=this.#sculpturePose.home;this.camera.updateProjectionMatrix();this.controls.update();}else this.home();}
+    if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.camera.zoom=this.#sculpturePose.zoom;this.#homeView=this.#sculpturePose.home;this.camera.updateProjectionMatrix();this.controls.update();if(this.#homeView){this.#frameLayout='';this.resize();}}else this.home();}
     this.updateKnown();this.request();
   }
   setWindow(seconds:number){this.#seconds=seconds;this.#slice=Math.min(this.#slice,seconds);this.request();}

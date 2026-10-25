@@ -15,7 +15,7 @@ for(const view of ['chronoscope','firehose','pachinko'])test(`Visual polish ${vi
   await expect(stage).toHaveAttribute('data-graphics-ready','true',{timeout:20000});
   await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   // Inspect the actual static geometry and billboards, not the fitting helper's bounds.
-  await expect.poll(()=>page.evaluate(()=>{
+  const fits=()=>page.evaluate(()=>{
     const s=(window as any).__polish;if(!s?.scene)return false;s.scene.updateMatrixWorld(true);s.camera.updateMatrixWorld();
     const width=innerWidth,height=innerHeight,stage=document.querySelector('[id$="-stage"]')!.getBoundingClientRect();
     let top=12,bottom=height-12,minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,count=0;
@@ -27,9 +27,17 @@ for(const view of ['chronoscope','firehose','pachinko'])test(`Visual polish ${vi
       if(o.isSprite){const position=o.getWorldPosition(point.clone()),scale=o.getWorldScale(point.clone());const right=point.clone().setFromMatrixColumn(s.camera.matrixWorld,0),up=point.clone().setFromMatrixColumn(s.camera.matrixWorld,1);for(const x of [-.5,.5])for(const y of [-.5,.5]){point.copy(position).addScaledVector(right,x*scale.x).addScaledVector(up,y*scale.y);add();}}
     });
     return count>20&&minX>=8&&maxX<=width-8&&minY>=top-2&&maxY<=bottom+2;
-  }),{timeout:10000}).toBe(true);
+  });
+  await expect.poll(fits,{timeout:10000}).toBe(true);
   await packet(page,12);await page.waitForTimeout(900);
   await page.screenshot({path:info.outputPath(`${view}-home-polished.png`)});
+  if(view==='chronoscope'){
+    const viewport=page.viewportSize()!;
+    await page.locator('#time-button').click();await page.locator('#chrono-mode').selectOption('flat');await page.keyboard.press('Escape');
+    await page.setViewportSize({width:viewport.height,height:viewport.width});
+    await page.locator('#time-button').click();await page.locator('#chrono-mode').selectOption('sculpture');await page.keyboard.press('Escape');
+    await expect.poll(fits).toBe(true);await page.setViewportSize(viewport);await expect.poll(fits).toBe(true);
+  }
   await stage.focus();await page.keyboard.press('Shift+ArrowRight');await page.keyboard.press('+');
   const pose=()=>page.evaluate(()=>{const s=(window as any).__polish;return[...s.camera.position.toArray(),...s.controls.target.toArray(),s.camera.zoom];});
   const before=await pose();await openDisplay(page);await page.locator('[data-display="basemap"]').selectOption('light');await page.keyboard.press('Escape');
