@@ -9,14 +9,14 @@ html:root .firehose-app .glass { transition:none; }
 :root:is([data-basemap=light],[data-basemap=streets]) .firehose-caption small { color:#345865; }
 .firehose-panel { position:absolute;bottom:calc(100% + 10px);left:0;width:340px;max-width:calc(100vw - 24px);max-height:calc(var(--available-height,100dvh) - var(--dock-height,52px) - 96px);overflow:auto;overscroll-behavior:contain;padding:14px;box-sizing:border-box; }
 .firehose-panel header { position:sticky;top:-14px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel-solid);margin-bottom:12px; }
-.firehose-panel :is(button,input) { min-height:44px;min-width:44px;border:1px solid var(--panel-border);border-radius:8px;background:var(--field-bg);color:var(--ink-strong);padding:8px;font:inherit;cursor:pointer; }
+.firehose-panel :is(button,input) { min-height:44px;min-width:44px;border:1px solid var(--panel-border);border-radius:var(--radius-control);background:var(--field-bg);color:var(--ink-strong);padding:8px;font:inherit;cursor:pointer; }
 .firehose-panel header button { font-size:20px; }.firehose-panel :is(p,details,label) { font-size:12px;line-height:1.55;color:var(--muted); }
 .firehose-panel label { display:flex;align-items:center;justify-content:space-between; }.firehose-panel details { border-top:1px solid var(--panel-border);padding-top:12px; }.firehose-panel summary { min-height:32px;cursor:pointer; }
 .firehose-actions { display:flex;gap:7px;margin:9px 0; }.firehose-actions button { flex:1; }.firehose-actions [aria-pressed=true] { border-color:var(--focus-ring);background:var(--selected); }
 .firehose-app #legend { bottom:calc(var(--dock-height,52px) + var(--dock-bottom,12px) + 10px);left:14px;width:max-content; }
 .firehose-app #node-inspector-sheet { top:78px;right:14px;bottom:auto;max-height:calc(100dvh - 170px); }
 .firehose-notice { position:absolute;z-index:6;left:50%;bottom:calc(var(--dock-height,52px) + 26px);transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 14px;font-size:12px;display:flex;align-items:center;gap:12px; }
-.firehose-notice button { min-height:44px;color:var(--ink-strong);border:1px solid var(--panel-border);border-radius:8px;background:var(--field-bg);padding:6px 12px; }
+.firehose-notice button { min-height:44px;color:var(--ink-strong);border:1px solid var(--panel-border);border-radius:var(--radius-control);background:var(--field-bg);padding:6px 12px; }
 html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]) .firehose-app #node-inspector-sheet { visibility:hidden; }
 :root[data-text-size=large] .firehose-caption span,:root[data-text-size=large] .firehose-panel :is(p,details,label,button) { font-size:15px; }
 @media(max-width:900px),(pointer:coarse) {

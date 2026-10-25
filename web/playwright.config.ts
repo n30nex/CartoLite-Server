@@ -19,7 +19,7 @@ export default defineConfig({
   projects: [
     {
       name: 'mobile-webkit',
-      testMatch: /(?:(?:labs-)?(?:mobile-ux|ui-audit)|terminal|chronoscope|firehose|pachinko|navigation|page-options|visual-polish)\.spec\.ts/,
+      testMatch: /(?:(?:labs-)?(?:mobile-ux|ui-audit)|terminal|chronoscope|firehose|pachinko|navigation|page-options|visual-polish|theme-cohesion)\.spec\.ts/,
       use: { ...devices['iPhone 13'], launchOptions: { args: [] } }
     },
     {

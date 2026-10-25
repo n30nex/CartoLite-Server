@@ -1,7 +1,7 @@
 import './display.css';
 import { TERMINAL_PAGE } from './preferences';
 import './cinematic.css';
-import { DEFAULT_DISPLAY, DISPLAY_EVENT, ROUTE_PRESETS, displayPreferences, initializeDisplay, updateDisplay, type DisplayPreferences } from './displayPreferences';
+import { DEFAULT_DISPLAY, DISPLAY_EVENT, INTERFACE_PALETTES, ROUTE_PRESETS, displayPreferences, initializeDisplay, updateDisplay, type DisplayPreferences } from './displayPreferences';
 
 export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netgraph' | 'labs' = 'map'): void {
   initializeDisplay();
@@ -10,6 +10,7 @@ export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netg
   section.setAttribute('aria-label', 'Shared display settings');
   section.innerHTML = `${surface === 'netgraph' ? `<label>Scene<select data-display="basemap" aria-label="Scene style"><option value="dark">Night</option><option value="light">Daylight</option><option value="streets">Paper</option></select></label>` : ''}
     ${surface !== 'map' ? `<label>Interface<select data-display="theme" aria-label="Interface theme"><option value="map">${surface === 'labs' ? 'Match Map theme' : 'Match scene'}</option><option value="dark">Dark</option><option value="light">Light</option></select></label>` : ''}
+    ${!TERMINAL_PAGE ? `<label>Palette<select data-display="palette" aria-label="Interface palette">${Object.entries(INTERFACE_PALETTES).map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</select></label><div class="palette-preview" aria-label="Interface palette preview"><i aria-hidden="true"></i><strong>CartoLite</strong><span>Live mesh</span><b aria-hidden="true"></b></div>` : ''}
     <label>Effects<select data-display="effects" aria-label="Effects intensity"><option value="spectacle">Spectacle</option><option value="calm">Calm</option><option value="minimal">Minimal</option></select></label>
     ${surface !== 'labs' ? '<label>Detail<select data-display="detail" aria-label="Detail level"><option value="auto">Automatic</option><option value="complete">Complete</option></select></label>' : ''}
     <label>Graphics<select data-display="quality" aria-label="Graphics quality"><option value="auto">Automatic</option><option value="high">High</option><option value="economy">Economy</option></select></label>
@@ -26,7 +27,7 @@ export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netg
       ] as const).map(([key, label, min, max, step, unit]) => `<label class="display-slider">${label}<output data-output="${key}" data-unit="${unit}"></output><input data-display="${key}" aria-label="${label}" type="range" min="${min}" max="${max}" step="${step}"></label>`).join('')}
       <button class="display-reset" type="button">Reset route styling</button>
     </details>` : '<p id="labs-quality-status" class="display-note" role="status"></p>'}
-    <p class="display-note">${surface === 'labs' ? 'Effects, motion, graphics, text and interface settings are shared. Each experiment keeps its own artistic setting; route styling stays in Map, Netgraph and Terminal.' : (TERMINAL_PAGE ? 'Terminal saves its own display settings. Map and Netgraph keep their choices. Styling never changes connections or packet timing.' : 'Shared across Map, Netgraph and Chronoscope in this browser. Terminal saves its own display settings. Styling never changes connections or packet timing.')}</p>`;
+    <p class="display-note">${surface === 'labs' ? 'Palette, interface, effects, motion, graphics and text settings are shared across views. Each experiment keeps its artistic setting. Terminal saves its own choices.' : (TERMINAL_PAGE ? 'Terminal saves its own display settings. Other views keep their choices. Styling never changes connections or packet timing.' : 'Shared across Map, Netgraph and Experimental views in this browser. Palettes style the interface; packet colours keep their meaning. Terminal saves its own choices.')}</p>`;
   const oldOpacity = parent.querySelector<HTMLInputElement>('#route-opacity');
   const oldOpacityLabel = oldOpacity?.closest('label');
   const duplicateOpacity = section.querySelector('[data-display="opacity"]')?.closest('label');

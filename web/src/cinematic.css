@@ -1,6 +1,6 @@
 /* Cinematic chrome is shared by Map and Netgraph; the scene keeps the space. */
 html:root[data-cinematic] { --dock-bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px)); --dock-height: 42px; }
-html:root .glass { color:var(--ink); background:var(--panel-solid); border:1px solid var(--panel-border); box-shadow:0 8px 28px #0003; backdrop-filter:none; -webkit-backdrop-filter:none; transition:border-color 180ms,background-color 180ms; }
+html:root .glass { border-radius:var(--radius-panel); color:var(--ink); background:var(--panel-solid); border:1px solid var(--panel-border); box-shadow:var(--panel-shadow); backdrop-filter:none; -webkit-backdrop-filter:none; transition:border-color 180ms,background-color 180ms; }
 html:root[data-cinematic] .controls { position: fixed; top: auto; right: auto; bottom: var(--dock-bottom); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: nowrap; gap: 2px; max-width: calc(100vw - 24px); border-radius: 18px; padding: 4px; z-index: 20; }
 html:root[data-cinematic] .toolbar { position: static; }
 html:root[data-cinematic] .topbar { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; right: auto; width: auto; border-radius: 14px; z-index: 12; }
@@ -25,7 +25,7 @@ html:root[data-cinematic] .map-notice { bottom: calc(var(--dock-bottom) + 64px);
 :root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after, :root[data-effects="minimal"] .traffic-meter { animation: none !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
 :root[data-text-size="large"] :is(.display-settings label,.control-button,.node-inspector,.node-search-result,.follow-card,.layer-hint,.map-option,.map-slider,.scene-control,.volume-control) { font-size: 15px; }
 :root[data-text-size="large"] :is(.display-note,.sound-description,.neighbor-meta,.follow-detail,.node-role) { font-size: 13px; }
-html:root[data-cinematic] .control-button:disabled { opacity: .65; cursor: not-allowed; }
+html:root[data-cinematic] .control-button:disabled { color:var(--disabled); opacity:1; cursor:not-allowed; }
 @media (max-width: 900px), (pointer: coarse) {
  html:root[data-cinematic] .controls { border-radius:16px; }
  html:root[data-cinematic] .controls :is(.layers-panel,.find-panel,.sound-panel,.display-panel) { bottom: calc(100% + 8px); right: 0; width: min(100%, 650px); }

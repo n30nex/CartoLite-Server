@@ -3,6 +3,7 @@ import { PACKET_KIND_COLORS as DARK_KINDS } from './trafficVisuals';
 
 export type LinePattern = 'solid' | 'dashed' | 'dotted';
 export type RoutePreset = 'crisp' | 'neon' | 'dashed' | 'dotted' | 'ribbon' | 'comet' | 'custom';
+export const INTERFACE_PALETTES = { aurora: 'Aurora', glacier: 'Glacier', ember: 'Ember', violet: 'Violet' } as const;
 export interface DisplayPreferences {
   effects: 'spectacle' | 'calm' | 'minimal';
   detail: 'auto' | 'complete';
@@ -11,6 +12,7 @@ export interface DisplayPreferences {
   textSize: 'standard' | 'large';
   basemap: BasemapStyle;
   theme: InterfaceTheme;
+  palette: keyof typeof INTERFACE_PALETTES;
   preset: RoutePreset;
   pattern: LinePattern;
   width: number;
@@ -31,7 +33,7 @@ export const ROUTE_PRESETS = {
   ribbon: { pattern: 'solid', width: 3.5, opacity: 0.75, glow: 0.1, packetSize: 1.35, trailLength: 1, residueSeconds: 12 },
   comet: { pattern: 'solid', width: 1.4, opacity: 0.8, glow: 0.5, packetSize: 1.4, trailLength: 2, residueSeconds: 30 },
 } as const;
-export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: TERMINAL_PAGE ? 'complete' : 'auto', quality: TERMINAL_PAGE ? 'high' : 'auto', motion: 'system', textSize: 'standard', basemap: 'dark', theme: 'map', preset: TERMINAL_PAGE ? 'neon' : 'crisp', ...(TERMINAL_PAGE ? ROUTE_PRESETS.neon : ROUTE_PRESETS.crisp) };
+export const DEFAULT_DISPLAY: DisplayPreferences = { effects: 'spectacle', detail: TERMINAL_PAGE ? 'complete' : 'auto', quality: TERMINAL_PAGE ? 'high' : 'auto', motion: 'system', textSize: 'standard', basemap: 'dark', theme: 'map', palette: 'aurora', preset: TERMINAL_PAGE ? 'neon' : 'crisp', ...(TERMINAL_PAGE ? ROUTE_PRESETS.neon : ROUTE_PRESETS.crisp) };
 
 const LIGHT_KINDS = { Advert: '#006957', Trace: '#855000', Text: '#a21b58', ACK: '#075b98', Control: '#6740a0', Other: '#445760' };
 const LIGHT_COLORS: Record<string, string> = {
@@ -116,6 +118,7 @@ export function normalizeDisplay(value: unknown): DisplayPreferences {
     textSize: v.textSize === 'large' ? 'large' : 'standard',
     basemap: v.basemap === 'light' || v.basemap === 'streets' ? v.basemap : 'dark',
     theme: v.theme === 'light' || v.theme === 'dark' ? v.theme : 'map',
+    palette: typeof v.palette === 'string' && Object.hasOwn(INTERFACE_PALETTES, v.palette) ? v.palette : 'aurora',
     preset: v.preset === 'custom' || (typeof v.preset === 'string' && Object.hasOwn(ROUTE_PRESETS, v.preset)) ? v.preset as RoutePreset : DEFAULT_DISPLAY.preset,
     pattern: v.pattern === 'dashed' || v.pattern === 'dotted' ? v.pattern : 'solid',
     width: amount('width', 1, 5), opacity: amount('opacity', 0.2, 1), glow: amount('glow', 0, 1),
@@ -154,6 +157,7 @@ export function updateDisplay(update: Partial<DisplayPreferences>): void {
 export function applyDisplayChrome(): void {
   const root = document.documentElement;
   root.dataset.theme = current.theme === 'map' ? (lightScene() ? 'light' : 'dark') : current.theme;
+  root.dataset.palette = current.palette;
   root.dataset.basemap = current.basemap;
   root.dataset.routePreset = current.preset;
   root.dataset.effects = current.effects;
@@ -161,7 +165,9 @@ export function applyDisplayChrome(): void {
   root.dataset.motion = prefersReducedMotion() ? 'reduced' : 'full';
   root.dataset.textSize = current.textSize;
   for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--kind-${kind.toLowerCase()}`, color);
-  for (const [kind, color] of Object.entries(packetPalette())) root.style.setProperty(`--ui-kind-${kind.toLowerCase()}`, color);
+  // UI panels may have different brightness from the scene underneath.
+  const uiPalette = packetPalette(!root.hasAttribute('data-terminal') && root.dataset.theme === 'light');
+  for (const [kind, color] of Object.entries(uiPalette)) root.style.setProperty(`--ui-kind-${kind.toLowerCase()}`, color);
   root.style.setProperty('--scene-background', current.basemap === 'dark' ? '#071319' : current.basemap === 'streets' ? '#f0eadb' : '#eef1ee');
   for (const el of document.querySelectorAll<HTMLElement>('[data-kind]')) {
     const color = packetPalette()[el.dataset.kind as keyof typeof DARK_KINDS];
