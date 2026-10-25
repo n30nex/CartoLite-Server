@@ -11,6 +11,10 @@ test('grouped icon navigation keeps direct views, keyboard access and node conte
   await page.getByRole('link',{name:'Open CartoLite Pachinko',exact:true}).click();await expect(page.locator('#pachinko-stage')).toHaveAttribute('data-render-state','ready',{timeout:20000});
   await expect.poll(()=>new URL(page.url()).searchParams.get('node')).toBe('visual-a');await expect(page.locator('#node-inspector-sheet')).toContainText('Visual Alpha');
   await openViewMenu(page);const group=page.locator('#experimental-options').locator('..');await group.locator('summary').focus();await page.keyboard.press('Escape');await expect(group).not.toHaveAttribute('open','');await expect(group.locator('summary')).toBeFocused();
+  await openViewMenu(page);await page.getByRole('link',{name:'Open CartoLite Firehose',exact:true}).focus();
+  await page.goBack();await expect(group).not.toHaveAttribute('open','');
+  if(await page.locator('html').getAttribute('data-mobile-dock')==='true'){await expect(page.locator('#view-panel')).toBeHidden();await expect(page.locator('#view-button')).toBeFocused();}
+  else await expect(group.locator('summary')).toBeFocused();
 });
 
 test('Labs list selects an experience without creating a second feed owner',async({page})=>{

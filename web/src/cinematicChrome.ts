@@ -105,7 +105,10 @@ export function trackPanelHistory(controls: HTMLElement, menuIDs: string[]): voi
     }
     const target = history.state?.cartolitePanel;
     for (const dialog of document.querySelectorAll('dialog[open]')) if (dialog.id !== target) (dialog as HTMLDialogElement).close();
-    for (const group of controls.querySelectorAll<HTMLDetailsElement>('.nav-group[open]')) if (group.querySelector('.nav-popover')?.id !== target) group.open = false;
+    for (const group of controls.querySelectorAll<HTMLDetailsElement>('.nav-group[open]')) if (group.querySelector('.nav-popover')?.id !== target) {
+      const restoreFocus = group.contains(document.activeElement); group.open = false;
+      if (restoreFocus) group.querySelector('summary')?.focus({ preventScroll:true });
+    }
     if (target !== 'region-options') document.querySelector('#region-filter[open]')?.removeAttribute('open');
     for(const button of controls.querySelectorAll<HTMLButtonElement>('button[aria-expanded="true"][aria-controls]')) {
       if(button.getAttribute('aria-controls') !== target) { button.click(); button.focus({ preventScroll:true }); }
