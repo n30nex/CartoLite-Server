@@ -175,9 +175,9 @@ body { background: #0b151b; }
   width: 7px;
   height: 7px;
   flex: none;
-  border: 1px solid #f2bf4f;
+  border: 1px solid var(--ui-kind-trace);
   border-radius: 50%;
-  background: #fff4b1;
+  background: var(--ui-kind-trace);
   box-shadow: 0 0 10px rgba(242, 191, 79, 0.9);
 }
 .focus-chip span { overflow: hidden; text-overflow: ellipsis; }

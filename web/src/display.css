@@ -45,13 +45,7 @@ button,select,input { font:inherit; }
 .netgraph-app .role-legend i[data-role="companion"] { background: var(--ui-kind-ack); }
 .netgraph-app .role-legend i[data-role="room_server"] { background: var(--ui-kind-control); }
 .netgraph-app .role-legend i[data-role="sensor"] { background: var(--ui-kind-trace); }
-:root[data-theme="light"] :is(.netgraph-app, #app) :is(.brand, .workspace-link, .view-title, .status, .control-button, .reset-button, .scene-control, .volume-control, .route-window, .sound-state, .sound-description, .node-search-results, .node-inspector, .neighbor-row, .graph-summary, .legend, .empty-state, .fatal) { color: var(--ink); }
-:root[data-theme="light"] .netgraph-app :is(button, a, label, strong, h2, h3, dt, dd, p, small, .node-search-name, .node-search-meta, .node-role, .neighbor-label, .neighbor-meta) { color: var(--ink); }
-:root[data-theme="light"] .netgraph-app :is(input, select, .sound-toggle, .neighbor-row, .node-search-result) { background: var(--field-bg); color: var(--ink-strong); border-color: var(--panel-border); }
-:root[data-theme="light"] .netgraph-app :is(button, a):hover { color: var(--ink-strong); background-color: var(--selected); }
 :root[data-theme="light"] :is(.netgraph-app, #app) button:disabled { color: var(--disabled); opacity: 1; }
-:root[data-theme="light"] :is(.sound-panel, .netgraph-app .graph-summary) :is(header span, output, strong) { color: var(--ink-strong); }
-:root[data-theme="light"] .netgraph-app :is(.neighbor-list, .node-inspector dl, .node-inspector header, .node-inspector h3) { border-color: var(--panel-border); }
 :root[data-theme="light"] :is(#app, .netgraph-app) { --traffic-rgb: 0, 105, 87; }
 :root[data-theme="light"] :is(#app, .netgraph-app)[data-traffic-kind="trace"] { --traffic-rgb: 133, 80, 0; }
 :root[data-theme="light"] :is(#app, .netgraph-app)[data-traffic-kind="text"] { --traffic-rgb: 162, 27, 88; }

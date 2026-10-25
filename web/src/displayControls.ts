@@ -14,7 +14,7 @@ export function mountDisplayControls(parent: HTMLElement, surface: 'map' | 'netg
     <label>Effects<select data-display="effects" aria-label="Effects intensity"><option value="spectacle">Spectacle</option><option value="calm">Calm</option><option value="minimal">Minimal</option></select></label>
     ${surface !== 'labs' ? '<label>Detail<select data-display="detail" aria-label="Detail level"><option value="auto">Automatic</option><option value="complete">Complete</option></select></label>' : ''}
     <label>Graphics<select data-display="quality" aria-label="Graphics quality"><option value="auto">Automatic</option><option value="high">High</option><option value="economy">Economy</option></select></label>
-    <label>Motion<select data-display="motion" aria-label="Motion preference"><option value="system">Use system setting</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
+    <label>Motion<select data-display="motion" aria-label="Motion preference"><option value="system">System</option><option value="full">Full</option><option value="reduced">Reduced</option></select></label>
     <label>Text<select data-display="textSize" aria-label="Text size"><option value="standard">Standard</option><option value="large">Large</option></select></label>
     ${surface !== 'labs' ? `<label>Route style<select data-display="preset" aria-label="Route style">${Object.keys(ROUTE_PRESETS).map((id) => `<option value="${id}">${id[0]!.toUpperCase()}${id.slice(1)}</option>`).join('')}<option value="custom">Custom</option></select></label>
     <div class="route-preview" aria-label="Silent route style preview"><i></i><b></b><span>Preview · silent</span></div>
