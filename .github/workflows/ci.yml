@@ -151,6 +151,21 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
+      - name: Operator page choices on desktop and phones
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: page-options-playwright-report
+        run: bash ../scripts/browser-ci.sh page-options.spec.ts --retries 0 --output page-options-test-results
+      - name: Preserve page selection evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cartolite-server-page-options-review
+          overwrite: true
+          path: |
+            web/page-options-test-results/
+            web/page-options-playwright-report/
       - name: Firehose physics, GPU presentation and recovery
         if: matrix.arch == 'amd64'
         working-directory: web
