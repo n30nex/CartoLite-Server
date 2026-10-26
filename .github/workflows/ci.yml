@@ -204,18 +204,19 @@ jobs:
           if bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --grep 'saved 3D preferences' --repeat-each 3 --retries 0 --output startup-test-results; then
             exit 0
           fi
-          # Diagnostic only: compare the same image with the previous browser.
-          # A failed current-browser gate still fails this job unconditionally.
-          npm install --no-save --package-lock=false --ignore-scripts @playwright/test@1.61.1
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('../scripts/browser-ci.sh')
-          text = path.read_text().replace('1.64.1', '1.61.1').replace(
-              '47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea',
-              '5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48')
-          path.write_text(text)
-          PY
-          PLAYWRIGHT_HTML_OUTPUT_DIR=startup-previous-playwright-report bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --grep 'saved 3D preferences' --repeat-each 3 --retries 0 --output startup-previous-test-results || true
+          # Diagnose cold-start behavior against the released application and
+          # the current application with only MapLibre reverted. No diagnostic
+          # image is published, and failure of the candidate still fails CI.
+          docker run -d --rm --name startup-release --read-only --cap-drop ALL --memory 256m --env MQTT_ENABLED=false -p 127.0.0.1:39477:8080 "$UPGRADE_FROM_IMAGE"
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:39477/healthz >/dev/null && break; sleep 1; done
+          CARTOLITE_BASE_URL=http://127.0.0.1:39477 PLAYWRIGHT_HTML_OUTPUT_DIR=startup-release-playwright-report bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --grep 'saved 3D preferences' --repeat-each 3 --retries 0 --output startup-release-test-results || true
+          docker rm -f startup-release
+          npm install --package-lock-only --ignore-scripts --save-exact maplibre-gl@6.15.0
+          docker build -t cartolite-server:startup-diagnostic --build-arg APP_VERSION=diagnostic --build-arg GIT_SHA=diagnostic ..
+          docker run -d --rm --name startup-maplibre --read-only --cap-drop ALL --memory 256m --env MQTT_ENABLED=false -p 127.0.0.1:39478:8080 cartolite-server:startup-diagnostic
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:39478/healthz >/dev/null && break; sleep 1; done
+          CARTOLITE_BASE_URL=http://127.0.0.1:39478 PLAYWRIGHT_HTML_OUTPUT_DIR=startup-maplibre-playwright-report bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --grep 'saved 3D preferences' --repeat-each 3 --retries 0 --output startup-maplibre-test-results || true
+          docker rm -f startup-maplibre
           exit 1
       - name: Preserve startup diagnostics
         if: always() && matrix.arch == 'amd64'
@@ -225,8 +226,10 @@ jobs:
           path: |
             web/startup-test-results/
             web/startup-playwright-report/
-            web/startup-previous-test-results/
-            web/startup-previous-playwright-report/
+            web/startup-release-test-results/
+            web/startup-release-playwright-report/
+            web/startup-maplibre-test-results/
+            web/startup-maplibre-playwright-report/
           retention-days: 7
       - name: Operator page choices on desktop and phones
         if: matrix.arch == 'amd64'
