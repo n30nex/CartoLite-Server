@@ -252,6 +252,8 @@ test('renders the live route map and privacy-safe state', async ({ page }, testI
   }
 
   await page.screenshot({ path: testInfo.outputPath('cartolite.png'), fullPage: true });
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: testInfo.outputPath('map-overview.png'), fullPage: true });
 });
 
 test('keeps the map primary with reduced motion and releases live follow on drag', async ({ page }, testInfo) => {

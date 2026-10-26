@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Dependency maintenance and repository refresh (0.12.3)
+
+[Open-PR review and maintenance patch](maintenance-2026-10-26.md): resolve identified dependency alerts, update supported toolchains and browser tests, restore Worldwide update tracking, and refresh both README front pages. Exact Actions qualification and release/deployment evidence accompany the published release.
+
 ## Theme cohesion (0.12.2)
 
 [All-page palette and interface audit](theme-cohesion-audit-2026-10-25.md): shared semantic colours, coordinated palettes, readable mixed scene/interface themes, consistent controls and preserved Terminal customization. Actions qualification and release evidence accompany the versioned release.
