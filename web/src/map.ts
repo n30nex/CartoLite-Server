@@ -1455,13 +1455,11 @@ export class LiveMap {
       ));
       const awaitingVisibleRoutes = this.routesVisible
         && (!this.#lastState || this.container.dataset.exactRoutesReady !== 'true');
-      if (awaitingVisibleRoutes || (this.routesVisible && this.#routeHydrating) || !sourcesSettled) {
-        settledFrames = 0;
-        window.requestAnimationFrame(settle);
-        return;
-      }
-      settledFrames += 1;
-      if (settledFrames < 2) {
+      // Route readiness already waits for two rendered frames. Settle the
+      // remaining sources alongside it, not for two more expensive 3D frames.
+      settledFrames = sourcesSettled && !(this.routesVisible && this.#routeHydrating)
+        ? Math.min(2, settledFrames + 1) : 0;
+      if (awaitingVisibleRoutes || settledFrames < 2) {
         window.requestAnimationFrame(settle);
         return;
       }

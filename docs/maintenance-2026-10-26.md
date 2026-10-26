@@ -51,6 +51,11 @@ basemap tiles. Install them at the public `style.load` lifecycle instead. A
 regression check holds geographic tile responses pending while requiring topology
 and a live packet to become ready within the unchanged five-second deadline.
 Existing style/context recovery and full rendering suites remain required.
+Saved 3D startup also exposed two consecutive two-frame readiness waits. Source
+and route settlement now run alongside one another: both must still pass their
+two-frame conditions, without serializing four costly terrain frames. The saved
+3D regression retains its five-second deadline and captures readiness diagnostics
+on failure.
 
 All builds, dependency resolution and automated validation run in Actions.
 Normal PR and exact-main CI remain mandatory; no performance, privacy, topology,
