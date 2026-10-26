@@ -281,12 +281,19 @@ export class LiveMap {
     const creditSize = new ResizeObserver(() => document.documentElement.style.setProperty('--map-credits-height', `${credits.offsetHeight}px`));
     creditSize.observe(credits);
     this.map.once('remove', () => creditSize.disconnect());
-    // Evented runs on listeners before once listeners. Keep initial indexing
-    // ahead of load consumers (Find), then unregister before graphics recovery.
+    // Plain 2D topology need not wait for geographic tiles. Terrain keeps its
+    // staged startup so DEM work does not compete with the first basemap frame.
+    // Register load here, ahead of consumers such as Find, and remove both
+    // listeners before graphics recovery reinstalls its own layers.
     const installInitialLayers = (): void => {
+      this.map.off('style.load', installWithoutTerrain);
       this.map.off('load', installInitialLayers);
       this.#installLayers();
     };
+    const installWithoutTerrain = (): void => {
+      if (!this.#terrain3D && !this.#hillshadeVisible) installInitialLayers();
+    };
+    this.map.on('style.load', installWithoutTerrain);
     this.map.on('load', installInitialLayers);
     this.map.on('movestart', () => { this.container.dataset.cameraMoving = 'true'; });
     this.map.on('sourcedata', (event) => {
