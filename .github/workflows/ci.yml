@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      refresh_dependencies:
+        description: 'Export lockfile updates for review; does not qualify a release'
+        type: boolean
+        default: false
+
 
 permissions:
   contents: read
@@ -15,17 +21,51 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.12.1, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:83384dd2187bcfcaac1c475681bfa469d5a379e5163f99c9657d9911b55b64fc
+  # Exact published 0.12.2, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:a0c514ced472157c278506f226d235c5703c41d6d3d76fd0d9a6adf263f46943
 
 jobs:
+  refresh-lockfiles:
+    name: Refresh dependency lockfiles (review required)
+    if: github.event_name == 'workflow_dispatch' && inputs.refresh_dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Resolve npm lockfile without lifecycle scripts
+        working-directory: web
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm update source-map-js --package-lock-only --ignore-scripts
+      - name: Resolve Go modules
+        working-directory: backend
+        run: go mod tidy
+      - name: Export reviewable patch tied to source commit
+        run: |
+          mkdir -p artifacts/dependencies
+          git rev-parse HEAD > artifacts/dependencies/source-commit.txt
+          git diff --binary -- web/package-lock.json backend/go.mod backend/go.sum > artifacts/dependencies/dependency-lockfiles.patch
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-lockfiles-${{ github.sha }}
+          path: artifacts/dependencies/
+          if-no-files-found: error
+
   backend:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.refresh_dependencies) }}
     name: Go test, vet, and race
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -42,23 +82,24 @@ jobs:
         run: go test ./internal/engine -run '^$' -bench BenchmarkNodeRepresentative -benchmem -benchtime=200ms -count=3
 
   frontend:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.refresh_dependencies) }}
     name: Frontend test and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify published installer version
         run: bash scripts/check-release-defaults.sh
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
       - working-directory: web
         run: npm ci
-      - name: Audit shipped frontend dependencies
+      - name: Audit frontend and build dependencies
         working-directory: web
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --audit-level=low
       - working-directory: web
         run: npm test
       - working-directory: web
@@ -86,20 +127,20 @@ jobs:
       attestations: write
       id-token: write
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 24.22.1
           cache: npm
           cache-dependency-path: web/package-lock.json
       - working-directory: web
         if: matrix.arch == 'amd64'
         run: |
           npm ci
-          docker pull mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+          docker pull mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read build identity
         id: identity
         run: |
@@ -110,7 +151,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "time=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
       - name: Build hardened image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/${{ matrix.arch }}
@@ -161,7 +202,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh page-options.spec.ts --retries 0 --output page-options-test-results
       - name: Preserve page selection evidence
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-page-options-review
           overwrite: true
@@ -176,7 +217,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh visual-polish.spec.ts theme-cohesion.spec.ts --retries 0 --output polish-test-results
       - name: Preserve visual polish evidence
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: visual-polish-${{ github.sha }}
           path: |
@@ -190,7 +231,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
       - name: Preserve UI audit screenshots for early review
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-ui-audit
           retention-days: 30
@@ -205,7 +246,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh pachinko.spec.ts --retries 0 --output pachinko-test-results
       - name: Preserve Pachinko evidence
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-pachinko-review
           retention-days: 7
@@ -220,7 +261,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh firehose.spec.ts --retries 0 --output firehose-test-results
       - name: Preserve Firehose evidence
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-firehose-review
           retention-days: 7
@@ -235,7 +276,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh long-session.spec.ts --project desktop --retries 0 --output session-test-results
       - name: Preserve long-session diagnostics
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-session-review
           retention-days: 3
@@ -250,7 +291,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh chronoscope.spec.ts --retries 0 --output chrono-test-results
       - name: Preserve Chronoscope evidence
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-chronoscope-review
           retention-days: 7
@@ -265,7 +306,7 @@ jobs:
         run: bash ../scripts/browser-ci.sh terminal.spec.ts --output terminal-test-results
       - name: Preserve Terminal review screenshots
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-terminal-review
           retention-days: 30
@@ -314,7 +355,7 @@ jobs:
         run: bash scripts/compose-smoke.sh cartolite-server:ci "$GITHUB_SHA" cartolite-server:upgrade-base
       - name: Log in to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -334,21 +375,21 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - name: Attest the tested platform image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.publish.outputs.digest }}
           push-to-registry: true
       - name: Record platform digest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: candidate-${{ matrix.arch }}
           path: artifacts/candidate/${{ matrix.arch }}.txt
           overwrite: true
       - name: Preserve browser and integration evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cartolite-server-ci-evidence-${{ matrix.arch }}
           overwrite: true
@@ -382,8 +423,8 @@ jobs:
     outputs:
       image: ${{ steps.index.outputs.image }}
     steps:
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -408,7 +449,7 @@ jobs:
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "image=${IMAGE_NAME}@${digest}" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.index.outputs.digest }}
@@ -428,7 +469,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Pull anonymously and verify the install recipe
         env:
           CANDIDATE_IMAGE: ${{ needs.publish.outputs.image }}
@@ -440,7 +481,7 @@ jobs:
           test "$(docker image inspect "$UPGRADE_FROM_IMAGE" --format '{{.Architecture}}')" = "${{ matrix.arch }}"
           bash scripts/compose-smoke.sh "$CANDIDATE_IMAGE" "$GITHUB_SHA" "$UPGRADE_FROM_IMAGE"
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: published-install-${{ matrix.arch }}
           path: artifacts/compose/
@@ -448,7 +489,7 @@ jobs:
 
   required:
     name: CI / Required
-    if: always()
+    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.refresh_dependencies) }}
     needs: [backend, frontend, container, publish, public-install]
     runs-on: ubuntu-latest
     permissions:
