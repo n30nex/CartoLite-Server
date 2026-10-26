@@ -18,7 +18,7 @@
     "@playwright/test": "1.64.1",
     "@types/geojson": "7946.0.16",
     "jsdom": "25.0.1",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vite": "8.3.5",
     "vitest": "4.1.12",
     "@types/three": "0.186.0"
