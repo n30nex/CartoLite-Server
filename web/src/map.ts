@@ -281,14 +281,20 @@ export class LiveMap {
     const creditSize = new ResizeObserver(() => document.documentElement.style.setProperty('--map-credits-height', `${credits.offsetHeight}px`));
     creditSize.observe(credits);
     this.map.once('remove', () => creditSize.disconnect());
-    // Sources/layers are safe at style.load. Waiting for load also waits for
-    // every basemap tile, leaving live topology blocked by a slow provider.
-    // Unregister before graphics recovery reinstalls its own layers.
+    // Plain 2D topology need not wait for geographic tiles. Terrain keeps its
+    // staged startup so DEM work does not compete with the first basemap frame.
+    // Register load here, ahead of consumers such as Find, and remove both
+    // listeners before graphics recovery reinstalls its own layers.
     const installInitialLayers = (): void => {
-      this.map.off('style.load', installInitialLayers);
+      this.map.off('style.load', installWithoutTerrain);
+      this.map.off('load', installInitialLayers);
       this.#installLayers();
     };
-    this.map.on('style.load', installInitialLayers);
+    const installWithoutTerrain = (): void => {
+      if (!this.#terrain3D && !this.#hillshadeVisible) installInitialLayers();
+    };
+    this.map.on('style.load', installWithoutTerrain);
+    this.map.on('load', installInitialLayers);
     this.map.on('movestart', () => { this.container.dataset.cameraMoving = 'true'; });
     this.map.on('sourcedata', (event) => {
       if (this.#buildingSourceID && event.sourceId === this.#buildingSourceID) {
@@ -1455,11 +1461,13 @@ export class LiveMap {
       ));
       const awaitingVisibleRoutes = this.routesVisible
         && (!this.#lastState || this.container.dataset.exactRoutesReady !== 'true');
-      // Route readiness already waits for two rendered frames. Settle the
-      // remaining sources alongside it, not for two more expensive 3D frames.
-      settledFrames = sourcesSettled && !(this.routesVisible && this.#routeHydrating)
-        ? Math.min(2, settledFrames + 1) : 0;
-      if (awaitingVisibleRoutes || settledFrames < 2) {
+      if (awaitingVisibleRoutes || (this.routesVisible && this.#routeHydrating) || !sourcesSettled) {
+        settledFrames = 0;
+        window.requestAnimationFrame(settle);
+        return;
+      }
+      settledFrames += 1;
+      if (settledFrames < 2) {
         window.requestAnimationFrame(settle);
         return;
       }
