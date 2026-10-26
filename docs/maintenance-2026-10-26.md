@@ -45,6 +45,13 @@ Keep community examples and optional-page instructions visible.
 
 ## Qualification
 
+The newer browser exposed an existing startup dependency in both editions:
+network layers were installed at MapLibre's global `load` event, which waits for
+basemap tiles. Install them at the public `style.load` lifecycle instead. A
+regression check holds geographic tile responses pending while requiring topology
+and a live packet to become ready within the unchanged five-second deadline.
+Existing style/context recovery and full rendering suites remain required.
+
 All builds, dependency resolution and automated validation run in Actions.
 Normal PR and exact-main CI remain mandatory; no performance, privacy, topology,
 container or resource gate is relaxed. No backend API or checkpoint schema changes.
