@@ -99,7 +99,7 @@ Public data contains sanitized node labels, locations and confirmed topology. It
 
 ## Development and releases
 
-Maintainer builds, tests, lockfile refreshes, screenshots and releases run in **GitHub Actions**. The toolchains are Node **24.22.1 LTS**, Go **1.27.3** and Playwright **1.64.1** with its matching pinned browser image. CI covers all npm dependencies, Go tests/vet/race, synthetic MQTT and privacy checks, browser/mobile rendering, long-session and performance checks, and container scanning.
+Maintainer builds, tests, lockfile refreshes, screenshots and releases run in **GitHub Actions**. The toolchains are Node **24.22.1 LTS**, Go **1.27.3** and Playwright **1.61.1** with its matching pinned browser image. CI covers all npm dependencies, Go tests/vet/race, synthetic MQTT and privacy checks, browser/mobile rendering, long-session and performance checks, and container scanning.
 
 The CI workflow's **Refresh dependency lockfiles** option exports a patch tied to its source commit for review. It does not run the qualification suite or publish an image. Apply the reviewed patch on the same branch, then run normal PR CI. See the [maintenance review](docs/maintenance-2026-10-26.md).
 

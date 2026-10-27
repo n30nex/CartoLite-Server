@@ -21,8 +21,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.12.2, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:a0c514ced472157c278506f226d235c5703c41d6d3d76fd0d9a6adf263f46943
+  # Exact published 0.12.3, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:7bfbde283236fd74195737508514354f6577962cddd6634071c7952e693dc1e0
 
 jobs:
   refresh-lockfiles:
@@ -119,8 +119,8 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     # Full baseline took 44 minutes; retain headroom for the new visual suite.
-    # Browser/physics/input limits remain unchanged.
-    timeout-minutes: 50
+    # Added repeated Terminal startup checks; individual test and performance limits remain unchanged.
+    timeout-minutes: 55
     permissions:
       contents: read
       packages: write
@@ -139,7 +139,7 @@ jobs:
         if: matrix.arch == 'amd64'
         run: |
           npm ci
-          docker pull mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+          docker pull mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Read build identity
         id: identity
@@ -201,6 +201,13 @@ jobs:
           CARTOLITE_BASE_URL: http://127.0.0.1:39476
           PLAYWRIGHT_HTML_OUTPUT_DIR: startup-playwright-report
         run: bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --grep 'saved 3D preferences' --repeat-each 3 --retries 0 --output startup-test-results
+      - name: Terminal geography on mobile WebKit
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          CARTOLITE_BASE_URL: http://127.0.0.1:39476
+          PLAYWRIGHT_HTML_OUTPUT_DIR: terminal-startup-playwright-report
+        run: bash ../scripts/browser-ci.sh terminal.spec.ts --project mobile-webkit --grep 'Terminal keeps geographic controls' --repeat-each 3 --retries 0 --output terminal-startup-test-results
       - name: Preserve startup diagnostics
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -209,6 +216,8 @@ jobs:
           path: |
             web/startup-test-results/
             web/startup-playwright-report/
+            web/terminal-startup-test-results/
+            web/terminal-startup-playwright-report/
           retention-days: 7
       - name: Operator page choices on desktop and phones
         if: matrix.arch == 'amd64'

@@ -1,26 +1,6 @@
-import { expect,test,type Page,type Route } from '@playwright/test';
+import { expect,test,type Page } from '@playwright/test';
 import { visualFixture,visualPacket } from './visualFixtures';
 import { openDisplay } from './dockControls';
-
-test('Map topology becomes ready while geographic tiles are still pending',async({page})=>{
-  await visualFixture(page);
-  const pending:Route[]=[];
-  const pattern='https://tiles.openfreemap.org/fixture/**';
-  const hold=(route:Route)=>{pending.push(route);};
-  await page.route(pattern,hold);
-  try {
-    await page.goto('/');
-    await expect.poll(()=>pending.length).toBeGreaterThan(0);
-    // Keep the normal five-second readiness limit, with no basemap response.
-    await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
-    await expect(page.locator('#map')).toHaveAttribute('data-exact-routes-ready','true');
-    await visualPacket(page,1,'Text');
-    await expect(page.locator('#packet-canvas')).toHaveAttribute('data-last-packet-kind','Text');
-  } finally {
-    await page.unroute(pattern,hold);
-    await Promise.all(pending.map(route=>route.fallback()));
-  }
-});
 
 // Check the rendered controls, including inherited colours, rather than only
 // asserting the token table. A fixed colour in an older page must fail here.

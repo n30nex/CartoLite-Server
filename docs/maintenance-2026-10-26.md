@@ -14,7 +14,7 @@ in the published release; a lock-refresh workflow result alone is not test proof
 | [#82](https://github.com/n30nex/CartoLite/pull/82) | Use Node 24.22.1 LTS. The proposed Node 25 is end-of-life. |
 | [#72](https://github.com/n30nex/CartoLite/pull/72) | Use Vitest/mocker 4.1.12, covering the newer advisory still affecting proposed 4.1.11. |
 | [#68](https://github.com/n30nex/CartoLite/pull/68) | Move Docker and go.mod together to Go 1.27.3, with x/net 0.61.0 and x/sync 0.24.0. |
-| [#25](https://github.com/n30nex/CartoLite/pull/25) | Replace stale grouped upgrades with MapLibre 6.16.0, Vite 8.3.5 and Playwright 1.64.1. The old group would downgrade the current MapLibre. |
+| [#25](https://github.com/n30nex/CartoLite/pull/25) | Keep the qualified MapLibre 6.15.0 / Playwright 1.61.1 pair and update Vite to 8.3.5. The old group would downgrade MapLibre; optional graphics upgrades were withdrawn after acceptance testing. |
 
 TypeScript 5.9.3, jsdom 25.0.1 and patched Vitest 4 remain in place. Their unrelated
 major-version migrations are not needed to resolve the identified advisories.
@@ -30,8 +30,6 @@ surface future updates; minor/patch groups no longer absorb major migrations.
 - Enable Worldwide dependency alerts and add its missing Dependabot configuration.
 - Keep actions pinned to reviewed commits, the browser image pinned by digest,
   and Playwright's package/image versions aligned.
-- MapLibre 6.16 fixes background-resume/context-loss resizing, suspended iOS
-  workers, expired tile reloads, date-line image loading and low-zoom terrain.
 - Validate a checkpoint-preserving Worldwide upgrade from the previous 0.12.2
   image as well as the existing legacy source upgrade.
 
@@ -45,18 +43,16 @@ Keep community examples and optional-page instructions visible.
 
 ## Qualification
 
-The newer browser exposed an existing startup dependency in both editions:
-network layers were installed at MapLibre's global `load` event, which waits for
-basemap tiles. Install plain 2D layers at the public `style.load` lifecycle. A
-regression check holds geographic tile responses pending while requiring topology
-and a live packet to become ready within the unchanged five-second deadline.
-Existing style/context recovery and full rendering suites remain required.
-Cold-start comparisons against the exact released image showed that starting
-terrain during the first style event competes with initial basemap rendering.
-Saved Topo/3D views retain their staged `load` initialization, registered ahead
-of Find's load handler. The existing readiness settlement remains unchanged.
-An early saved-3D check repeats three times without retries and retains its
-five-second deadline. Diagnostic comparisons are not release qualification.
+An optional graphics-stack update and early map initialization change were
+withdrawn after the deployed iPhone/WebKit Terminal check found missing geography.
+Canada was rolled back with its advancing checkpoint preserved. The final patch
+restores the previously qualified rendering code, MapLibre 6.15.0 and the matching
+Playwright 1.61.1 browser image while retaining all security/toolchain fixes.
+Worldwide 0.12.4 supersedes the initial 0.12.3 maintenance release.
+
+Repeated saved-3D and mobile WebKit Terminal checks run before the full browser
+suites, without retries. Original assertions and rendering/resource limits remain
+unchanged. Whole-job orchestration allows five extra minutes for the added checks.
 
 All builds, dependency resolution and automated validation run in Actions.
 Normal PR and exact-main CI remain mandatory; no performance, privacy, topology,
