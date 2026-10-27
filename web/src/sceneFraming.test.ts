@@ -16,7 +16,7 @@ it('enlarges a distant scene into usable space instead of only shrinking it',()=
 
 it('keeps the whole sculpture inside phone and short-screen chrome without moving the camera',()=>{
   const box=new Box3(new Vector3(-6.5,-.3,-4.5),new Vector3(6.5,5.3,4.5));
-  for(const [width,height,top,bottom] of [[320,720,120,80],[568,320,70,80],[1440,900,130,65]]){
+  for(const [width,height,top,bottom] of [[320,720,120,80],[568,320,70,80],[568,320,60,180],[1440,900,130,65]]){
     const camera=new PerspectiveCamera(42,width!/height!,.05,200);camera.position.set(11,10,15);camera.lookAt(0,2.25,0);
     const pose=camera.position.clone(),angle=camera.quaternion.clone();
     fitSceneCamera(camera,[box],{width:width!,height:height!,left:14,right:14,top:top!,bottom:bottom!});

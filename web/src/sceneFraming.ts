@@ -20,7 +20,7 @@ export function sceneViewport(stage:HTMLElement):SceneViewport {
 /** Fit a Home view without changing its orientation, position, or control target. */
 export function fitSceneCamera(camera:PerspectiveCamera, volumes:readonly Box3[], frame:SceneViewport):void {
   const {width,height,left,right,top,bottom}=frame;
-  if(width<=0||height<=0||Math.max(left,right)>=width/2||Math.max(top,bottom)>=height/2||!volumes.length||volumes.some(volume=>volume.isEmpty()))return;
+  if(width<=0||height<=0||left+right>=width||top+bottom>=height||!volumes.length||volumes.some(volume=>volume.isEmpty()))return;
   const limits=[1-(left+right)/width,1-(top+bottom)/height];
   // Fit in both directions. Starting at 1 left small cabinets stranded in the
   // middle of wide screens even when most of the usable viewport was empty.

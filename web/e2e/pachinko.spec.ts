@@ -35,6 +35,11 @@ test('Pachinko camera, picker and labels fit a 320px phone',async({page},info)=>
   expect(buckets!.x).toBeGreaterThanOrEqual(0);expect(buckets!.x+buckets!.width).toBeLessThanOrEqual(320);expect(buckets!.y+buckets!.height).toBeLessThan(dock!.y);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath('pachinko-large-text-phone.png')});
+  await page.setViewportSize({width:568,height:320});await page.locator('#pachinko-stage').focus();await page.keyboard.press('Home');
+  const shortBuckets=await page.locator('.pachinko-buckets').boundingBox(),shortDock=await page.locator('.controls').boundingBox();
+  expect(shortBuckets!.y).toBeGreaterThan(0);expect(shortBuckets!.y+shortBuckets!.height).toBeLessThan(shortDock!.y);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('pachinko-short-large-text.png')});
 });
 
 test('Pachinko stays bounded, responsive and independent of basemap code',async({page},info)=>{
