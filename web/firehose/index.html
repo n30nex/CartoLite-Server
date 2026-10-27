@@ -12,7 +12,7 @@
   <a class="brand" href="/" aria-label="Return to CartoLite map"><span class="brand-mark" aria-hidden="true"></span>CartoLite</a>
   <div id="status" class="status" data-state="loading" role="status"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Starting…</span></div>
  </header>
- <aside class="firehose-caption" aria-label="Packet sculpture status"><strong>FIREHOSE</strong><span id="pile-status">An empty box. Waiting for live packets.</span><small id="gesture-hint">Drag to tilt the box · pinch or scroll to zoom</small><small id="capacity-status"></small></aside>
+ <aside class="firehose-caption scene-caption glass" aria-label="Packet sculpture status"><strong>FIREHOSE</strong><span id="pile-status">An empty box. Waiting for live packets.</span><small id="gesture-hint">Drag to tilt the box · pinch or scroll to zoom</small><small id="capacity-status"></small></aside>
  <section class="controls glass" aria-label="Firehose controls">
   <div class="popover-control" id="box-control"><button id="box-button" class="control-button" type="button" aria-expanded="false" aria-controls="box-panel">◇ <span>Box</span></button>
    <section id="box-panel" class="firehose-panel glass" aria-label="Box and camera controls" hidden>
@@ -22,6 +22,7 @@
     <div class="firehose-actions"><button type="button" data-tip="-1,0" aria-label="Tip box left">←</button><button type="button" data-tip="1,0" aria-label="Tip box right">→</button><button type="button" data-tip="0,-1" aria-label="Tip box forward">↑</button><button type="button" data-tip="0,1" aria-label="Tip box back">↓</button></div>
     <div class="firehose-actions"><button type="button" id="upright-button">Right the box</button><button type="button" id="camera-home">Reset camera</button></div>
     <div class="firehose-actions"><button type="button" id="zoom-in" aria-label="Zoom in">＋</button><button type="button" id="zoom-out" aria-label="Zoom out">−</button></div>
+    <p>Camera views · keep the pile as it is</p><div class="camera-presets" role="group" aria-label="Camera views"><button type="button" data-camera-view="isometric">Angle</button><button type="button" data-camera-view="front">Front</button><button type="button" data-camera-view="above">Above</button></div>
     <label><span>Show links</span><input id="show-links" type="checkbox" checked></label>
     <details><summary>Session &amp; limits</summary><p>Dots represent newly observed packet nodes. Links are confirmed hops; singles are observer-only receptions. Their positions and physics are an illustration. The box starts empty on each load. Sleeping particles keep their collisions; drained chains free space. If the detail cap is reached, omitted events are counted and never replayed.</p><button type="button" id="clear-button">Clear the pile now</button></details>
    </section>
@@ -29,7 +30,7 @@
   <div class="popover-control" id="find-control"><button id="find-button" class="control-button" type="button" aria-expanded="false" aria-controls="find-panel">⌕ <span>Find</span></button>
    <section id="find-panel" class="find-panel glass" aria-label="Find a node" hidden><label for="node-search">Find a node</label><input id="node-search" type="search" autocomplete="off" spellcheck="false" placeholder="Search public labels" aria-controls="node-search-results"><div id="node-search-results" class="node-search-results" role="listbox" aria-live="polite"></div></section>
   </div>
-  <button id="pause-button" class="control-button" type="button" aria-pressed="false" aria-label="Pause physics and new packets">Ⅱ <span>Pause</span></button>
+  <button id="pause-button" class="control-button" type="button" aria-pressed="false" aria-label="Pause physics and new packets"><span class="pause-symbol" aria-hidden="true">Ⅱ</span> <span>Pause</span></button>
   <button id="pour-button" class="control-button" type="button" aria-label="Pour the box into the pit">↶ <span>Pour</span></button>
   <div class="popover-control" id="sound-control"><button id="sound-button" class="control-button" type="button" aria-expanded="false" aria-controls="sound-panel" aria-pressed="false"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 3V7l-4 3z"></path><path d="M15 9.5a4 4 0 0 1 0 5M17.5 7a7.5 7.5 0 0 1 0 10"></path></svg><span class="sound-button-label">Sound</span><small id="sound-state">Off</small></button>
    <section id="sound-panel" class="sound-panel glass" aria-label="Sound settings" data-sound-state="off" hidden>
@@ -46,5 +47,5 @@
  <aside id="feed-notice" class="firehose-notice glass" role="status" hidden><span>Waiting for the live feed.</span><button type="button" id="retry-feed">Retry</button></aside>
  <aside id="graphics-notice" class="firehose-notice glass" role="status" hidden>Graphics paused. Restoring the scene…</aside>
  <section id="fatal" class="fatal glass" role="alert" hidden><p id="fatal-message">The 3D scene could not start.</p><a class="control-button" href="">Try again</a><a class="control-button" href="/netgraph/">Open Netgraph</a></section>
- <p id="firehose-help" class="visually-hidden">Drag to tilt the physical box. Choose Orbit camera in Box for independent rotation. Right-drag or two fingers pan; scroll or pinch zoom. Arrow keys tilt or orbit in the selected mode, Shift-arrows pan, plus and minus zoom, Home resets the camera. Pour turns the box upside down. Find inspects public nodes. This session starts empty; it never replays old traffic.</p>
+ <p id="firehose-help" class="visually-hidden">Drag to tilt the physical box. Choose Orbit camera in Box for independent rotation. Right-drag or two fingers pan; scroll or pinch zoom. Arrow keys tilt or orbit in the selected mode, Shift-arrows pan, plus and minus zoom, Home resets the camera. Space pauses or resumes when the scene is focused. Pour turns the box upside down. Find inspects public nodes. This session starts empty; it never replays old traffic.</p>
 </main><script type="module" src="/src/firehose/main.ts"></script></body></html>

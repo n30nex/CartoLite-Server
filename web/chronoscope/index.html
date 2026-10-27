@@ -15,7 +15,7 @@
     <span class="view-title">Chronoscope</span>
     <div id="status" class="status" data-state="loading" role="status"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Starting…</span></div>
   </header>
-  <aside class="chrono-caption" aria-label="Time window"><strong>CHRONOSCOPE</strong><span id="chrono-status">Waiting for live activity</span><small id="chrono-hint">Drag to orbit · Scroll to zoom</small></aside>
+  <aside class="chrono-caption scene-caption glass" aria-label="Time window"><strong>CHRONOSCOPE</strong><span id="chrono-status">Waiting for live activity</span><small id="chrono-hint">Drag to orbit · Scroll to zoom</small></aside>
   <section class="controls glass" aria-label="Chronoscope controls">
     <div class="popover-control" id="time-control">
       <button id="time-button" class="control-button" type="button" aria-expanded="false" aria-controls="time-panel">◷ <span>Time</span></button>
@@ -46,9 +46,10 @@
         <p><span id="sound-activity" class="sound-activity" aria-hidden="true"></span>Visible live hops only · silent while frozen</p>
       </section>
     </div>
+    <button id="chrono-pause-button" class="control-button" type="button" aria-label="Freeze sculpture" aria-pressed="false"><span class="pause-symbol" aria-hidden="true">Ⅱ</span> <span>Freeze</span></button>
     <button id="reset-button" class="control-button" type="button" aria-label="Fit the whole mesh">⌂ <span>Fit</span></button>
   </section>
-  <p id="chrono-help" class="visually-hidden">In Sculpture, drag to orbit in 3D. In Flat and Slice, drag to pan. Two fingers or right-drag pan; pinch or scroll zoom. Arrow keys pan, plus and minus zoom, Home fits the mesh. Shift-arrow keys rotate and tilt the sculpture. Time offers freeze, a moment slice, and keyboard-accessible recent packets. Fresh observations descend into a bounded session sculpture. Height is illustrative, not radio altitude or signal strength.</p>
+  <p id="chrono-help" class="visually-hidden">In Sculpture, drag to orbit in 3D. In Flat and Slice, drag to pan. Two fingers or right-drag pan; pinch or scroll zoom. Arrow keys pan, plus and minus zoom, Home fits the mesh. Space freezes or resumes when the scene is focused. Shift-arrow keys rotate and tilt the sculpture. Time offers freeze, a moment slice, and keyboard-accessible recent packets. Fresh observations descend into a bounded session sculpture. Height is illustrative, not radio altitude or signal strength.</p>
   <aside id="legend" class="legend glass" aria-label="Chronoscope legend"><div class="packet-legend"><span><i data-kind="Advert"></i>Advert</span><span><i data-kind="Trace"></i>Trace</span><span><i data-kind="Text"></i>Text</span><span><i data-kind="ACK"></i>ACK</span><span><i data-kind="Control"></i>Control</span><span><i data-kind="Other"></i>Other</span></div></aside>
   <aside id="node-inspector-sheet" class="node-inspector-sheet glass" aria-label="Selected activity" hidden></aside>
   <section id="fatal" class="fatal glass" role="alert" hidden><p>Chronoscope could not connect.</p><a class="control-button" href="">Try again</a><a class="control-button" href="/netgraph/">Open Netgraph</a></section>

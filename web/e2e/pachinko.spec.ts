@@ -14,8 +14,12 @@ test('Pachinko shows one dot per packet, correct type buckets and a real drain',
   await openDisplay(page);await page.locator('[data-display="basemap"]').selectOption('light');await page.keyboard.press('Escape');await expect(stage).toHaveAttribute('data-events','12');
   await page.screenshot({path:info.outputPath('pachinko-daylight.png')});
   await page.locator('#pause-button').click();await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:50,id:'paused',at:Date.now(),payloadType:'Text',mode:'route',segments:[{routeId:'one',fromId:'visual-a',toId:'visual-b'}]}})));await page.waitForTimeout(150);await expect(stage).toHaveAttribute('data-events','12');
+  await page.locator('#box-button').click();await page.locator('[data-camera-view="front"]').click();await page.keyboard.press('Escape');
+  const point=await page.evaluate(()=>{const scene=(window as any).__pachinko;for(let slot=0;slot<scene.capacity;slot++){const p=scene.position(slot);if(p)return scene.projectWorld(p.x,p.y,p.z);}throw new Error('Expected a retained packet');});
+  await page.mouse.click(point.x,point.y);await expect(page.locator('#node-inspector-sheet')).toContainText('Highlighted in this session.');
   await page.locator('#pause-button').click();await page.getByRole('button',{name:'Drain all packet buckets',exact:true}).click();
   await expect(stage).toHaveAttribute('data-beads','0',{timeout:10000});await expect(stage).toHaveAttribute('data-drained','12');
+  await expect(page.locator('#node-inspector-sheet')).toContainText('This packet has drained.');
   await page.reload();await expect(stage).toHaveAttribute('data-render-state','ready',{timeout:20000});await expect(stage).toHaveAttribute('data-beads','0');
 });
 

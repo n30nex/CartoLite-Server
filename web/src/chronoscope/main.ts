@@ -69,7 +69,8 @@ function sync() {
   if(!renderer)return;
   const records=renderer.inspectionRecords(),frozen=renderer.frozen;
   const hint=required('chrono-hint');hint.textContent=(settings.mode==='sculpture'&&stage.dataset.cameraMode!=='canvas'?'Drag to orbit':'Drag to pan')+(coarsePointer.matches?' · Pinch to zoom':' · Scroll to zoom');
-  freeze.setAttribute('aria-pressed',String(frozen));
+  if(freeze.getAttribute('aria-pressed')!==String(frozen)){freeze.setAttribute('aria-pressed',String(frozen));freeze.textContent=frozen?'Unfreeze view':'Freeze view';}
+  const shortcut=required('chrono-pause-button');if(shortcut.getAttribute('aria-pressed')!==String(frozen)){shortcut.setAttribute('aria-pressed',String(frozen));shortcut.setAttribute('aria-label',frozen?'Resume live sculpture':'Freeze sculpture');shortcut.querySelector('.pause-symbol')!.textContent=frozen?'▶':'Ⅱ';shortcut.querySelector('span:last-child')!.textContent=frozen?'Resume':'Freeze';}
   sonifier?.setPaused(document.hidden||frozen);
   required('regions-button').toggleAttribute('data-filtered',settings.regions!==null);
   const missing=settings.regions?.length&&!renderer.regions.some(area=>settings.regions!.includes(area.code));
@@ -180,6 +181,8 @@ required('clear-sculpture').addEventListener('click',()=>{renderer?.clear();rece
 mode.addEventListener('change',()=>{settings.mode=mode.value as ChronoscopeMode;if(settings.mode!=='slice')liveMode=settings.mode;renderer?.setMode(settings.mode);required('slice-control').hidden=settings.mode!=='slice';save();sync();});
 windowSize.addEventListener('change',()=>{settings=normalizeChronoscope({...settings,seconds:Number(windowSize.value)});renderer?.setWindow(settings.seconds);slice.max=String(settings.seconds);save();sync();});
 freeze.addEventListener('click',()=>{if(renderer?.frozen)returnLive();else renderer?.freeze();});required('live-button').addEventListener('click',returnLive);
+required('chrono-pause-button').addEventListener('click',()=>freeze.click());
+stage.addEventListener('keydown',event=>{if(event.target===stage&&event.key===' '&&!event.repeat){event.preventDefault();if(renderer)freeze.click();}});
 slice.addEventListener('input',()=>{renderer?.setSlice(Number(slice.value));required<HTMLOutputElement>('slice-output').value=`${slice.value==='0'?'Now':`${slice.value}s ago`} · ±2s`;});
 required('regions-all').addEventListener('click',()=>{settings.regions=null;renderer?.setRegions(null);save();renderRegions();stage.dispatchEvent(new Event('graphfilter'));sync();});
 required('regions-none').addEventListener('click',()=>{settings.regions=[];renderer?.setRegions([]);save();renderRegions();stage.dispatchEvent(new Event('graphfilter'));sync();});

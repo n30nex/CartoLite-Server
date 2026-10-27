@@ -21,8 +21,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.12.3, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:7bfbde283236fd74195737508514354f6577962cddd6634071c7952e693dc1e0
+  # Exact published 0.12.4, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:b5f715163178b76bf8bd8a7d8b48e96fbb38a6d3018137204694ae3dccfb40f8
 
 jobs:
   refresh-lockfiles:

@@ -95,6 +95,10 @@ test('Chronoscope phone controls fit one row and panels restore focus',async({pa
   const boxes=await page.locator('.controls > button,.controls > div > button').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};}));
   expect(boxes).toHaveLength(6);expect(Math.max(...boxes.map(r=>r.y))-Math.min(...boxes.map(r=>r.y))).toBeLessThan(2);
   for(const box of boxes){expect(box.w).toBeGreaterThanOrEqual(44);expect(box.h).toBeGreaterThanOrEqual(44);expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.w).toBeLessThanOrEqual(320);}
+  await page.locator('#chrono-pause-button').click();await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-frozen','true');
+  await expect(page.locator('#chrono-pause-button')).toHaveAccessibleName('Resume live sculpture');
+  await page.locator('#chronoscope-stage').focus();await page.keyboard.press('Space');await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-frozen','false');
+  await openViewMenu(page,false);await expect(page.locator('#follow-button')).toBeVisible();await page.keyboard.press('Escape');
   await openDisplay(page);await expect(page.locator('#display-panel')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('#view-button')).toBeFocused();
   await page.locator('#time-button').click();await expect(page.locator('#time-panel')).toBeVisible();
   const box=await page.locator('#time-panel').boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(320);expect(box!.y).toBeGreaterThanOrEqual(0);
@@ -179,6 +183,8 @@ test('Chronoscope 3D camera preserves a settled sculpture through appearance and
   await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   await page.evaluate(()=>{const scene=(window as any).__chrono,now=performance.now();for(let seq=1;seq<=30;seq++)scene.timeline.add({seq,id:`stack-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:[{routeId:'visual-hop',from:scene.nodes.get('visual-a'),to:scene.nodes.get('visual-b')}]},now-180_000+seq*100);scene.setWindow(60);});
   const stage=page.locator('#chronoscope-stage');await expect(stage).toHaveAttribute('data-camera-mode','orbit');await expect(stage).toHaveAttribute('data-settled-count','30');await expect(stage).toHaveAttribute('data-active-count','0');
+  await page.waitForTimeout(1200);const idleFrames=await page.evaluate(()=>(window as any).__chrono.metrics.frames);
+  await page.waitForTimeout(1200);expect(await page.evaluate(()=>(window as any).__chrono.metrics.frames)).toBe(idleFrames);
   const before=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());
   await stage.focus();await page.keyboard.press('Shift+ArrowRight');await page.keyboard.press('Shift+ArrowDown');
   const moved=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());expect(Math.hypot(...moved.map((v:number,i:number)=>v-before[i]))).toBeGreaterThan(.1);

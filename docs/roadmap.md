@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Experimental graphics and interaction (0.12.5)
+
+[Chronoscope, Firehose and Pachinko audit](experimental-visual-audit-2026-10-27.md): stronger scene framing, colored packet shading, clearer arrivals, camera presets, direct freeze controls, touch inspection and quieter idle rendering. Exact Actions and public deployment qualification accompany the release.
+
 ## Dependency maintenance and repository refresh (0.12.4)
 
 [Open-PR review and maintenance patch](maintenance-2026-10-26.md): resolve identified dependency alerts, update supported toolchains and browser tests, restore Worldwide update tracking, and refresh both README front pages. Exact Actions qualification and release/deployment evidence accompany the published release.

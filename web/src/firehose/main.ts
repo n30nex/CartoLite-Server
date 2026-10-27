@@ -23,7 +23,7 @@ const pachinko=machine==='pachinko', title=pachinko?'Pachinko':'Firehose';
 const stage=required(`${machine}-stage`),inspector=required('node-inspector-sheet');
 let renderer:FirehoseRenderer|undefined,worker:Worker|undefined,store:LiveStore|undefined,feed:LiveFeed|undefined,sonifier:RouteSonifier|undefined;
 let disposed=false,ready=false,connecting=false,connected=false,effectivePause=false,scenePaused=false,nextId=1,omitted=0;
-let retryTimer:number|undefined,inspectorTimer:number|undefined,refreshSearch=()=>{},selectedNode:string|null=null;
+let retryTimer:number|undefined,inspectorTimer:number|undefined,hudTimer:number|undefined,refreshSearch=()=>{},selectedNode:string|null=null,selectedPacket:number|null=null;
 const pending=new Map<number,{packet:PacketView;shape:PacketShape}>();
 const events=new Map<number,{packet:PacketView;shape:PacketShape;slots:number[]}>();
 let owners:Int32Array;
@@ -51,23 +51,25 @@ function sync(){
  if(pachinko){const counts=JSON.parse(stage.dataset.buckets??'[0,0,0,0,0,0]') as number[];for(let i=0;i<6;i++){const output=document.querySelector<HTMLOutputElement>(`[data-bucket="${KINDS[i]}"]`);if(output&&output.value!==String(counts[i]??0))output.value=String(counts[i]??0);}}
  if(required('pile-status').textContent!==text){required('pile-status').textContent=text;required('pile-status').title=text;}
  const touch=coarsePointer.matches;const hint=scenePaused?'Drag to inspect · Resume for new packets':renderer?.mode==='orbit'?(touch?'Drag to orbit · Two fingers pan/zoom':'Drag to orbit · Right-drag to pan · Scroll to zoom'):(touch?'Drag to tilt · Pinch to zoom':'Drag to tilt · Scroll to zoom');if(required('gesture-hint').textContent!==hint)required('gesture-hint').textContent=hint;
- const cap=omitted?`${omitted.toLocaleString()} events omitted at the detail cap · never replayed`:'';if(required('capacity-status').textContent!==cap)required('capacity-status').textContent=cap;
- const button=required('pause-button'),label=scenePaused?'Resume':'Pause';if(button.getAttribute('aria-pressed')!==String(scenePaused))button.setAttribute('aria-pressed',String(scenePaused));button.setAttribute('aria-label',scenePaused?'Resume physics and new packets':'Pause physics and new packets');if(button.querySelector('span')!.textContent!==label)button.querySelector('span')!.textContent=label;
+ const cap=omitted?`Omitted at detail cap: ${omitted.toLocaleString()}`:'';if(required('capacity-status').textContent!==cap)required('capacity-status').textContent=cap;
+ const button=required('pause-button'),label=scenePaused?'Resume':'Pause';if(button.getAttribute('aria-pressed')!==String(scenePaused))button.setAttribute('aria-pressed',String(scenePaused));button.setAttribute('aria-label',scenePaused?'Resume physics and new packets':'Pause physics and new packets');if(button.querySelector('span:last-child')!.textContent!==label)button.querySelector('span:last-child')!.textContent=label;
+ const symbol=button.querySelector('.pause-symbol');if(symbol&&symbol.textContent!==(scenePaused?'▶':'Ⅱ'))symbol.textContent=scenePaused?'▶':'Ⅱ';
  stage.dataset.paused=String(scenePaused);stage.dataset.clientOmitted=String(omitted);
  if(store){const activity=activityLabel(store.snapshot,connected);required('status').dataset.state=activity.state;if(required('status-text').textContent!==activity.text)required('status-text').textContent=activity.text;}
 }
 function pause(){const value=scenePaused||document.hidden||!renderer?.graphicsReady;if(value!==effectivePause||!ready){effectivePause=value;post({type:'pause',paused:value});}renderer?.setPaused(value);sonifier?.setPaused(value);sync();}
 function resumeMotion(){scenePaused=false;pause();}
 function selectNode(id:string|null){
- selectedNode=id;rememberNode(id);renderer?.highlight([]);if(!id||!store){inspector.hidden=true;return;}
+ selectedNode=id;selectedPacket=null;rememberNode(id);renderer?.highlight([]);if(!id||!store){inspector.hidden=true;return;}
  const nodes=new Map(store.snapshot.nodes.map(n=>[n.id,n]));const model=buildNodeInspectorModel(id,nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
  replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:selectNode}));
  const slots:number[]=[];for(const event of events.values()){if(pachinko){if(event.shape.nodes.includes(id))slots.push(event.slots[0]!);}else event.shape.nodes.forEach((node,i)=>{if(node===id)slots.push(event.slots[i]!);});}renderer?.highlight(slots);
  const p=document.createElement('p');p.className='firehose-selection-note';p.textContent=slots.length?`${slots.length} ${pachinko?'packets involving':'particles from'} this node are in this session's ${pachinko?'machine':'pile'}.`:'No dot from this node is in this session’s pile yet.';inspector.append(p);
  const links=document.createElement('div');links.className='chrono-links';for(const [label,path]of [['Open Map','/'],['Open Netgraph','/netgraph/']]as const){const a=document.createElement('a');a.textContent=label;a.href=`${path}?node=${encodeURIComponent(id)}`;links.append(a);}inspector.append(links);inspector.hidden=false;
 }
-function inspect(id:number){const event=events.get(id);if(!event)return;selectedNode=null;rememberNode(null);renderer?.highlight(event.slots);
- const card=document.createElement('article');card.className='chrono-inspector';const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(event.packet.payloadType)} · observed packet`;close.textContent='×';close.type='button';close.className='node-inspector-close';close.setAttribute('aria-label','Close packet details');close.addEventListener('click',()=>{inspector.hidden=true;renderer?.highlight([]);stage.focus();});header.append(title,close);card.append(header);
+function inspect(id:number){const event=events.get(id);if(!event)return;selectedNode=null;selectedPacket=id;rememberNode(null);renderer?.highlight(event.slots);
+ const card=document.createElement('article');card.className='chrono-inspector';const header=document.createElement('header'),title=document.createElement('h2'),close=document.createElement('button');title.textContent=`${normalizePacketKind(event.packet.payloadType)} · observed packet`;close.textContent='×';close.type='button';close.className='node-inspector-close';close.setAttribute('aria-label','Close packet details');close.addEventListener('click',()=>{selectedPacket=null;inspector.hidden=true;renderer?.highlight([]);stage.focus();});header.append(title,close);card.append(header);
+ const session=document.createElement('p');session.className='packet-session-note';session.setAttribute('role','status');session.textContent='Highlighted in this session.';card.append(session);
  const detail=document.createElement('p');detail.textContent=event.packet.mode==='observer'?'Observer-only reception. A single dot does not imply a confirmed route.':`${event.packet.segments.length} confirmed ${event.packet.segments.length===1?'segment':'segments'}. The physical arrangement is not geography or a radio trajectory.`;card.append(detail);
  const node=(id:string,label:string)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.nodeId=id;b.addEventListener('click',()=>selectNode(id));return b;};
  if(event.packet.mode==='observer')card.append(node(event.packet.observer.id,event.packet.observer.label));
@@ -80,14 +82,14 @@ function acceptPacket(packet:PacketView){if(!ready||effectivePause||disposed)ret
 function workerMessage(message:Output){if(disposed)return;
  if(message.type==='impact'){renderer?.impact(message.x,message.z,message.kind,message.y);return;}
  if(message.type==='ready'){ready=true;for(let i=0;i<3;i++){const buffer=new ArrayBuffer(frameSize(message.capacity)*4);post({type:'recycle',buffer},[buffer]);}stage.dataset.capacity=String(message.capacity);stage.dataset.renderState='ready';pause();sync();window.dispatchEvent(new CustomEvent(`cartolite-${machine}-ready`,{detail:{scene:renderer}}));return;}
- if(message.type==='frame'){const old=renderer?.accept(message.buffer);if(old)post({type:'recycle',buffer:old},[old]);sync();return;}
+ if(message.type==='frame'){const old=renderer?.accept(message.buffer);if(old)post({type:'recycle',buffer:old},[old]);if(hudTimer===undefined)hudTimer=window.setTimeout(()=>{hudTimer=undefined;if(!disposed)sync();},80);return;}
  if(message.type==='accepted'){const entry=pending.get(message.id);pending.delete(message.id);if(entry){events.set(message.id,{...entry,slots:message.slots});for(const slot of message.slots)owners[slot]=message.id;renderer?.born(message.slots,pachinko&&selectedNode&&entry.shape.nodes.includes(selectedNode)?message.slots:message.slots.filter((_,i)=>entry.shape.nodes[i]===selectedNode),entry.shape.kind);if(!effectivePause)sonifier?.play(entry.packet);}return;}
  if(message.type==='rejected'){if(pending.delete(message.id)&&!effectivePause)omitted++;sync();return;}
- if(message.type==='removed'){for(const id of message.ids){const entry=events.get(id);if(entry)for(const slot of entry.slots)if(owners[slot]===id)owners[slot]=-1;events.delete(id);}return;}
+ if(message.type==='removed'){for(const id of message.ids){const entry=events.get(id);if(entry)for(const slot of entry.slots)if(owners[slot]===id)owners[slot]=-1;events.delete(id);if(selectedPacket===id){selectedPacket=null;renderer?.highlight([]);const note=inspector.querySelector('.packet-session-note');if(note)note.textContent='This packet has drained. These are its observed details.';}}return;}
  fail('The physics scene stopped. Reload to start a fresh box.');
 }
 function fail(message:string){required('fatal-message').textContent=message;required('fatal').hidden=false;required('graphics-notice').hidden=true;required('feed-notice').hidden=true;stage.dataset.renderState='unavailable';dispose();}
-function dispose(){if(disposed)return;disposed=true;if(retryTimer!==undefined)clearTimeout(retryTimer);if(inspectorTimer!==undefined)clearInterval(inspectorTimer);feed?.stop();store?.destroy();sonifier?.destroy();post({type:'dispose'});worker?.terminate();renderer?.destroy();events.clear();pending.clear();}
+function dispose(){if(disposed)return;disposed=true;if(retryTimer!==undefined)clearTimeout(retryTimer);if(inspectorTimer!==undefined)clearInterval(inspectorTimer);if(hudTimer!==undefined)clearTimeout(hudTimer);feed?.stop();store?.destroy();sonifier?.destroy();post({type:'dispose'});worker?.terminate();renderer?.destroy();events.clear();pending.clear();}
 async function connect(){
  if(connecting||disposed||store)return;connecting=true;
  try{const initial=await fetchState();if(disposed)return;const liveStore=new LiveStore(initial);store=liveStore;required('feed-notice').hidden=true;
@@ -116,6 +118,8 @@ async function start(){let phase='graphics';try{
 mountCinematicDock();
 required('tilt-mode').addEventListener('click',()=>setMode('tilt'));required('orbit-mode').addEventListener('click',()=>setMode('orbit'));
 required('pause-button').addEventListener('click',()=>{scenePaused=!scenePaused;pause();});
+stage.addEventListener('keydown',event=>{if(event.target===stage&&event.key===' '&&!event.repeat){event.preventDefault();if(ready)required('pause-button').click();}});
+for(const button of document.querySelectorAll<HTMLButtonElement>('[data-camera-view]'))button.addEventListener('click',()=>{const view=button.dataset.cameraView;if(view==='isometric'||view==='front'||view==='above')renderer?.home(view);});
 required('pour-button').addEventListener('click',()=>{resumeMotion();if(pachinko)post({type:'drain'});else renderer?.pour();});required('upright-button').addEventListener('click',()=>{resumeMotion();renderer?.upright();});
 for(const button of document.querySelectorAll<HTMLButtonElement>('[data-tip]'))button.addEventListener('click',()=>{resumeMotion();const [x,y]=button.dataset.tip!.split(',').map(Number);renderer?.tilt(x!*.25,y!*.25);});
 for(const id of ['reset-button','camera-home'])required(id).addEventListener('click',()=>renderer?.home());required('zoom-in').addEventListener('click',()=>renderer?.zoom(.85));required('zoom-out').addEventListener('click',()=>renderer?.zoom(1.15));
