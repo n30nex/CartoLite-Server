@@ -199,7 +199,7 @@ export class Chronoscope3DRenderer {
   private pointerCancel=()=>{this.#down=undefined;this.#dragged=true;};
   private pointerUp=(event:PointerEvent)=>{const down=this.#down;this.#down=undefined;if(!down||this.#dragged||down.id!==event.pointerId)return;const box=this.stage.getBoundingClientRect(),x=event.clientX-box.left,y=event.clientY-box.top;
     const radius=matchMedia('(pointer:coarse)').matches?22:12;
-    for(const node of this.#nodes.values()){if(!this.nodeInRegions(node.id))continue;const p=this.projectEndpoint(node);if(p.z!==undefined&&p.z>=-1&&p.z<=1&&Math.hypot(p.x-x,p.y-y)<radius){this.callbacks.node(node.id);return;}}
+    for(const node of this.#nodes.values()){if(!this.nodeInRegions(node.id))continue;const p=this.projectEndpoint(node);if('z' in p&&p.z>=-1&&p.z<=1&&Math.hypot(p.x-x,p.y-y)<radius){this.callbacks.node(node.id);return;}}
     const at=this.frameTime;let hit:Observation|undefined,best=radius;
     for(const record of this.inspectionRecords()){const stack=this.stack(record);if(record.packet.mode==='observer'){if(this.packetPoint(record,stack.nodes.get(record.packet.observer.id)!,at,this.#a)){const p=this.screen(this.#a),d=Math.hypot(p.x-x,p.y-y);if(d<best){best=d;hit=record;}}}else for(const segment of record.packet.segments){if(!this.nodeInRegions(segment.from.id)||!this.nodeInRegions(segment.to.id)||!this.packetPoint(record,stack.nodes.get(segment.from.id)!,at,this.#a)||!this.packetPoint(record,stack.nodes.get(segment.to.id)!,at,this.#b))continue;const a=this.screen(this.#a),b=this.screen(this.#b);if(a.z< -1||a.z>1||b.z< -1||b.z>1)continue;const d=distanceToGraphPath([a,b],x,y);if(d<best){best=d;hit=record;}}}
     if(hit)this.callbacks.packet(hit);else this.callbacks.node(null);
