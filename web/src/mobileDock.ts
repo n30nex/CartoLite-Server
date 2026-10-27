@@ -50,6 +50,7 @@ export function mountMobileDock(controls: HTMLElement, navigation: HTMLElement, 
       ? '#reset-button,#exhibit-button,#info-button,#labs-display-button,#labs-sound-options'
       : '#reset-button,#display-shortcut,#help-button')) move(item, actions);
     if (view === 'Chronoscope' || view === 'Firehose' || view === 'Pachinko') move(document.getElementById('display-button'), actions);
+    if (view === 'Chronoscope') move(document.getElementById('follow-button'), actions);
     if (view === 'Firehose' || view === 'Pachinko' || view === 'Chronoscope') move(document.getElementById('legend'), panel);
     if (view === 'Netgraph') {
       const display = document.getElementById('display-panel')!;

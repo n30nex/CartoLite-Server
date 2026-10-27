@@ -30,9 +30,13 @@ async function unreadableControls(page:Page):Promise<string[]> {
     }
     const scene=getComputedStyle(document.documentElement).getPropertyValue('--scene-background').trim();
     const sceneRGB=[1,3,5].map(i=>Number.parseInt(scene.slice(i,i+2),16));
-    for(const el of document.querySelectorAll<HTMLElement>('.chrono-caption strong,.chrono-caption small,.firehose-caption strong,.firehose-caption small')){
+    for(const el of document.querySelectorAll<HTMLElement>('.chrono-caption :is(strong,span,small),.firehose-caption :is(strong,span,small)')){
       if(!el.getClientRects().length||getComputedStyle(el).visibility!=='visible')continue;
-      const ink=lum(rgb(getComputedStyle(el).color)),background=lum(sceneRGB),ratio=(Math.max(ink,background)+.05)/(Math.min(ink,background)+.05);
+      // Caption cards follow the interface palette. Measure their actual surface,
+      // composited over the scene if translucent; keep the same AA threshold.
+      const panel=el.closest('.scene-caption'),surface=panel?rgb(getComputedStyle(panel).backgroundColor):[],alpha=surface[3]??1;
+      const backdrop=surface.length>=3?surface.slice(0,3).map((v,i)=>v*alpha+sceneRGB[i]!*(1-alpha)):sceneRGB;
+      const ink=lum(rgb(getComputedStyle(el).color)),background=lum(backdrop),ratio=(Math.max(ink,background)+.05)/(Math.min(ink,background)+.05);
       if(ratio<4.5)failures.push(`Scene caption: ${el.textContent} ${ratio.toFixed(2)}`);
     }
     return failures;

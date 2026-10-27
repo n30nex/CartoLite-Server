@@ -17,7 +17,7 @@ in float aSlot,aSelected;uniform float uRadius,uHeight,uDpr,uCore,uTime;
 out float vKind,vSelected,vY,vAge;
 void main(){vec4 b=bead(aSlot);vKind=mod(b.w,8.0)-1.0;vSelected=aSelected;vY=b.y;vAge=max(0.0,uTime-birth(aSlot));
  vec4 eye=modelViewMatrix*vec4(b.xyz,1.0);gl_Position=projectionMatrix*eye;
- gl_PointSize=clamp(uRadius*uHeight*projectionMatrix[1][1]/max(.1,-eye.z)*.62*uCore,3.2*uDpr,32.0*uDpr);
+ gl_PointSize=clamp(uRadius*uHeight*projectionMatrix[1][1]/max(.1,-eye.z)*.7*uCore,3.8*uDpr,32.0*uDpr);
  if(b.w<.5||eye.z>=-.05||b.y>uClipTop){gl_Position=vec4(2.0,2.0,2.0,1.0);gl_PointSize=0.0;}}
 `;
 export const dotFragment=`
@@ -25,10 +25,14 @@ ${colour}
 in float vKind,vSelected,vY,vAge;out vec4 outColor;
 void main(){vec2 p=gl_PointCoord*2.0-1.0;float r=length(p);if(r>1.0||vKind<0.0)discard;
  vec3 c=ink(vKind,vY);bool light=uLight>.5&&vY>-.6;
- float core=1.0-smoothstep(.08,.62,r),fresh=1.0-smoothstep(.5,3.0,vAge);
- vec3 lit=light?c*(.55+.45*r):c*(.8+fresh*.65)+vec3(core*(.55+fresh*.3));
+ vec3 normal=vec3(p.x,-p.y,sqrt(max(0.0,1.0-r*r)));
+ float facing=max(0.0,dot(normal,normalize(vec3(-.35,.55,1.0))));
+ float fresh=1.0-smoothstep(.5,3.0,vAge),shine=pow(facing,22.0);
+ vec3 lit=light?c*(.65+.35*facing):c*(.65+.65*facing+fresh*.25)+vec3(shine*.38);
+ lit=mix(lit,light?vec3(.92,.96,.98):c*.2,smoothstep(.82,.98,r));
  if(vSelected>.5)lit=mix(lit,vec3(1.0,.72,.2),smoothstep(.55,.8,r));
- lit*=1.0-smoothstep(uFadeStart,uFadeEnd,-vY);outColor=vec4(srgb(lit),1.0);}
+ float edge=1.0-smoothstep(1.0-max(.02,fwidth(r)*1.3),1.0,r);
+ lit*=1.0-smoothstep(uFadeStart,uFadeEnd,-vY);outColor=vec4(srgb(lit),edge);}
 `;
 export const beadVertex=`
 ${positionFunctions}
@@ -43,7 +47,8 @@ export const beadFragment=`
 ${colour}
 uniform float uGlow;in float vKind,vAge,vY;out vec4 outColor;
 void main(){vec2 p=gl_PointCoord*2.0-1.0;float r2=dot(p,p);if(r2>1.0||vKind<0.0)discard;
- float alpha=exp(-r2*4.5)*max(0.0,1.0-vAge/3.2)*uGlow*.28*(1.0-smoothstep(uFadeStart,uFadeEnd,-vY));
+ float ring=exp(-pow((sqrt(r2)-.55)*12.0,2.0))*max(0.0,1.0-vAge/.7);
+ float alpha=(exp(-r2*6.5)*.3+ring*.12)*max(0.0,1.0-vAge/3.2)*uGlow*(1.0-smoothstep(uFadeStart,uFadeEnd,-vY));
  if(alpha<.005)discard;outColor=vec4(srgb(ink(vKind,vY)),alpha);}
 `;
 export const trailVertex=`
@@ -62,7 +67,7 @@ void main(){vec4 b=bead(aSlot);vec3 delta=movement(aSlot);vec4 head=projectionMa
 export const trailFragment=`
 ${colour}
 in float vAcross,vAlong,vKind,vY,vStrength;out vec4 outColor;
-void main(){if(vKind<0.0)discard;float alpha=(1.0-smoothstep(.1,1.0,abs(vAcross)))*pow(1.0-vAlong,1.8)*vStrength*.65*(1.0-smoothstep(uFadeStart,uFadeEnd,-vY));
+void main(){if(vKind<0.0)discard;float alpha=(1.0-smoothstep(.15,1.0,abs(vAcross)))*pow(1.0-vAlong,1.8)*vStrength*.85*(1.0-smoothstep(uFadeStart,uFadeEnd,-vY));
  if(alpha<.005)discard;outColor=vec4(srgb(ink(vKind,vY)*1.2),alpha);}
 `;
 export const linkVertex=`
@@ -81,13 +86,13 @@ uniform float uOpacity,uPattern,uMotion;in float vAcross,vAlong,vKind,vY,vAge,vP
 void main(){if(vKind<0.0||vY>uClipTop)discard;
  if(uPattern>.5&&uPattern<1.5&&mod(vAlong,13.0)>8.0)discard;if(uPattern>1.5&&mod(vAlong,6.0)>2.0)discard;
  float fresh=1.0-smoothstep(.7,3.0,vAge),pulse=exp(-pow((vProgress-fract(vAge*.9))*9.0,2.0))*fresh*uMotion;
- float alpha=(1.0-smoothstep(.25,1.0,abs(vAcross)))*uOpacity*(.55+fresh*.3+pulse*.15)*(1.0-smoothstep(uFadeStart,uFadeEnd,-vY));
+ float alpha=(1.0-smoothstep(.45,1.0,abs(vAcross)))*uOpacity*(.65+fresh*.25+pulse*.1)*(1.0-smoothstep(uFadeStart,uFadeEnd,-vY));
  vec3 c=ink(vKind,vY);if(uLight<.5||vY<-.6)c=c*(1.0+pulse)+vec3(pulse*.4);
  outColor=vec4(srgb(c),alpha);}
 `;
 export const rippleVertex=`
 in vec4 aImpact;uniform float uTime,uMachine;out vec2 vUV,vLocal;out float vAge,vKind;
-void main(){vAge=uTime-aImpact.z;vKind=aImpact.w;vUV=position.xy;float radius=.08+max(0.0,vAge)*1.1;
+void main(){vAge=uTime-aImpact.z;vKind=aImpact.w;vUV=position.xy;float radius=.08+max(0.0,vAge)*(uMachine>.5?.36:1.1);
  vLocal=aImpact.xy+position.xy*radius;gl_Position=projectionMatrix*modelViewMatrix*(uMachine>.5?vec4(vLocal.x,vLocal.y,.34,1.0):vec4(vLocal.x,-.438,vLocal.y,1.0));
  if(vAge<0.0||vAge>1.15)gl_Position=vec4(2.0,2.0,2.0,1.0);}
 `;
@@ -95,7 +100,8 @@ export const rippleFragment=`
 ${colour}
 uniform float uMotion;in vec2 vUV,vLocal;in float vAge,vKind;out vec4 outColor;
 void main(){if(uMachine>.5){if(abs(vLocal.x)>3.3||vLocal.y< -3.4||vLocal.y>4.6)discard;}else if(abs(vLocal.x)>2.4||abs(vLocal.y)>1.6)discard;float r=length(vUV),ring=1.0-smoothstep(.025,.075,abs(r-.88));
- float alpha=ring*pow(max(0.0,1.0-vAge/1.15),2.0)*uMotion*.65;if(alpha<.005)discard;
+ float flash=exp(-r*r*18.0)*max(0.0,1.0-vAge/.22);
+ float alpha=(ring*.7+flash)*pow(max(0.0,1.0-vAge/1.15),2.0)*uMotion;if(alpha<.005)discard;
  outColor=vec4(srgb(ink(vKind,0.0)*1.25),alpha);}
 `;
 export const wellVertex=`

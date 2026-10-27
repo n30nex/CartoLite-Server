@@ -21,8 +21,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.12.3, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:7bfbde283236fd74195737508514354f6577962cddd6634071c7952e693dc1e0
+  # Exact published 0.12.4, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:b5f715163178b76bf8bd8a7d8b48e96fbb38a6d3018137204694ae3dccfb40f8
 
 jobs:
   refresh-lockfiles:
@@ -248,6 +248,21 @@ jobs:
           path: |
             web/polish-test-results/
             web/polish-playwright-report/
+      - name: Chronoscope live time, interaction and scale
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: chrono-playwright-report
+        run: bash ../scripts/browser-ci.sh chronoscope.spec.ts --retries 0 --output chrono-test-results
+      - name: Preserve Chronoscope evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cartolite-server-chronoscope-review
+          retention-days: 7
+          path: |
+            web/chrono-test-results/
+            web/chrono-playwright-report/
       - name: UI audit and recovery regressions
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -308,21 +323,6 @@ jobs:
           path: |
             web/session-test-results/
             web/session-playwright-report/
-      - name: Chronoscope live time, interaction and scale
-        if: matrix.arch == 'amd64'
-        working-directory: web
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: chrono-playwright-report
-        run: bash ../scripts/browser-ci.sh chronoscope.spec.ts --retries 0 --output chrono-test-results
-      - name: Preserve Chronoscope evidence
-        if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: cartolite-server-chronoscope-review
-          retention-days: 7
-          path: |
-            web/chrono-test-results/
-            web/chrono-playwright-report/
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web

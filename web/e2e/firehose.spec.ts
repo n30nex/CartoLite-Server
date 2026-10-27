@@ -23,6 +23,22 @@ async function open(page:Page){await page.goto('/firehose/');await expect(page.l
 async function sameCamera(page:Page,position:number[]){const current:number[]=await page.evaluate(()=>(window as any).__hose.camera.position.toArray());for(let i=0;i<3;i++)expect(current[i]).toBeCloseTo(position[i]!,10);}
 async function packet(page:Page,seq:number,observer=false){await page.evaluate(({seq,observer})=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq,id:`firehose-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],...(observer?{mode:'observer',observer:{id:'visual-a',label:'Visual Alpha',lat:43.45,lng:-80.35}}:{mode:'route',segments:[{routeId:'visual-hop',fromId:'visual-a',toId:'visual-b'}]})}})),{seq,observer});}
 
+test('Firehose camera views and keyboard Pause preserve the pile',async({page},info)=>{
+ await setup(page);await open(page);await packet(page,1,true);
+ const stage=page.locator('#firehose-stage');await expect(stage).toHaveAttribute('data-events','1');
+ await stage.focus();await page.keyboard.press('Space');await expect(stage).toHaveAttribute('data-paused','true');
+ await expect(page.locator('#pause-button')).toHaveAccessibleName('Resume physics and new packets');
+ await page.locator('#box-button').click();
+ for(const view of ['front','above','isometric']){
+  await page.locator(`[data-camera-view="${view}"]`).click();
+  await expect(stage).toHaveAttribute('data-events','1');await expect(stage).toHaveAttribute('data-paused','true');
+  const point=await page.evaluate(()=>(window as any).__hose.projectWorld(0,0,0));
+  const bounds=await stage.boundingBox();expect(point.x).toBeGreaterThan(0);expect(point.x).toBeLessThan(bounds!.width);expect(point.y).toBeGreaterThan(0);expect(point.y).toBeLessThan(bounds!.height);
+ }
+ await page.keyboard.press('Escape');await stage.focus();await page.keyboard.press('Space');await expect(stage).toHaveAttribute('data-paused','false');
+ await page.screenshot({path:info.outputPath('firehose-camera-polished.png')});
+});
+
 test('Firehose starts empty, preserves links and never refills paused time',async({page},info)=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  await setup(page);await open(page);const stage=page.locator('#firehose-stage');

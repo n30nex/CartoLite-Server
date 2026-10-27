@@ -98,7 +98,7 @@ export class FirehoseRenderer {
     const slots=Float32Array.from({length:capacity},(_,i)=>i);
     const dots=new THREE.BufferGeometry();dots.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(capacity*3),3));
     dots.setAttribute('aSlot',new THREE.BufferAttribute(slots,1));dots.setAttribute('aSelected',this.#selected);
-    this.#dots=new THREE.Points(dots,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:dotVertex,fragmentShader:dotFragment,uniforms:this.#uniforms,depthWrite:true,toneMapped:false}));this.#dots.frustumCulled=false;this.#dots.renderOrder=1;
+    this.#dots=new THREE.Points(dots,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:dotVertex,fragmentShader:dotFragment,uniforms:this.#uniforms,transparent:true,depthWrite:true,toneMapped:false}));this.#dots.frustumCulled=false;this.#dots.renderOrder=1;
     const halos=new THREE.BufferGeometry();halos.setAttribute('position',dots.getAttribute('position'));halos.setAttribute('aSlot',dots.getAttribute('aSlot'));
     this.#halos=new THREE.Points(halos,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,vertexShader:beadVertex,fragmentShader:beadFragment,uniforms:this.#uniforms,transparent:true,depthWrite:false,toneMapped:false}));this.#halos.frustumCulled=false;this.#halos.renderOrder=4;
     const trails=new THREE.InstancedBufferGeometry();trails.setAttribute('position',new THREE.Float32BufferAttribute([0,-1,0,1,-1,0,1,1,0,0,-1,0,1,1,0,0,1,0],3));
@@ -184,6 +184,12 @@ export class FirehoseRenderer {
     for(let kind=0;kind<6;kind++)for(let row=0;row<PACHINKO.rows;row++){
       dummy.position.set(laneCenter(kind)+(row%2?PACHINKO.pegOffset:-PACHINKO.pegOffset),PACHINKO.pegTop-row*PACHINKO.rowGap,.16);dummy.rotation.set(Math.PI/2,0,0);dummy.updateMatrix();pegs.setMatrixAt(kind*PACHINKO.rows+row,dummy.matrix);
     }this.box.add(pegs);
+    // One bounded draw gives each lane a readable edge behind its live dots.
+    const railMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:.18,depthWrite:false,toneMapped:false});this.#materials.add(railMaterial);
+    const rails=new THREE.InstancedMesh(new THREE.BoxGeometry(.018,PACHINKO.top-PACHINKO.boardBottom,.012),railMaterial,12),palette=packetPalette(false);
+    for(let kind=0;kind<6;kind++)for(let edge=0;edge<2;edge++){
+      const index=kind*2+edge;dummy.position.set(laneCenter(kind)+(edge?1:-1)*(PACHINKO.laneWidth/2-.035),(PACHINKO.top+PACHINKO.boardBottom)/2,.015);dummy.rotation.set(0,0,0);dummy.updateMatrix();rails.setMatrixAt(index,dummy.matrix);rails.setColorAt(index,new THREE.Color(palette[KINDS[kind]!]));
+    }this.box.add(rails);
     const glass=new THREE.MeshBasicMaterial({color:0x80e1e3,transparent:true,opacity:.055,depthWrite:false,side:THREE.DoubleSide,forceSinglePass:true});this.#materials.add(glass);
     const dividers=new THREE.InstancedMesh(new THREE.BoxGeometry(.025,PACHINKO.top-PACHINKO.boardBottom,.32),glass,7);
     for(let i=0;i<7;i++){dummy.position.set((i-3)*PACHINKO.lanePitch,(PACHINKO.top+PACHINKO.boardBottom)/2,.15);dummy.rotation.set(0,0,0);dummy.updateMatrix();dividers.setMatrixAt(i,dummy.matrix);}this.box.add(dividers);
@@ -234,7 +240,7 @@ export class FirehoseRenderer {
     this.#uniforms.uPalette!.value=KINDS.map(kind=>new THREE.Color(palette[kind]));const dark=packetPalette(false);this.#uniforms.uDarkPalette!.value=KINDS.map(kind=>new THREE.Color(dark[kind]));this.#uniforms.uLight!.value=this.machine==='pachinko'?0:light?1:0;
     this.#laneLights.forEach((material,i)=>material.color.set(dark[KINDS[i]!]));
     this.#uniforms.uGlow!.value=(p.effects==='minimal'?0:p.effects==='calm'?.45:1)*(.5+.5*p.glow);this.#uniforms.uCore!.value=p.packetSize;
-    this.#uniforms.uMotion!.value=this.paused?0:p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.#uniforms.uTrail!.value=p.trailLength;
+    this.#uniforms.uMotion!.value=p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.#uniforms.uTrail!.value=p.trailLength;
     this.#uniforms.uWidth!.value=Math.max(1.4,p.width)*(this.gpu.getPixelRatio()||1);this.#uniforms.uOpacity!.value=p.opacity;
     this.#uniforms.uPattern!.value=p.pattern==='dashed'?1:p.pattern==='dotted'?2:0;
     this.#quality.resetSamples();this.#resized();this.#changed();
@@ -261,14 +267,20 @@ export class FirehoseRenderer {
   born(slots:readonly number[],selected:readonly number[]=[],kind=0){const now=performance.now();for(const slot of slots){this.#births[slot]=now/1000;this.#selectedSlots[slot]=0;}for(const slot of selected)this.#selectedSlots[slot]=1;
     this.#birthTexture.needsUpdate=true;this.#selected.needsUpdate=true;this.#emitTime=now/1000;this.#laneTimes[kind]=now/1000;this.#effectUntil=now+3200;this.#nozzleLight?.color.copy(this.#uniforms.uPalette!.value[kind]);this.#changed();}
   impact(x:number,z:number,kind:number,y=0){if(this.paused)return;const now=performance.now();this.#impactData.set([x,this.machine==='pachinko'?y:z,now/1000,kind],(this.#impactIndex++%24)*4);this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;this.#effectUntil=Math.max(this.#effectUntil,now+1200);this.#changed();}
-  clearEffects(){this.#births.fill(-100);this.#birthTexture.needsUpdate=true;for(let i=0;i<24;i++)this.#impactData[i*4+2]=-100;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;this.#effectUntil=0;this.#emitTime=this.#drainTime=-100;this.#changed();}
+  clearEffects(){this.#births.fill(-100);this.#birthTexture.needsUpdate=true;for(let i=0;i<24;i++)this.#impactData[i*4+2]=-100;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;this.#laneTimes.fill(-100);this.#effectUntil=0;this.#emitTime=this.#drainTime=-100;this.#changed();}
   highlight(slots:readonly number[]){this.#selectedSlots.fill(0);for(const slot of slots)this.#selectedSlots[slot]=1;this.#selected.needsUpdate=true;this.#changed();}
   setLinks(visible:boolean){this.#links.visible=this.machine==='firehose'&&visible;this.#changed();}
   setMode(mode:'tilt'|'orbit'){this.mode=this.machine==='pachinko'?'orbit':mode;this.controls.enableRotate=this.mode==='orbit'||this.paused;this.stage.dataset.controlMode=this.mode;this.stage.style.cursor=this.mode==='tilt'&&!this.paused?'grab':'move';}
-  setPaused(value:boolean){if(value!==this.paused){const now=performance.now();if(value)this.#pauseTime=now;else{const gap=now-this.#pauseTime;for(let i=0;i<this.capacity;i++)if(this.#births[i]!>=0)this.#births[i]!+=gap/1000;for(let i=0;i<24;i++)if(this.#impactData[i*4+2]!>=0)this.#impactData[i*4+2]!+=gap/1000;this.#emitTime+=gap/1000;this.#drainTime+=gap/1000;this.#received+=gap;this.#effectUntil+=gap;this.#birthTexture.needsUpdate=true;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;}}
-    this.paused=value;const p=displayPreferences();this.#uniforms.uMotion!.value=value?0:p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.controls.enableRotate=this.mode==='orbit'||value;this.#changed();}
+  setPaused(value:boolean){if(value!==this.paused){const now=performance.now();if(value)this.#pauseTime=now;else{const gap=now-this.#pauseTime;for(let i=0;i<this.capacity;i++)if(this.#births[i]!>=0)this.#births[i]!+=gap/1000;for(let i=0;i<24;i++)if(this.#impactData[i*4+2]!>=0)this.#impactData[i*4+2]!+=gap/1000;for(let i=0;i<6;i++)if(this.#laneTimes[i]!>=0)this.#laneTimes[i]!+=gap/1000;this.#emitTime+=gap/1000;this.#drainTime+=gap/1000;this.#received+=gap;this.#effectUntil+=gap;this.#birthTexture.needsUpdate=true;this.#ripples.geometry.getAttribute('aImpact').needsUpdate=true;}}
+    // The clock freezes the effects too; keep their illumination visible while inspecting.
+    this.paused=value;const p=displayPreferences();this.#uniforms.uMotion!.value=p.effects==='minimal'?0:p.effects==='calm'?.45:1;this.controls.enableRotate=this.mode==='orbit'||value;this.#changed();}
   #navigate=()=>{this.#homeView=false;};
-  home(){const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;this.#homeView=true;this.#frameLayout='';if(this.machine==='pachinko'){this.camera.position.set(8,5,20);this.controls.target.set(0,.2,0);}else{this.camera.position.set(8,10,10);this.controls.target.set(0,.7,0);}this.controls.update();this.#resized();this.#changed();}
+  home(view:'isometric'|'front'|'above'='isometric'){
+    const damping=this.controls.enableDamping;this.controls.enableDamping=false;this.controls.update();this.controls.enableDamping=damping;this.#homeView=true;this.#frameLayout='';
+    if(this.machine==='pachinko'){this.controls.target.set(0,.2,0);this.camera.position.set(...(view==='front'?[0,.2,23]:view==='above'?[5,12,20]:[5,3.8,22]) as [number,number,number]);}
+    else{this.controls.target.set(0,.7,0);this.camera.position.set(...(view==='front'?[0,2,17]:view==='above'?[0,18,.01]:[8,10,10]) as [number,number,number]);}
+    this.controls.update();this.#resized();this.#changed();
+  }
   upright(){this.target.set(0,0,0,1);this.#sendRotation();}
   pour(){this.target.setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI);this.#sendRotation();}
   #sendRotation(){this.onRotation({x:this.target.x,y:this.target.y,z:this.target.z,w:this.target.w});this.#changed();}
@@ -278,7 +290,7 @@ export class FirehoseRenderer {
   project(){return this.machine==='pachinko'?this.projectWorld(0,PACHINKO.top,0):this.projectWorld(SPOUT.x,SPOUT.y,SPOUT.z);}
   position(slot:number){const b=this.#current,at=HEADER+slot*4;if(!b||!b[at+3])return;const a=this.#previous&&Math.floor(this.#previous[at+3]!/8)===Math.floor(b[at+3]!/8)?this.#previous:b,t=this.#uniforms.uBlend!.value;
     return{x:a[at]!+(b[at]!-a[at]!)*t,y:a[at+1]!+(b[at+1]!-a[at+1]!)*t,z:a[at+2]!+(b[at+2]!-a[at+2]!)*t};}
-  #pick(x:number,y:number){if(!this.#current)return;let best=-1,distance=100,depth=Infinity;
+  #pick(x:number,y:number){if(!this.#current)return;let best=-1,distance=matchMedia('(pointer:coarse)').matches?22**2:12**2,depth=Infinity;
     for(let slot=0;slot<this.capacity;slot++){const p=this.position(slot);if(!p)continue;const q=this.projectWorld(p.x,p.y,p.z),d=(q.x-x)**2+(q.y-y)**2;
       if(q.z>=-1&&q.z<=1&&d<=distance&&(d<distance*.65||q.z<depth)){best=slot;distance=d;depth=q.z;}}
     if(best>=0)this.onPick(best);

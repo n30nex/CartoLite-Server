@@ -3,10 +3,8 @@
 :is(#firehose-stage,#pachinko-stage) { position:absolute;inset:0;overflow:hidden;touch-action:none;outline-offset:-4px; }
 :is(#firehose-canvas,#pachinko-canvas) { display:block;width:100%;height:100%;touch-action:none; }
 html:root .firehose-app .glass { transition:none; }
-.firehose-caption { position:absolute;z-index:3;left:20px;top:max(78px,calc(env(safe-area-inset-top) + 78px));display:grid;gap:6px;pointer-events:none;color:#dbf8f0;text-shadow:0 1px 3px #06121b;font-size:12px; }
-.firehose-caption strong { letter-spacing:.22em;font-size:12px; }.firehose-caption small { font-size:11px;color:#9dc7ce;max-width:360px;line-height:1.4; }
-:root:is([data-basemap=light],[data-basemap=streets]) .firehose-caption { color:#183a45;text-shadow:0 1px 2px #eff5ee; }
-:root:is([data-basemap=light],[data-basemap=streets]) .firehose-caption small { color:#345865; }
+.firehose-caption { position:absolute;z-index:3;left:20px;top:max(78px,calc(env(safe-area-inset-top) + 78px));display:grid;gap:6px;pointer-events:none;color:var(--ink);font-size:12px; }
+.firehose-caption strong { letter-spacing:.14em;font-size:12px;color:var(--ink-strong); }.firehose-caption small { font-size:11px;color:var(--muted);max-width:360px;line-height:1.4; }
 .firehose-panel { position:absolute;bottom:calc(100% + 10px);left:0;width:340px;max-width:calc(100vw - 24px);max-height:calc(var(--available-height,100dvh) - var(--dock-height,52px) - 96px);overflow:auto;overscroll-behavior:contain;padding:14px;box-sizing:border-box; }
 .firehose-panel header { position:sticky;top:-14px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel-solid);margin-bottom:12px; }
 .firehose-panel :is(button,input) { min-height:44px;min-width:44px;border:1px solid var(--panel-border);border-radius:var(--radius-control);background:var(--field-bg);color:var(--ink-strong);padding:8px;font:inherit;cursor:pointer; }
@@ -37,10 +35,14 @@ html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]
 #pachinko-app .firehose-caption small { max-width:310px; }
 
 .firehose-caption { max-width:calc(100vw - 40px); }
-.firehose-caption > :is(span,small) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.firehose-caption > small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 .firehose-caption { width:min(380px,calc(100vw - 40px)); font-variant-numeric:tabular-nums; }
 
 #capacity-status { min-height:1.4em; }
 
 @media(max-height:480px) { .pachinko-buckets div { display:flex; align-items:center; justify-content:center; gap:6px; padding:3px; }.pachinko-buckets output { font-size:11px; } }
+
+@media(max-width:480px) { :root[data-text-size=large] .pachinko-buckets { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+:root[data-text-size=large] .pachinko-buckets div { font-size:14px;padding:5px 6px; }
+:root[data-text-size=large] .pachinko-buckets output { font-size:16px; }

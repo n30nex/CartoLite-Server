@@ -17,3 +17,9 @@ Every page load starts empty. The sculpture retains at most 1,024 observations a
 The renderer batches strokes and shaded glyphs on the GPU, keeps geometry buffers bounded, uploads active ranges only, and reduces decoration before readability. A labelled 2D time-window fallback remains available if WebGL2 is unavailable. Context recovery preserves the camera, retained state and user freeze choice.
 
 Worldwide operators enable this page with `chronoscope` in `EXTRA_PAGES`. Map and Netgraph remain available independently.
+
+**Freeze / Resume** is also available directly in the dock; **Space** toggles it
+when the scene has keyboard focus. On phones, optional Follow is in View.
+Decorative descent eases into the stack, with bounded arrival rings. Once every
+shape has settled, the sculpture redraws on input or feed changes rather than
+rebuilding idle geometry. Packet travel and sound keep their original timing.

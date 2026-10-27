@@ -35,3 +35,8 @@ The luminous view uses crisp points, brief arrival pulses, motion trails and
 landing rings. Sleeping, contacts and rope constraints keep the pile reactive
 without calculating invisible angular motion. See [the performance and visual
 update](firehose-spectacle.md).
+
+Camera offers **Angle**, **Front** and **Above** views without changing the pile.
+With the scene focused, **Space** pauses or resumes. Paused lighting remains
+visible for inspection. If an inspected packet drains, its card says so and the
+stale highlight is removed. Status counters update independently of physics and audio.

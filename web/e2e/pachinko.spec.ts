@@ -5,6 +5,14 @@ import { openDisplay, openViewMenu } from './dockControls';
 async function open(page:Page){await visualFixture(page);await page.addInitScript(()=>window.addEventListener('cartolite-pachinko-ready',event=>{(window as any).__pachinko=(event as CustomEvent).detail.scene;}));await page.goto('/pachinko/');await expect(page.locator('#pachinko-stage')).toHaveAttribute('data-render-state','ready',{timeout:20000});await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');}
 async function packets(page:Page,count=6){await page.evaluate(count=>{for(let i=0;i<count;i++)window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:i+1,id:`pachinko-${i}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control','Other'][i%6],mode:'route',segments:[{routeId:'one',fromId:'visual-a',toId:'visual-b'},{routeId:'two',fromId:'visual-b',toId:'visual-c'}]}}));},count);}
 
+// Read one layout snapshot after the dock's ResizeObserver has updated its inset.
+async function bucketLayout(page:Page,width:number){
+  await expect.poll(()=>page.evaluate(width=>{
+    const buckets=document.querySelector('.pachinko-buckets')!.getBoundingClientRect(),dock=document.querySelector('.controls')!.getBoundingClientRect();
+    return{fits:buckets.x>=0&&buckets.right<=width&&buckets.y>0&&buckets.bottom<dock.top,bottom:buckets.bottom,dockTop:dock.top,right:buckets.right};
+  },width)).toMatchObject({fits:true});
+}
+
 test('Pachinko shows one dot per packet, correct type buckets and a real drain',async({page},info)=>{
   test.skip(info.project.name==='mobile-landscape');test.setTimeout(60000);await open(page);const stage=page.locator('#pachinko-stage');
   await expect(stage).toHaveAttribute('data-beads','0');await expect(stage).toHaveAttribute('data-graphics-ready','true');
@@ -14,8 +22,12 @@ test('Pachinko shows one dot per packet, correct type buckets and a real drain',
   await openDisplay(page);await page.locator('[data-display="basemap"]').selectOption('light');await page.keyboard.press('Escape');await expect(stage).toHaveAttribute('data-events','12');
   await page.screenshot({path:info.outputPath('pachinko-daylight.png')});
   await page.locator('#pause-button').click();await page.evaluate(()=>window.dispatchEvent(new CustomEvent('visual-packet',{detail:{seq:50,id:'paused',at:Date.now(),payloadType:'Text',mode:'route',segments:[{routeId:'one',fromId:'visual-a',toId:'visual-b'}]}})));await page.waitForTimeout(150);await expect(stage).toHaveAttribute('data-events','12');
+  await page.locator('#box-button').click();await page.locator('[data-camera-view="front"]').click();await page.keyboard.press('Escape');
+  const point=await page.evaluate(()=>{const scene=(window as any).__pachinko;for(let slot=0;slot<scene.capacity;slot++){const p=scene.position(slot);if(p)return scene.projectWorld(p.x,p.y,p.z);}throw new Error('Expected a retained packet');});
+  await page.mouse.click(point.x,point.y);await expect(page.locator('#node-inspector-sheet')).toContainText('Highlighted in this session.');
   await page.locator('#pause-button').click();await page.getByRole('button',{name:'Drain all packet buckets',exact:true}).click();
   await expect(stage).toHaveAttribute('data-beads','0',{timeout:10000});await expect(stage).toHaveAttribute('data-drained','12');
+  await expect(page.locator('#node-inspector-sheet')).toContainText('This packet has drained.');
   await page.reload();await expect(stage).toHaveAttribute('data-render-state','ready',{timeout:20000});await expect(stage).toHaveAttribute('data-beads','0');
 });
 
@@ -26,6 +38,14 @@ test('Pachinko camera, picker and labels fit a 320px phone',async({page},info)=>
   const panel=await page.locator('#view-panel').boundingBox();expect(panel!.y).toBeGreaterThanOrEqual(0);expect(panel!.y+panel!.height).toBeLessThanOrEqual(720);
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');await expect(page.locator('#view-panel')).toBeHidden();await expect(page.locator('#view-button')).toBeFocused();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('pachinko-phone-320.png')});
+  await openDisplay(page);await page.getByLabel('Text size',{exact:true}).selectOption('large');await page.keyboard.press('Escape');
+  await bucketLayout(page,320);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('pachinko-large-text-phone.png')});
+  await page.setViewportSize({width:568,height:320});await page.locator('#pachinko-stage').focus();await page.keyboard.press('Home');
+  await bucketLayout(page,568);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('pachinko-short-large-text.png')});
 });
 
 test('Pachinko stays bounded, responsive and independent of basemap code',async({page},info)=>{

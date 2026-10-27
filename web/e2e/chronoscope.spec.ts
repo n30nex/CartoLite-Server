@@ -77,8 +77,10 @@ test('Chronoscope exposes clear themes and a quiet observer-only fallback',async
     await page.screenshot({path:info.outputPath(`chronoscope-${theme}.png`)});
     await openDisplay(page);await page.getByLabel('Interface theme',{exact:true}).selectOption(theme==='dark'?'light':'dark');await page.keyboard.press('Escape');
     const contrast=await page.evaluate(()=>{
-      const ink=getComputedStyle(document.querySelector('.chrono-caption')!).color.match(/[\d.]+/g)!.slice(0,3).map(Number);
-      const hex=getComputedStyle(document.documentElement).getPropertyValue('--scene-background').trim().slice(1),bg=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+      const card=getComputedStyle(document.querySelector('.chrono-caption')!);
+      const ink=card.color.match(/[\d.]+/g)!.slice(0,3).map(Number),surface=card.backgroundColor.match(/[\d.]+/g)!.map(Number);
+      if((surface[3]??1)<.98)return 0; // Caption text sits on an opaque interface card.
+      const bg=surface.slice(0,3);
       const luminance=(rgb:number[])=>rgb.map(v=>{const c=v/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i]!,0);
       const a=luminance(ink),b=luminance(bg);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
     });expect(contrast).toBeGreaterThanOrEqual(4.5);
@@ -95,6 +97,10 @@ test('Chronoscope phone controls fit one row and panels restore focus',async({pa
   const boxes=await page.locator('.controls > button,.controls > div > button').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height};}));
   expect(boxes).toHaveLength(6);expect(Math.max(...boxes.map(r=>r.y))-Math.min(...boxes.map(r=>r.y))).toBeLessThan(2);
   for(const box of boxes){expect(box.w).toBeGreaterThanOrEqual(44);expect(box.h).toBeGreaterThanOrEqual(44);expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.w).toBeLessThanOrEqual(320);}
+  await page.locator('#chrono-pause-button').click();await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-frozen','true');
+  await expect(page.locator('#chrono-pause-button')).toHaveAccessibleName('Resume live sculpture');
+  await page.locator('#chronoscope-stage').focus();await page.keyboard.press('Space');await expect(page.locator('#chronoscope-stage')).toHaveAttribute('data-frozen','false');
+  await openViewMenu(page,false);await expect(page.locator('#follow-button')).toBeVisible();await page.keyboard.press('Escape');
   await openDisplay(page);await expect(page.locator('#display-panel')).toBeVisible();await page.keyboard.press('Escape');await expect(page.locator('#view-button')).toBeFocused();
   await page.locator('#time-button').click();await expect(page.locator('#time-panel')).toBeVisible();
   const box=await page.locator('#time-panel').boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(320);expect(box!.y).toBeGreaterThanOrEqual(0);
@@ -179,6 +185,8 @@ test('Chronoscope 3D camera preserves a settled sculpture through appearance and
   await page.goto('/chronoscope/');await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   await page.evaluate(()=>{const scene=(window as any).__chrono,now=performance.now();for(let seq=1;seq<=30;seq++)scene.timeline.add({seq,id:`stack-${seq}`,at:Date.now(),payloadType:['Advert','Trace','Text','ACK','Control'][seq%5],mode:'route',segments:[{routeId:'visual-hop',from:scene.nodes.get('visual-a'),to:scene.nodes.get('visual-b')}]},now-180_000+seq*100);scene.setWindow(60);});
   const stage=page.locator('#chronoscope-stage');await expect(stage).toHaveAttribute('data-camera-mode','orbit');await expect(stage).toHaveAttribute('data-settled-count','30');await expect(stage).toHaveAttribute('data-active-count','0');
+  await page.waitForTimeout(1200);const idleFrames=await page.evaluate(()=>(window as any).__chrono.metrics.frames);
+  await page.waitForTimeout(1200);expect(await page.evaluate(()=>(window as any).__chrono.metrics.frames)).toBe(idleFrames);
   const before=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());
   await stage.focus();await page.keyboard.press('Shift+ArrowRight');await page.keyboard.press('Shift+ArrowDown');
   const moved=await page.evaluate(()=>(window as any).__chrono.camera.position.toArray());expect(Math.hypot(...moved.map((v:number,i:number)=>v-before[i]))).toBeGreaterThan(.1);

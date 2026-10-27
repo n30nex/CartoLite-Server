@@ -24,7 +24,7 @@ export class Chronoscope3DRenderer {
   readonly scene=new THREE.Scene();readonly camera=new THREE.PerspectiveCamera(42,1,.05,200);
   readonly gpu:THREE.WebGLRenderer;readonly controls:OrbitControls;
   readonly #overlay:CanvasRenderingContext2D;readonly #resize:ResizeObserver;
-  readonly #uniforms:Record<string,THREE.IUniform>={uResolution:{value:new THREE.Vector2(1,1)},uDpr:{value:1},uLight:{value:0},uPattern:{value:0}};
+  readonly #uniforms:Record<string,THREE.IUniform>={uResolution:{value:new THREE.Vector2(1,1)},uDpr:{value:1},uLight:{value:0},uPattern:{value:0},uDepth:{value:1}};
   readonly #strokes=new SculptureStrokes(MAX_SEGMENTS*2+1536,this.#uniforms);
   readonly #dots=new SculptureDots(MAX_SEGMENTS*3+MAX_EVENTS*2,this.#uniforms);
   #known=new SculptureDots(16,this.#uniforms);
@@ -51,6 +51,7 @@ export class Chronoscope3DRenderer {
     this.scene.add(this.#strokes.mesh,this.#dots.mesh,this.#known.mesh);
     this.scene.add(new THREE.HemisphereLight(0xd6f4ff,0x09232f,2));const key=new THREE.DirectionalLight(0xd5f7ff,2.4);key.position.set(-6,9,7);this.scene.add(key);
     const plinth=new THREE.Mesh(new THREE.BoxGeometry(13,.14,9),this.#floorMaterial);plinth.position.y=-.12;this.scene.add(plinth);
+    const floorGrid=new THREE.GridHelper(12.5,24,0x3f9ea2,0x1b5360);floorGrid.scale.z=8.5/12.5;floorGrid.position.y=-.035;(floorGrid.material as THREE.Material).transparent=true;(floorGrid.material as THREE.Material).opacity=.18;this.scene.add(floorGrid);
     const volume=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(12.5,NOW,8.5)),new THREE.LineBasicMaterial({color:0x6dc8c8,transparent:true,opacity:.18}));volume.position.y=NOW/2;this.#frameGeometry.add(volume);
     const grid=new THREE.GridHelper(12.5,24,0x3f9ea2,0x1b5360);grid.scale.z=8.5/12.5;grid.position.y=NOW;(grid.material as THREE.Material).transparent=true;(grid.material as THREE.Material).opacity=.18;this.#frameGeometry.add(grid);this.scene.add(this.#frameGeometry);
     stage.addEventListener('pointerdown',this.pointerDown);stage.addEventListener('pointermove',this.pointerMove);stage.addEventListener('pointerup',this.pointerUp);stage.addEventListener('pointercancel',this.pointerCancel);stage.addEventListener('keydown',this.keydown);
@@ -74,7 +75,7 @@ export class Chronoscope3DRenderer {
   }
   setMode(mode:ChronoscopeMode){
     if(this.#mode==='sculpture'&&mode!=='sculpture')this.#sculpturePose={position:this.camera.position.clone(),target:this.controls.target.clone(),zoom:this.camera.zoom,home:this.#homeView,view:this.camera.view?{...this.camera.view}:null};
-    const changed=this.#mode!==mode;this.#mode=mode;if(mode==='slice')this.freeze();
+    const changed=this.#mode!==mode;this.#mode=mode;this.#uniforms.uDepth!.value=mode==='sculpture'?1:0;if(mode==='slice')this.freeze();
     this.controls.enableRotate=mode==='sculpture';this.controls.minPolarAngle=mode==='sculpture'?.03:0;this.controls.mouseButtons.LEFT=mode==='sculpture'?THREE.MOUSE.ROTATE:THREE.MOUSE.PAN;this.controls.touches.ONE=mode==='sculpture'?THREE.TOUCH.ROTATE:THREE.TOUCH.PAN;
     this.#frameGeometry.visible=mode==='sculpture';
     if(changed){if(mode==='sculpture'&&this.#sculpturePose){this.camera.position.copy(this.#sculpturePose.position);this.controls.target.copy(this.#sculpturePose.target);this.camera.zoom=this.#sculpturePose.zoom;this.camera.view=this.#sculpturePose.view?{...this.#sculpturePose.view}:null;this.#homeView=this.#sculpturePose.home;this.camera.updateProjectionMatrix();this.controls.update();if(this.#homeView){this.#frameLayout='';this.resize();}}else this.home();}
@@ -127,7 +128,7 @@ export class Chronoscope3DRenderer {
     this.#stacks.set(record,stack);return stack;
   }
   private drop(record:Observation,at:number){if(!record.animate||this.#reduced)return 1;return Math.max(0,Math.min(1,(at-record.started-record.duration)/this.stack(record).fallMs));}
-  private packetPoint(record:Observation,node:StackNode,at:number,out:Position3){if(!this.world(node.endpoint,out))return false;if(this.#mode==='sculpture'){const t=this.drop(record,at);out.x+=node.dx*t;out.z+=node.dz*t;out.y=NOW+(node.height-NOW)*t;}return true;}
+  private packetPoint(record:Observation,node:StackNode,at:number,out:Position3){if(!this.world(node.endpoint,out))return false;if(this.#mode==='sculpture'){const progress=this.drop(record,at),t=progress*progress*(3-2*progress);out.x+=node.dx*t;out.z+=node.dz*t;out.y=NOW+(node.height-NOW)*t;}return true;}
   private trimStacks(){const retained=new Set(this.timeline.records);if(this.frozen)for(const record of this.timeline.visible(this.frameTime,this.#seconds,true))retained.add(record);for(const[record,stack]of this.#stacks)if(!retained.has(record)){for(const id of stack.nodes.keys()){const level=this.#levels.get(id);if(level&&!--level.refs)this.#levels.delete(id);}this.#stacks.delete(record);}}
   private updateKnown(){
     if(this.#known.capacity<this.#nodes.size){this.scene.remove(this.#known.mesh);this.#known.dispose();this.#known=new SculptureDots(2**Math.ceil(Math.log2(Math.max(16,this.#nodes.size))),this.#uniforms);this.scene.add(this.#known.mesh);}
@@ -140,9 +141,9 @@ export class Chronoscope3DRenderer {
     this.#reduced=reduced;this.controls.update();this.trimStacks();const records=this.inspectionRecords();this.#strokes.count=this.#dots.count=0;this.#signatures.length=0;let active=0,settled=0,moving=false,rings=0,glows=0,shadows=0;
     const background=prefs.detail==='complete'?1:Math.max(.25,Math.min(1,Math.sqrt(70/Math.max(1,records.length))));
     for(const record of records){
-      const stack=this.stack(record),age=Math.max(0,at-record.started),fresh=record.animate&&age<record.duration+440,down=this.drop(record,at);if(down>=1)settled++;else moving=true;if(fresh&&!this.frozen)active++;
+      const stack=this.stack(record),age=Math.max(0,at-record.started),fresh=record.animate&&age<record.duration+440,down=this.drop(record,at);if(down>=1)settled++;else if(this.#mode==='sculpture')moving=true;if(fresh&&!this.frozen)active++;
       const selected=this.#selectedEvent===record.packet.seq||Boolean(this.#selected&&stack.nodes.has(this.#selected));const dimmed=(this.#selected||this.#selectedEvent!==null)&&!selected;
-      const kind=kinds.indexOf(normalizePacketKind(record.packet.payloadType)),color=this.#palette[kind]!,opacity=dimmed?.07:selected?1:fresh?.95:background*(this.#mode==='sculpture'?.68:Math.max(.15,.7*(1-age/(this.#seconds*1000))));
+      const kind=kinds.indexOf(normalizePacketKind(record.packet.payloadType)),color=this.#palette[kind]!,opacity=dimmed?.07:selected?1:fresh?.95:background*(this.#mode==='sculpture'?(down<1?.88:.68):Math.max(.15,.7*(1-age/(this.#seconds*1000))));
       for(const node of stack.nodes.values())if(this.nodeInRegions(node.endpoint.id)&&this.packetPoint(record,node,at,this.#a))this.#dots.add(this.#a,selected?this.#accent:color,opacity,(fresh?6.5:4.6)*prefs.packetSize);
       if(record.packet.mode==='route'){
         for(const segment of record.packet.segments){if(!this.nodeInRegions(segment.from.id)||!this.nodeInRegions(segment.to.id))continue;
@@ -158,14 +159,31 @@ export class Chronoscope3DRenderer {
         }}
       }
       if(fresh&&!reduced&&prefs.effects!=='minimal'&&rings<32){const node=stack.nodes.values().next().value as StackNode|undefined;if(node&&this.nodeInRegions(node.endpoint.id)&&this.world(node.endpoint,this.#c)){const phase=age/700;if(phase<1){this.ring(this.#c,.08+phase*.3,color,(1-phase)*.6);rings++;}}}
+      // Arrival light belongs to this observed shape; no idle animation invents activity.
+      const landingAge=age-record.duration-stack.fallMs;
+      if(this.#mode==='sculpture'&&record.animate&&!reduced&&prefs.effects!=='minimal'&&landingAge>=0&&landingAge<900){
+        moving=true;
+        if(!dimmed&&rings<32){const node=stack.nodes.values().next().value as StackNode|undefined;
+          if(node&&this.nodeInRegions(node.endpoint.id)&&this.packetPoint(record,node,at,this.#c)){const phase=landingAge/900;this.ring(this.#c,.1+phase*.34,color,(1-phase)**2*(prefs.effects==='calm'?.3:.8));rings++;}
+        }
+      }
     }
     this.#strokes.upload();this.#dots.upload();this.gpu.render(this.scene,this.camera);this.labels();this.#frames++;this.#drawMS=this.#drawMS*.85+(performance.now()-started)*.15;
     Object.assign(this.stage.dataset,{mode:this.#mode,frozen:String(this.frozen),eventCount:String(this.timeline.records.length),segmentCount:String(this.timeline.segmentCount),visibleEvents:String(records.length),activeCount:String(active),settledCount:String(settled),motionMode:reduced?'static':'animated',renderer:'webgl2',cameraMode:this.#mode==='sculpture'?'orbit':'flat',drawMs:this.#drawMS.toFixed(2),drawCalls:String(this.gpu.info.render.calls),windowSeconds:String(this.#seconds)});
-    if(now-this.#lastStats>500){this.#lastStats=now;this.callbacks.change?.();}
-    if(!this.#frame&&records.length&&!this.frozen){const delay=!reduced&&(moving||active)?prefs.quality==='economy'||this.#drawMS>12?33:16:1000;this.#timer=window.setTimeout(()=>{this.#timer=0;this.request();},delay);}
+    if(now-this.#lastStats>500||(!moving&&!active)){this.#lastStats=now;this.callbacks.change?.();}
+    // Settled sculpture geometry does not age out. Redraw it on input/feed changes,
+    // while Flat/Slice retain their time-window updates.
+    if(!this.#frame&&records.length&&!this.frozen&&(this.#mode!=='sculpture'||moving||active)){const delay=!reduced&&(moving||active)?prefs.quality==='economy'||this.#drawMS>12?33:16:1000;this.#timer=window.setTimeout(()=>{this.#timer=0;this.request();},delay);}
   };
   private labels(){const c=this.#overlay;c.setTransform(this.#dpr,0,0,this.#dpr,0,0);c.clearRect(0,0,this.#width,this.#height);for(const sign of this.#signatures)drawPacketSignature(c,{x:sign.x,y:sign.y},{x:sign.dx,y:sign.dy},payloadColor(sign.record.packet.payloadType),packetSignature(sign.record.packet.payloadType),sign.age);c.font=`${displayPreferences().textSize==='large'?14:11}px system-ui`;const used:{x:number;y:number;w:number}[]=[];
-    const label=(text:string,point:Position3,strong=false)=>{const p=this.screen(point);if(p.z< -1||p.z>1||p.x<24||p.x>this.#width-24||p.y<70||p.y>this.#height-80)return;const w=c.measureText(text).width;if(!strong&&used.some(v=>Math.abs(v.y-p.y)<18&&Math.abs(v.x-p.x)<(v.w+w)/2+12))return;used.push({x:p.x,y:p.y,w});c.fillStyle=lightScene()?'#f3f5ede6':'#07131ce6';c.fillRect(p.x-w/2-5,p.y-12,w+10,18);c.textAlign='center';c.fillStyle=strong?packetPalette().Trace:displayColor('#d2e0ef');c.fillText(text,p.x,p.y+1);};
+    const label=(text:string,point:Position3,strong=false)=>{
+      const p=this.screen(point);if(p.z< -1||p.z>1||p.x<0||p.x>this.#width||p.y<70||p.y>this.#height-80)return;
+      let w=c.measureText(text).width;const limit=Math.min(240,this.#width-32);
+      if(w>limit){const chars=Array.from(text).slice(0,Math.max(1,Math.floor(Array.from(text).length*limit/w)-2));do{text=chars.join('')+'…';w=c.measureText(text).width;if(w>limit)chars.pop();}while(w>limit&&chars.length);}
+      const x=Math.max(w/2+8,Math.min(this.#width-w/2-8,p.x));
+      if(!strong&&used.some(v=>Math.abs(v.y-p.y)<18&&Math.abs(v.x-x)<(v.w+w)/2+12))return;
+      used.push({x,y:p.y,w});c.fillStyle=lightScene()?'#f3f5ede6':'#07131ce6';c.fillRect(x-w/2-5,p.y-12,w+10,18);c.textAlign='center';c.fillStyle=strong?packetPalette().Trace:displayColor('#d2e0ef');c.fillText(text,x,p.y+1);
+    };
     const selected=this.#selected&&this.#nodes.get(this.#selected);if(selected&&this.world(selected,this.#a))label(selected.label,this.#a,true);
     for(const area of this.#layout.areas){if(this.#regions&&!this.#regions.has(area.code))continue;this.#a.x=(area.x-this.#originX)*this.#scale;this.#a.z=(area.y-this.#originZ)*this.#scale;this.#a.y=this.#mode==='sculpture'?NOW+.18:.18;label(area.name??area.code,this.#a);}
     if(this.#mode==='sculpture'){label('NOW',{x:-6.25,y:NOW,z:4.25},true);label('SESSION SCULPTURE',{x:-5,y:.1,z:4.25},true);}
@@ -180,8 +198,9 @@ export class Chronoscope3DRenderer {
   private pointerMove=(event:PointerEvent)=>{if(this.#down&&Math.hypot(event.clientX-this.#down.x,event.clientY-this.#down.y)>5)this.#dragged=true;};
   private pointerCancel=()=>{this.#down=undefined;this.#dragged=true;};
   private pointerUp=(event:PointerEvent)=>{const down=this.#down;this.#down=undefined;if(!down||this.#dragged||down.id!==event.pointerId)return;const box=this.stage.getBoundingClientRect(),x=event.clientX-box.left,y=event.clientY-box.top;
-    for(const node of this.#nodes.values()){if(!this.nodeInRegions(node.id))continue;const p=this.projectEndpoint(node);if(Math.hypot(p.x-x,p.y-y)<9){this.callbacks.node(node.id);return;}}
-    const at=this.frameTime;let hit:Observation|undefined,best=9;
+    const radius=matchMedia('(pointer:coarse)').matches?22:12;
+    for(const node of this.#nodes.values()){if(!this.nodeInRegions(node.id))continue;const p=this.projectEndpoint(node);if('z' in p&&p.z>=-1&&p.z<=1&&Math.hypot(p.x-x,p.y-y)<radius){this.callbacks.node(node.id);return;}}
+    const at=this.frameTime;let hit:Observation|undefined,best=radius;
     for(const record of this.inspectionRecords()){const stack=this.stack(record);if(record.packet.mode==='observer'){if(this.packetPoint(record,stack.nodes.get(record.packet.observer.id)!,at,this.#a)){const p=this.screen(this.#a),d=Math.hypot(p.x-x,p.y-y);if(d<best){best=d;hit=record;}}}else for(const segment of record.packet.segments){if(!this.nodeInRegions(segment.from.id)||!this.nodeInRegions(segment.to.id)||!this.packetPoint(record,stack.nodes.get(segment.from.id)!,at,this.#a)||!this.packetPoint(record,stack.nodes.get(segment.to.id)!,at,this.#b))continue;const a=this.screen(this.#a),b=this.screen(this.#b);if(a.z< -1||a.z>1||b.z< -1||b.z>1)continue;const d=distanceToGraphPath([a,b],x,y);if(d<best){best=d;hit=record;}}}
     if(hit)this.callbacks.packet(hit);else this.callbacks.node(null);
   };

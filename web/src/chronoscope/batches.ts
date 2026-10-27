@@ -38,7 +38,7 @@ export class SculptureDots {
     this.positions=new Float32Array(capacity*3);this.ink=new Float32Array(capacity*4);this.sizes=new Float32Array(capacity);
     this.geometry.setAttribute('position',new THREE.BufferAttribute(this.positions,3).setUsage(THREE.DynamicDrawUsage));this.geometry.setAttribute('aInk',new THREE.BufferAttribute(this.ink,4).setUsage(THREE.DynamicDrawUsage));this.geometry.setAttribute('aSize',new THREE.BufferAttribute(this.sizes,1).setUsage(THREE.DynamicDrawUsage));this.geometry.setDrawRange(0,0);
     this.mesh=new THREE.Points(this.geometry,new THREE.ShaderMaterial({glslVersion:THREE.GLSL3,uniforms,transparent:true,depthWrite:false,toneMapped:false,
-      vertexShader:`in vec4 aInk;in float aSize;uniform float uDpr;out vec4 vInk;void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=aSize*uDpr;vInk=aInk;if(p.z>=-.05)gl_Position=vec4(2,2,2,1);}`,
+      vertexShader:`in vec4 aInk;in float aSize;uniform float uDpr,uDepth;out vec4 vInk;void main(){vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=aSize*uDpr*mix(1.,clamp(18./max(.1,-p.z),.75,1.35),uDepth);vInk=aInk;if(p.z>=-.05)gl_Position=vec4(2,2,2,1);}`,
       fragmentShader:`uniform float uLight;in vec4 vInk;out vec4 outColor;void main(){vec2 p=gl_PointCoord*2.-1.;float r=dot(p,p);if(r>1.||vInk.a<.001)discard;vec3 n=vec3(p.x,-p.y,sqrt(max(0.,1.-r)));float shade=.36+.64*max(0.,dot(n,normalize(vec3(-.4,.6,1.))));vec3 ink=vInk.rgb*shade;if(uLight<.5)ink+=vec3(pow(max(0.,1.-r),5.)*.55);float edge=1.-smoothstep(.72,1.,r);outColor=vec4(pow(max(ink,vec3(0)),vec3(1./2.2)),vInk.a*edge);}`
     }));this.mesh.frustumCulled=false;this.mesh.renderOrder=3;
   }
