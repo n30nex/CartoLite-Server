@@ -80,6 +80,9 @@ jobs:
       - name: Synthetic ingest index benchmark
         working-directory: backend
         run: go test ./internal/engine -run '^$' -bench BenchmarkNodeRepresentative -benchmem -benchtime=200ms -count=3
+      - name: Synthetic hex cleanup benchmark
+        working-directory: backend
+        run: go test ./internal/meshcore -run '^$' -bench BenchmarkHexCleanup -benchmem -benchtime=200ms -count=3
 
   frontend:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.refresh_dependencies) }}
