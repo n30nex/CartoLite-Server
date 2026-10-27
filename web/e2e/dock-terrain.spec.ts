@@ -30,7 +30,7 @@ test('dock 3D shortcut shares layer state and keeps credits clear', {tag:'@terra
   await expect(shortcut).toHaveAttribute('aria-pressed','false');
 });
 
-test('saved 3D preferences initialize the dock and reset clears both controls', {tag:'@terrain'}, async ({page},info) => {
+test('saved 3D preferences initialize the dock and reset clears both controls', {tag:'@terrain'}, async ({page}) => {
   await page.emulateMedia({reducedMotion:'reduce'});
   await visualFixture(page);
   await page.addInitScript(()=>{
@@ -39,12 +39,7 @@ test('saved 3D preferences initialize the dock and reset clears both controls', 
     }));
   });
   await page.goto('/');
-  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle').catch(async error=>{
-    await info.attach('startup-state.json',{contentType:'application/json',body:JSON.stringify(
-      await page.locator('#map').evaluate(el=>({...((el as HTMLElement).dataset)}))
-    )});
-    throw error;
-  });
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
   await expect(page.locator('#terrain-shortcut')).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('#terrain-button')).toHaveAttribute('aria-pressed','true');
   await openMapOptions(page); await page.locator('#reset-layers').click();

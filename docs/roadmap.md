@@ -1,6 +1,6 @@
 # CartoLite delivery roadmap
 
-## Dependency maintenance and repository refresh (0.12.3)
+## Dependency maintenance and repository refresh (0.12.4)
 
 [Open-PR review and maintenance patch](maintenance-2026-10-26.md): resolve identified dependency alerts, update supported toolchains and browser tests, restore Worldwide update tracking, and refresh both README front pages. Exact Actions qualification and release/deployment evidence accompany the published release.
 
