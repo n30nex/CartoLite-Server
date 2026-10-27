@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## System bug fixes (0.12.6)
+
+[End-to-end bug-fix audit](system-bugfix-audit-2026-10-27.md): retained/stale observation semantics, metadata freshness, bounded ingest memory, exact role validation, MQTT lifecycle and Canada region-worker recovery. Qualification and deployment are tracked in the release evidence.
+
 ## Experimental graphics and interaction (0.12.5)
 
 [Chronoscope, Firehose and Pachinko audit](experimental-visual-audit-2026-10-27.md): stronger scene framing, colored packet shading, clearer arrivals, camera presets, direct freeze controls, touch inspection and quieter idle rendering. Exact Actions and public deployment qualification accompany the release.

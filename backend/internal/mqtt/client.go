@@ -31,19 +31,24 @@ type Status struct {
 }
 
 type Client struct {
-	cfg        ClientConfig
-	log        *slog.Logger
-	handle     func(Message) bool
-	feed       func(bool)
-	connected  atomic.Bool
-	subscribed atomic.Bool
-	malformed  atomic.Int64
-	denied     atomic.Int64
-	mu         sync.Mutex
-	client     paho.Client
+	cfg                ClientConfig
+	log                *slog.Logger
+	handle             func(Message) bool
+	feed               func(bool)
+	connected          atomic.Bool
+	subscribed         atomic.Bool
+	malformed          atomic.Int64
+	denied             atomic.Int64
+	mu                 sync.Mutex
+	client             paho.Client
+	cancelSubscription context.CancelFunc
+	stopped            bool
 }
 
 func NewClient(cfg ClientConfig, log *slog.Logger, handle func(Message) bool, feed func(bool)) *Client {
+	if log == nil {
+		log = slog.Default()
+	}
 	return &Client{cfg: cfg, log: log, handle: handle, feed: feed}
 }
 
@@ -62,45 +67,30 @@ func (c *Client) Start(ctx context.Context) {
 		SetMaxReconnectInterval(5 * time.Minute).
 		SetKeepAlive(60 * time.Second).
 		SetPingTimeout(10 * time.Second).
+		SetWriteTimeout(10 * time.Second).
 		SetTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12})
 	if c.cfg.Username != "" {
 		opts.SetUsername(c.cfg.Username).SetPassword(c.cfg.Password)
 	}
-	opts.SetConnectionLostHandler(func(_ paho.Client, err error) {
-		c.connected.Store(false)
-		c.subscribed.Store(false)
-		c.setFeed(false)
-		c.log.Warn("mqtt connection lost", "error", err)
-	})
-	opts.SetOnConnectHandler(func(client paho.Client) {
-		c.connected.Store(true)
-		c.subscribed.Store(false)
-		go func() {
-			for client.IsConnected() {
-				token := client.Subscribe(c.cfg.Topic, 0, c.onMessage)
-				if token.WaitTimeout(10*time.Second) && token.Error() == nil {
-					c.subscribed.Store(true)
-					c.setFeed(true)
-					c.log.Info("mqtt subscribed", "topic", c.cfg.Topic)
-					return
-				}
-				c.setFeed(false)
-				c.log.Error("mqtt subscribe failed; retrying", "topic", c.cfg.Topic, "error", token.Error())
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(5 * time.Second):
-				}
-			}
-		}()
-	})
+	opts.SetConnectionLostHandler(c.connectionLost)
+	opts.SetOnConnectHandler(func(client paho.Client) { c.connectionUp(ctx, client) })
 	c.mu.Lock()
+	if c.stopped || c.client != nil || ctx.Err() != nil {
+		c.mu.Unlock()
+		return
+	}
 	c.client = paho.NewClient(opts)
 	client := c.client
+	// Initiate before the cancellation watcher: shutdown must not race ahead of
+	// a goroutine that has not called Connect yet.
+	token := client.Connect()
 	c.mu.Unlock()
 	go func() {
-		token := client.Connect()
-		if !token.WaitTimeout(30 * time.Second) {
+		complete := waitToken(ctx, token, 30*time.Second)
+		if ctx.Err() != nil {
+			return
+		}
+		if !complete {
 			c.log.Warn("mqtt initial connection is still pending")
 			return
 		}
@@ -110,16 +100,102 @@ func (c *Client) Start(ctx context.Context) {
 	}()
 	go func() {
 		<-ctx.Done()
-		c.mu.Lock()
-		client := c.client
-		c.mu.Unlock()
-		if client != nil && client.IsConnected() {
-			client.Disconnect(250)
-		}
-		c.connected.Store(false)
-		c.subscribed.Store(false)
-		c.setFeed(false)
+		c.stop()
 	}()
+}
+
+func (c *Client) connectionUp(ctx context.Context, client paho.Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.stopped || ctx.Err() != nil || !client.IsConnectionOpen() {
+		return
+	}
+	if c.cancelSubscription != nil {
+		c.cancelSubscription()
+	}
+	connectionCtx, cancel := context.WithCancel(ctx)
+	c.cancelSubscription = cancel
+	c.connected.Store(true)
+	c.subscribed.Store(false)
+	c.setFeed(false)
+	go c.subscribe(connectionCtx, client)
+}
+
+func (c *Client) connectionLost(client paho.Client, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Paho delivers callbacks asynchronously; an old loss notification must
+	// not clear readiness after a new connection has opened.
+	if c.stopped || client.IsConnectionOpen() {
+		return
+	}
+	if c.cancelSubscription != nil {
+		c.cancelSubscription()
+	}
+	c.connected.Store(false)
+	c.subscribed.Store(false)
+	c.setFeed(false)
+	c.log.Warn("mqtt connection lost", "error", err)
+}
+
+func (c *Client) subscribe(ctx context.Context, client paho.Client) {
+	for ctx.Err() == nil && client.IsConnectionOpen() {
+		token := client.Subscribe(c.cfg.Topic, 0, c.onMessage)
+		complete := waitToken(ctx, token, 10*time.Second)
+		c.mu.Lock()
+		if c.stopped || ctx.Err() != nil || !client.IsConnectionOpen() {
+			c.mu.Unlock()
+			return
+		}
+		if complete && token.Error() == nil {
+			c.subscribed.Store(true)
+			c.setFeed(true)
+			c.mu.Unlock()
+			c.log.Info("mqtt subscribed", "topic", c.cfg.Topic)
+			return
+		}
+		c.mu.Unlock()
+		c.log.Error("mqtt subscribe failed; retrying", "topic", c.cfg.Topic, "error", token.Error())
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func (c *Client) stop() {
+	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return
+	}
+	c.stopped = true
+	if c.cancelSubscription != nil {
+		c.cancelSubscription()
+	}
+	client := c.client
+	c.connected.Store(false)
+	c.subscribed.Store(false)
+	c.setFeed(false)
+	c.mu.Unlock()
+	// Disconnect also cancels a pending initial connection or reconnect.
+	if client != nil {
+		client.Disconnect(250)
+	}
+}
+
+func waitToken(ctx context.Context, token paho.Token, timeout time.Duration) bool {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return false
+	case <-token.Done():
+		return ctx.Err() == nil
+	}
 }
 
 func (c *Client) onMessage(_ paho.Client, incoming paho.Message) {
@@ -133,6 +209,7 @@ func (c *Client) onMessage(_ paho.Client, incoming paho.Message) {
 		return
 	}
 	if c.handle != nil {
+		message.Retained = incoming.Retained()
 		c.handle(message)
 	}
 }
