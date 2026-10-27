@@ -18,6 +18,7 @@ the workstation; qualification and new captures run in Actions.
 | Camera recovery and detailed inspection require gestures. | Add Angle, Front and Above camera actions to Firehose/Pachinko without changing the pile, plus larger touch hit areas. |
 | Status text can be clipped or visually lost against the scene. | Use compact cards with the shared interface palette and a stable two-line status footprint; measure contrast against the actual card surface. |
 | Chronoscope labels can run off a phone's edge. | Bound long labels and keep their backplates inside the viewport while retaining collision-aware placement. |
+| Pachinko bucket labels stay tiny with enlarged text. | Reflow the counters into two readable rows for Large text, keeping the compact default row. |
 | Inspector highlights can outlive a drained packet. | Clear the stale highlight and explain that the displayed public details belong to a packet that has drained. |
 | Every physics snapshot updates the same counters and controls. | Coalesce HUD updates with one bounded trailing timer; keep physics, GPU interpolation and audio independent. |
 

@@ -77,8 +77,10 @@ test('Chronoscope exposes clear themes and a quiet observer-only fallback',async
     await page.screenshot({path:info.outputPath(`chronoscope-${theme}.png`)});
     await openDisplay(page);await page.getByLabel('Interface theme',{exact:true}).selectOption(theme==='dark'?'light':'dark');await page.keyboard.press('Escape');
     const contrast=await page.evaluate(()=>{
-      const ink=getComputedStyle(document.querySelector('.chrono-caption')!).color.match(/[\d.]+/g)!.slice(0,3).map(Number);
-      const hex=getComputedStyle(document.documentElement).getPropertyValue('--scene-background').trim().slice(1),bg=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16));
+      const card=getComputedStyle(document.querySelector('.chrono-caption')!);
+      const ink=card.color.match(/[\d.]+/g)!.slice(0,3).map(Number),surface=card.backgroundColor.match(/[\d.]+/g)!.map(Number);
+      if((surface[3]??1)<.98)return 0; // Caption text sits on an opaque interface card.
+      const bg=surface.slice(0,3);
       const luminance=(rgb:number[])=>rgb.map(v=>{const c=v/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i]!,0);
       const a=luminance(ink),b=luminance(bg);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
     });expect(contrast).toBeGreaterThanOrEqual(4.5);

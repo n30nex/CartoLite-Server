@@ -30,6 +30,11 @@ test('Pachinko camera, picker and labels fit a 320px phone',async({page},info)=>
   const panel=await page.locator('#view-panel').boundingBox();expect(panel!.y).toBeGreaterThanOrEqual(0);expect(panel!.y+panel!.height).toBeLessThanOrEqual(720);
   await page.keyboard.press('Escape');await page.keyboard.press('Escape');await expect(page.locator('#view-panel')).toBeHidden();await expect(page.locator('#view-button')).toBeFocused();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('pachinko-phone-320.png')});
+  await openDisplay(page);await page.getByLabel('Text size',{exact:true}).selectOption('large');await page.keyboard.press('Escape');
+  const buckets=await page.locator('.pachinko-buckets').boundingBox(),dock=await page.locator('.controls').boundingBox();
+  expect(buckets!.x).toBeGreaterThanOrEqual(0);expect(buckets!.x+buckets!.width).toBeLessThanOrEqual(320);expect(buckets!.y+buckets!.height).toBeLessThan(dock!.y);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('pachinko-large-text-phone.png')});
 });
 
 test('Pachinko stays bounded, responsive and independent of basemap code',async({page},info)=>{

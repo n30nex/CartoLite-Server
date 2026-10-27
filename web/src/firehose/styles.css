@@ -42,3 +42,7 @@ html:root[data-cinematic]:has(.firehose-app .controls button[aria-expanded=true]
 #capacity-status { min-height:1.4em; }
 
 @media(max-height:480px) { .pachinko-buckets div { display:flex; align-items:center; justify-content:center; gap:6px; padding:3px; }.pachinko-buckets output { font-size:11px; } }
+
+:root[data-text-size=large] .pachinko-buckets { grid-template-columns:repeat(3,minmax(0,1fr)); }
+:root[data-text-size=large] .pachinko-buckets div { font-size:14px;padding:5px 6px; }
+:root[data-text-size=large] .pachinko-buckets output { font-size:16px; }

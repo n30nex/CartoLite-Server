@@ -248,6 +248,21 @@ jobs:
           path: |
             web/polish-test-results/
             web/polish-playwright-report/
+      - name: Chronoscope live time, interaction and scale
+        if: matrix.arch == 'amd64'
+        working-directory: web
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: chrono-playwright-report
+        run: bash ../scripts/browser-ci.sh chronoscope.spec.ts --retries 0 --output chrono-test-results
+      - name: Preserve Chronoscope evidence
+        if: always() && matrix.arch == 'amd64'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cartolite-server-chronoscope-review
+          retention-days: 7
+          path: |
+            web/chrono-test-results/
+            web/chrono-playwright-report/
       - name: UI audit and recovery regressions
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -308,21 +323,6 @@ jobs:
           path: |
             web/session-test-results/
             web/session-playwright-report/
-      - name: Chronoscope live time, interaction and scale
-        if: matrix.arch == 'amd64'
-        working-directory: web
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: chrono-playwright-report
-        run: bash ../scripts/browser-ci.sh chronoscope.spec.ts --retries 0 --output chrono-test-results
-      - name: Preserve Chronoscope evidence
-        if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: cartolite-server-chronoscope-review
-          retention-days: 7
-          path: |
-            web/chrono-test-results/
-            web/chrono-playwright-report/
       - name: Terminal presentation and isolation
         if: matrix.arch == 'amd64'
         working-directory: web
