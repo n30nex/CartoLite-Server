@@ -50,7 +50,7 @@ restores the previously qualified rendering code, MapLibre 6.15.0 and the matchi
 Playwright 1.61.1 browser image while retaining all security/toolchain fixes.
 Worldwide 0.12.4 supersedes the initial 0.12.3 maintenance release.
 
-Repeated saved-3D and mobile WebKit Terminal checks run before the full browser
+Repeated complete terrain-control and mobile WebKit Terminal checks run before the full browser
 suites, without retries. Original assertions and rendering/resource limits remain
 unchanged. Whole-job orchestration allows five extra minutes for the added checks.
 

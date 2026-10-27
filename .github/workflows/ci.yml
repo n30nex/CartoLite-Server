@@ -194,13 +194,13 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
-      - name: Saved 3D startup before the full browser suite
+      - name: Terrain controls and saved preferences before the full browser suite
         if: matrix.arch == 'amd64'
         working-directory: web
         env:
           CARTOLITE_BASE_URL: http://127.0.0.1:39476
           PLAYWRIGHT_HTML_OUTPUT_DIR: startup-playwright-report
-        run: bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --grep 'saved 3D preferences' --repeat-each 3 --retries 0 --output startup-test-results
+        run: bash ../scripts/browser-ci.sh dock-terrain.spec.ts --project desktop --repeat-each 3 --retries 0 --output startup-test-results
       - name: Terminal geography on mobile WebKit
         if: matrix.arch == 'amd64'
         working-directory: web
