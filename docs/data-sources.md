@@ -24,3 +24,8 @@ Dated observations within the existing node-retention window may fill missing
 metadata, without replacing newer names, roles or coordinates. Retained messages
 with missing, future or expired envelope times are ignored. This does not use the
 radio advert clock. See the [bug-fix audit](system-bugfix-audit-2026-10-27.md).
+
+The ingestion queue has both its configured message-count limit and an 8 MiB
+budget for normalized message data plus conservative per-message overhead. Unused
+JSON fields are discarded before queueing. Rejected burst messages increment the
+existing dropped counter. This bounds queued input, not total process memory.
