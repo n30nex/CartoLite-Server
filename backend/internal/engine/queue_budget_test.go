@@ -14,7 +14,9 @@ func TestIngestByteBudgetIsReleasedWhenAcceptedQueueDrains(t *testing.T) {
 	// Use a larger count capacity so the byte ceiling, not the item ceiling,
 	// rejects the synthetic burst of maximum-size raw envelopes.
 	state.input = make(chan mqtt.Message, 4096)
-	message, err := mqtt.Normalize("meshcore/YKF/AA112233/packets", []byte(strings.Repeat("Z", 64*1024)), time.Now())
+	// A raw status envelope is ignored by the processor, keeping the test about
+	// admission and draining rather than malformed-hex parsing speed.
+	message, err := mqtt.Normalize("meshcore/YKF/AA112233/status", []byte(strings.Repeat("Z", 64*1024)), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
