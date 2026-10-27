@@ -53,6 +53,9 @@ Worldwide 0.12.4 supersedes the initial 0.12.3 maintenance release.
 Repeated complete terrain-control and mobile WebKit Terminal checks run before the full browser
 suites, without retries. Original assertions and rendering/resource limits remain
 unchanged. Whole-job orchestration allows five extra minutes for the added checks.
+The saved-3D control check uses the same 15-second terrain initialization allowance
+as its companion toggle journey, instead of the generic five-second locator wait.
+Measured frame-time, input-latency, memory and route-count limits remain unchanged.
 
 All builds, dependency resolution and automated validation run in Actions.
 Normal PR and exact-main CI remain mandatory; no performance, privacy, topology,

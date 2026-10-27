@@ -39,7 +39,9 @@ test('saved 3D preferences initialize the dock and reset clears both controls', 
     }));
   });
   await page.goto('/');
-  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle');
+  // Match the terrain initialization allowance used by the toggle journey.
+  // This checks restored controls; rendering/input budgets are measured separately.
+  await expect(page.locator('#map')).toHaveAttribute('data-render-state','idle',{timeout:15_000});
   await expect(page.locator('#terrain-shortcut')).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('#terrain-button')).toHaveAttribute('aria-pressed','true');
   await openMapOptions(page); await page.locator('#reset-layers').click();
