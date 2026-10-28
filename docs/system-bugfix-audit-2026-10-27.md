@@ -11,7 +11,7 @@ inspection; the existing dependency and image scans remain release gates.
 | ID | Impact | Correction and regression coverage |
 | --- | --- | --- |
 | BF01 | Retained MQTT packets lose their retained flag and old envelope times are replaced by receipt time, causing false live motion, sound, route counts and freshness. | Carry transport/receipt/reported time internally. Dated retained or delayed observations can backfill node metadata at their reported age; they cannot create routes, packet events or active-feed status. Unknown, future or expired retained ages are ignored. Fixtures cover adverts, status, observer-only paths, routes and checkpoint recovery. |
-| BF02 | An older observation can replace a newer node name, role or coordinates, and move the last-packet clock backward. | Preserve newer known metadata and monotonic activity time. An old observation may only fill missing coordinates or an unknown role. Keep regional alias and fail-closed RF rules. |
+| BF02 | An older observation can replace a newer node name, role or coordinates, and move the last-packet clock backward. | Track label, role and coordinate confirmation times independently of packet activity, including unchanged confirmations and checkpoint reloads. Accept a newer metadata correction even if a later packet omitted that field; reject older confirmed values. Keep regional alias and fail-closed RF rules. |
 | BF03 | A count-bounded MQTT queue can retain arbitrary decoded JSON trees; its worst-case memory greatly exceeds the container allowance. | Retain only normalized metadata consumed by the engine, bound names, and apply an 8 MiB admission budget for normalized data plus conservative message overhead. Release reservations on rejection and every dequeue, including shutdown. This is not an exact RSS measurement. |
 | BF04 | Fractional numeric node types are truncated into valid forwarder roles. | Accept only integral numeric role values; invalid roles remain unknown and cannot manufacture forwarder evidence. |
 | BF05 | Pending connects and old subscription completions can survive shutdown/reconnect or report readiness for the wrong connection. | Cancel subscription generations, use actual open-connection state, bound token/write waits, ignore obsolete callbacks and disconnect pending initial retries. Fault fixtures cover cancellation, late SUBACK/loss and repeat cleanup under the race detector. |
@@ -51,6 +51,11 @@ is metadata-only. Retained data requires a valid reported past time within the
 existing 30-day node-retention window; repeated delivery cannot make it fresh.
 Operators with incorrect bridge clocks should correct them rather than relying
 on old observations being shown as current radio activity.
+
+Optional per-field metadata clocks are stored only in the existing private v1
+checkpoint and never in public API v2. Legacy checkpoints have unknown metadata
+ages; the next explicit observation establishes each field's clock. Activity
+time is not used to invent an age for metadata that a packet did not supply.
 
 ## Qualification and release
 
