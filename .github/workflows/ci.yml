@@ -203,7 +203,7 @@ jobs:
         env:
           CARTOLITE_BASE_URL: http://127.0.0.1:39476
           PLAYWRIGHT_HTML_OUTPUT_DIR: bugfix-playwright-report
-        run: bash ../scripts/browser-ci.sh display-upgrade.spec.ts visual-polish.spec.ts --grep 'switches buildings|Visual polish chronoscope Home' --project desktop --project mobile --project mobile-webkit --retries 0 --output bugfix-test-results
+        run: bash ../scripts/browser-ci.sh display-upgrade.spec.ts visual-polish.spec.ts --grep 'switches buildings|Visual polish chronoscope Home' --project desktop --project mobile --project mobile-webkit --retries 0 --trace retain-on-failure --output bugfix-test-results
       - name: Preserve focused regression evidence
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9

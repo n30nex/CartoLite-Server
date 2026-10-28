@@ -182,11 +182,15 @@ for (const coalesced of [false, true]) test(`switches buildings between desktop 
   await expect(map).toHaveAttribute('data-buildings-loaded', 'true');
   await page.keyboard.press('Escape');
   const size = page.viewportSize()!;
-  await page.setViewportSize({ width: 800, height: 1000 });
-  await expect(map).toHaveAttribute('data-building-extrusions', 'false');
-  await expect(map).toHaveAttribute('data-buildings-visible', 'true');
-  await page.setViewportSize(size);
-  await expect(map).toHaveAttribute('data-building-extrusions', 'true');
+  // Exercise both width and short-landscape breakpoints without depending on
+  // debounced camera restoration or MapLibre canvas notifications.
+  for (const compact of [{ width: 800, height: 1000 }, { width: size.width, height: 500 }]) {
+    await page.setViewportSize(compact);
+    await expect(map).toHaveAttribute('data-building-extrusions', 'false');
+    await expect(map).toHaveAttribute('data-buildings-visible', 'true');
+    await page.setViewportSize(size);
+    await expect(map).toHaveAttribute('data-building-extrusions', 'true');
+  }
 });
 
 test('can disable lingering trails without disabling live packets', async ({ page }, info) => {
