@@ -566,6 +566,9 @@ async function start(): Promise<void> {
       if (resizeTimer !== undefined) window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
         const next = viewClass();
+        // Canvas resize notifications can be coalesced during a quick roundtrip.
+        // Reconcile viewport-dependent building mode even if our class is unchanged.
+        liveMap.setBuildingsVisible(uiPreferences.buildings);
         if (next === activeViewClass) return;
         activeViewClass = next;
         document.documentElement.dataset.viewClass = next;
