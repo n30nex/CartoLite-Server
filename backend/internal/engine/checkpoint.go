@@ -44,6 +44,13 @@ func loadCheckpoint(path string) (map[string]*privateNode, map[string]*privateRo
 		if node.HasCoords && !validCoords(node.Lat, node.Lng) {
 			return nil, nil, fmt.Errorf("checkpoint contains invalid coordinates")
 		}
+		// Older v1 checkpoints omit these clocks. Zero means unknown metadata age;
+		// deriving it from packet activity would discard valid delayed corrections.
+		for _, at := range []int64{node.LabelSeenAt, node.RoleSeenAt, node.CoordsSeenAt} {
+			if at < 0 || (at > 0 && at > node.LastSeen) {
+				return nil, nil, fmt.Errorf("checkpoint contains invalid metadata freshness")
+			}
+		}
 		key := nodeMapKey(node.Region, node.Key)
 		if nodes[key] != nil {
 			return nil, nil, fmt.Errorf("checkpoint contains a duplicate node")

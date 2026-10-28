@@ -114,6 +114,9 @@ type privateNode struct {
 	Lng           float64 `json:"lng"`
 	HasCoords     bool    `json:"hasCoords"`
 	LastSeen      int64   `json:"lastSeen"`
+	LabelSeenAt   int64   `json:"labelSeenAt,omitempty"`
+	RoleSeenAt    int64   `json:"roleSeenAt,omitempty"`
+	CoordsSeenAt  int64   `json:"coordsSeenAt,omitempty"`
 	LastPublished int64   `json:"-"`
 }
 

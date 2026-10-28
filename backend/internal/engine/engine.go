@@ -434,30 +434,45 @@ func (e *Engine) upsertNode(region, key, name, role string, observer bool, lat, 
 	}
 	changed := created
 	topologyChanged := created
-	// Delayed observations may fill missing coordinates or an unknown role, but
-	// must not replace metadata already confirmed by a newer observation.
-	fresh := seenAt >= node.LastSeen
-	if normalized := normalizeRole(role); normalized != "unknown" && node.Role != normalized && (fresh || node.Role == "unknown") {
-		node.Role = normalized
-		changed = true
-		topologyChanged = true
+	// Activity does not confirm metadata omitted from a packet. Keep independent
+	// clocks, including confirmations of unchanged values, for each supplied field.
+	if normalized := normalizeRole(role); normalized != "unknown" && (seenAt >= node.RoleSeenAt || node.Role == "unknown") {
+		if node.Role != normalized {
+			node.Role = normalized
+			changed = true
+			topologyChanged = true
+		}
+		if seenAt > node.RoleSeenAt {
+			node.RoleSeenAt = seenAt
+			changed = true
+		}
 	}
 	if observer && !node.Observer {
 		node.Observer = true
 		changed = true
 		topologyChanged = true
 	}
-	if fresh && strings.TrimSpace(name) != "" {
+	if seenAt >= node.LabelSeenAt && strings.TrimSpace(name) != "" {
 		if label := sanitizeLabel(name, node.Role, node.Observer); label != node.Label {
 			node.Label = label
 			changed = true
 			topologyChanged = true
 		}
+		if seenAt > node.LabelSeenAt {
+			node.LabelSeenAt = seenAt
+			changed = true
+		}
 	}
-	if hasCoords && validCoords(lat, lng) && (!node.HasCoords || (fresh && (node.Lat != lat || node.Lng != lng))) {
-		node.Lat, node.Lng, node.HasCoords = lat, lng, true
-		changed = true
-		topologyChanged = true
+	if hasCoords && validCoords(lat, lng) && (!node.HasCoords || seenAt >= node.CoordsSeenAt) {
+		if !node.HasCoords || node.Lat != lat || node.Lng != lng {
+			node.Lat, node.Lng, node.HasCoords = lat, lng, true
+			changed = true
+			topologyChanged = true
+		}
+		if seenAt > node.CoordsSeenAt {
+			node.CoordsSeenAt = seenAt
+			changed = true
+		}
 	}
 	if seenAt > node.LastSeen {
 		node.LastSeen = seenAt
