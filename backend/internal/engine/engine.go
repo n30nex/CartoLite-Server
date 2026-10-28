@@ -35,6 +35,7 @@ const (
 	routeTrafficHalfLife    = 15 * time.Minute
 	routeVisibilityWindow   = 24 * time.Hour
 	maxRouteTraffic         = 64.0
+	maxIngestBytes          = 8 * 1024 * 1024
 )
 
 var sensitiveLabelPatterns = []*regexp.Regexp{
@@ -63,6 +64,7 @@ type Engine struct {
 	feedWake             chan struct{}
 	desiredFeed          atomic.Bool
 	dropped              atomic.Int64
+	queuedBytes          atomic.Int64
 	seq                  atomic.Uint64
 	checkpointOK         atomic.Bool
 	snapshot             atomic.Value
@@ -149,10 +151,17 @@ func (e *Engine) Submit(message mqtt.Message) bool {
 	if e.stopping {
 		return false
 	}
+	cost := message.QueueBytes()
+	if e.queuedBytes.Add(cost) > maxIngestBytes {
+		e.queuedBytes.Add(-cost)
+		e.dropped.Add(1)
+		return false
+	}
 	select {
 	case e.input <- message:
 		return true
 	default:
+		e.queuedBytes.Add(-cost)
 		e.dropped.Add(1)
 		return false
 	}
@@ -184,6 +193,7 @@ func (e *Engine) Run(ctx context.Context) {
 			e.inputMu.Unlock()
 			for len(e.input) > 0 {
 				message := <-e.input
+				e.queuedBytes.Add(-message.QueueBytes())
 				e.processed.Add(1)
 				if e.process(message) {
 					dirtyCheckpoint = true
@@ -193,6 +203,7 @@ func (e *Engine) Run(ctx context.Context) {
 			e.updateSnapshot(time.Now())
 			return
 		case message := <-e.input:
+			e.queuedBytes.Add(-message.QueueBytes())
 			e.processed.Add(1)
 			if e.process(message) {
 				dirtyCheckpoint = true
@@ -257,6 +268,17 @@ func (e *Engine) OperationalStats() OperationalStats {
 }
 
 func (e *Engine) process(message mqtt.Message) bool {
+	metadataOnly := message.Retained || (message.ReceivedAt > 0 && message.ReportedAt > 0 &&
+		message.ReceivedAt-message.ReportedAt > mqtt.MaxLiveDelay.Milliseconds())
+	if metadataOnly {
+		// Retained and delayed deliveries are metadata backfill, not radio activity. Only
+		// use a reported time within retention; an unknown age stays unknown.
+		if message.ReceivedAt <= 0 || message.ReportedAt <= 0 || message.ReportedAt > message.ReceivedAt ||
+			message.ReceivedAt-message.ReportedAt > nodeRetentionWindow.Milliseconds() {
+			return false
+		}
+		message.HeardAt = message.ReportedAt
+	}
 	if message.Topic.Kind == "status" {
 		lat, lng, ok := mqtt.Coordinates(message.Payload)
 		if !ok {
@@ -270,7 +292,9 @@ func (e *Engine) process(message mqtt.Message) bool {
 	if err != nil {
 		return observerChanged
 	}
-	e.lastPacket = message.HeardAt
+	if !metadataOnly && message.HeardAt > e.lastPacket {
+		e.lastPacket = message.HeardAt
+	}
 	changed := false
 	var source *privateNode
 	if packet.PayloadType == meshcore.PayloadAdvert {
@@ -281,6 +305,9 @@ func (e *Engine) process(message mqtt.Message) bool {
 			}
 			source, changed = e.upsertNode(message.Topic.Region, advert.PublicKey, advert.Name, advert.Role, false, lat, lng, hasCoords, message.HeardAt)
 		}
+	}
+	if metadataOnly {
+		return changed || observerChanged
 	}
 	if source == nil {
 		source = e.sourceNode(message.Topic.Region, packet)
@@ -304,32 +331,10 @@ func (e *Engine) observePublisher(message mqtt.Message) (*privateNode, bool) {
 	if lat, lng, ok := mqtt.Coordinates(message.Payload); ok {
 		return e.upsertNode(message.Topic.Region, key, message.ObserverName, "unknown", true, lat, lng, true, message.HeardAt)
 	}
-	mapKey := nodeMapKey(message.Topic.Region, key)
-	node := e.nodes[mapKey]
-	if node == nil {
+	if e.nodes[nodeMapKey(message.Topic.Region, key)] == nil {
 		return nil, false
 	}
-	changed := false
-	topologyChanged := false
-	if !node.Observer {
-		node.Observer = true
-		changed = true
-		topologyChanged = true
-	}
-	if label := sanitizeLabel(message.ObserverName, node.Role, true); message.ObserverName != "" && label != node.Label {
-		node.Label = label
-		changed = true
-		topologyChanged = true
-	}
-	if message.HeardAt > node.LastSeen {
-		node.LastSeen = message.HeardAt
-		changed = true
-	}
-	representativeChanged := e.selectNodeID(node)
-	if node.HasCoords && (representativeChanged || topologyChanged || shouldPublishFreshness(node, message.HeardAt)) {
-		e.emitNode(node)
-	}
-	return node, changed
+	return e.upsertNode(message.Topic.Region, key, message.ObserverName, "unknown", true, 0, 0, false, message.HeardAt)
 }
 
 func (e *Engine) sourceNode(region string, packet meshcore.Packet) *privateNode {
@@ -429,7 +434,10 @@ func (e *Engine) upsertNode(region, key, name, role string, observer bool, lat, 
 	}
 	changed := created
 	topologyChanged := created
-	if normalized := normalizeRole(role); normalized != "unknown" && node.Role != normalized {
+	// Delayed observations may fill missing coordinates or an unknown role, but
+	// must not replace metadata already confirmed by a newer observation.
+	fresh := seenAt >= node.LastSeen
+	if normalized := normalizeRole(role); normalized != "unknown" && node.Role != normalized && (fresh || node.Role == "unknown") {
 		node.Role = normalized
 		changed = true
 		topologyChanged = true
@@ -439,14 +447,14 @@ func (e *Engine) upsertNode(region, key, name, role string, observer bool, lat, 
 		changed = true
 		topologyChanged = true
 	}
-	if strings.TrimSpace(name) != "" {
+	if fresh && strings.TrimSpace(name) != "" {
 		if label := sanitizeLabel(name, node.Role, node.Observer); label != node.Label {
 			node.Label = label
 			changed = true
 			topologyChanged = true
 		}
 	}
-	if hasCoords && validCoords(lat, lng) && (!node.HasCoords || node.Lat != lat || node.Lng != lng) {
+	if hasCoords && validCoords(lat, lng) && (!node.HasCoords || (fresh && (node.Lat != lat || node.Lng != lng))) {
 		node.Lat, node.Lng, node.HasCoords = lat, lng, true
 		changed = true
 		topologyChanged = true

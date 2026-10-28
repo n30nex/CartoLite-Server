@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -21,8 +20,6 @@ const (
 	PayloadTrace     = 0x09
 	PayloadControl   = 0x0B
 )
-
-var nonHex = regexp.MustCompile(`[^0-9a-fA-F]`)
 
 type Packet struct {
 	RouteType      int
@@ -44,7 +41,7 @@ type Advert struct {
 }
 
 func ParseHex(value string) (Packet, error) {
-	clean := strings.ToUpper(nonHex.ReplaceAllString(strings.TrimSpace(value), ""))
+	clean := cleanHex(value)
 	if clean == "" || len(clean)%2 != 0 {
 		return Packet{}, fmt.Errorf("invalid packet hex")
 	}
@@ -53,6 +50,15 @@ func ParseHex(value string) (Packet, error) {
 		return Packet{}, fmt.Errorf("decode packet: %w", err)
 	}
 	return Parse(raw)
+}
+
+func cleanHex(value string) string {
+	return strings.Map(func(char rune) rune {
+		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F') {
+			return char
+		}
+		return -1
+	}, value)
 }
 
 func Parse(raw []byte) (Packet, error) {

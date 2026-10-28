@@ -14,6 +14,10 @@ import (
 // Bound bridge-envelope parsing and queued state; transport limits belong to the broker.
 const maxMessageBytes = 64 * 1024
 
+// MaxLiveDelay is the envelope-time tolerance for a newly delivered observation.
+// Older dated deliveries can backfill metadata, but are not live radio activity.
+const MaxLiveDelay = 5 * time.Minute
+
 var (
 	regionPattern = regexp.MustCompile(`^[A-Z0-9_-]{1,16}$`)
 	keyPattern    = regexp.MustCompile(`^[0-9A-F]{8,128}$`)
@@ -34,6 +38,15 @@ type Message struct {
 	RSSI         *float64
 	SNR          *float64
 	HeardAt      int64
+	ReceivedAt   int64
+	ReportedAt   int64
+	Retained     bool
+}
+
+// QueueBytes budgets normalized strings plus conservative per-message overhead.
+// Normalize discards unused envelope fields before the message enters the queue.
+func (m Message) QueueBytes() int64 {
+	return 1024 + int64(len(m.RawHex)+len(m.ObserverName)+len(m.ObserverKey)+len(Name(m.Payload)))
 }
 
 func ParseTopic(value string) (Topic, error) {
@@ -67,7 +80,7 @@ func Normalize(topic string, body []byte, receivedAt time.Time) (Message, error)
 	if receivedAt.IsZero() {
 		receivedAt = time.Now()
 	}
-	out := Message{Topic: info, HeardAt: receivedAt.UnixMilli()}
+	out := Message{Topic: info, HeardAt: receivedAt.UnixMilli(), ReceivedAt: receivedAt.UnixMilli()}
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
 		return out, nil
@@ -77,9 +90,8 @@ func Normalize(topic string, body []byte, receivedAt time.Time) (Message, error)
 		out.RawHex = strings.TrimSpace(string(trimmed))
 		return out, nil
 	}
-	out.Payload = payload
 	out.RawHex = firstString(payload, "raw", "packet", "packet_raw", "packetHex", "payloadHex", "payload_hex", "data", "raw_hex")
-	out.ObserverName = firstString(payload, "origin", "observer", "observer_name", "name", "node_name")
+	out.ObserverName = boundedName(firstString(payload, "origin", "observer", "observer_name", "name", "node_name"))
 	out.ObserverKey = strings.ToUpper(firstString(payload, "origin_id", "observer_id", "public_key", "pubkey"))
 	if !validKey(out.ObserverKey) {
 		out.ObserverKey = info.PublisherKey
@@ -87,11 +99,31 @@ func Normalize(topic string, body []byte, receivedAt time.Time) (Message, error)
 	out.RSSI = firstNumber(payload, "RSSI", "rssi", "last_rssi")
 	out.SNR = firstNumber(payload, "SNR", "snr", "last_snr")
 	if parsed := firstTime(payload, "timestamp", "time", "received_at", "heard_at", "ts"); !parsed.IsZero() {
-		if delta := parsed.Sub(receivedAt); delta <= 5*time.Minute && delta >= -5*time.Minute {
-			out.HeardAt = parsed.UnixMilli()
+		// Preserve the envelope's time separately from the live-delivery fallback.
+		// Retained or delayed data must never acquire a fresh age from delivery.
+		out.ReportedAt = parsed.UnixMilli()
+		if out.ReportedAt > 0 && out.ReportedAt <= out.ReceivedAt && out.ReceivedAt-out.ReportedAt <= MaxLiveDelay.Milliseconds() {
+			out.HeardAt = out.ReportedAt
 		}
 	}
+	// Queuing the original arbitrary JSON tree can multiply a small envelope into
+	// many allocations. Only these metadata fields are used by the engine.
+	out.Payload = map[string]any{"name": boundedName(Name(payload)), "role": Role(payload)}
+	if lat, lng, ok := Coordinates(payload); ok {
+		out.Payload["lat"], out.Payload["lng"] = lat, lng
+	}
 	return out, nil
+}
+
+func boundedName(value string) string {
+	count := 0
+	for offset := range value {
+		if count == 256 {
+			return strings.Clone(value[:offset])
+		}
+		count++
+	}
+	return strings.Clone(value)
 }
 
 func Coordinates(payload map[string]any) (float64, float64, bool) {
@@ -114,7 +146,7 @@ func Role(payload map[string]any) string {
 			return value
 		}
 	}
-	if value := firstNumber(payload, "node_type", "nodeType"); value != nil {
+	if value := firstNumber(payload, "node_type", "nodeType"); value != nil && *value == math.Trunc(*value) {
 		switch int(*value) {
 		case 1:
 			return "companion"
