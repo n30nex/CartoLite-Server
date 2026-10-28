@@ -306,6 +306,8 @@ export class LiveMap {
     this.map.on('zoom', this.#updateRouteRepresentation);
     this.map.on('zoomend', this.#handleZoomEnd);
     this.map.on('resize', this.#handleInspectorResize);
+    // Building mode follows the viewport, independently of canvas/camera events.
+    window.addEventListener('resize', this.#handleBuildingResize);
     this.map.getCanvas().addEventListener('webglcontextlost', this.#prepareWebGLContextLoss, true);
     this.map.on('webglcontextlost', this.#handleWebGLContextLost);
     this.map.on('webglcontextrestored', this.#handleWebGLContextRestored);
@@ -944,6 +946,7 @@ export class LiveMap {
     this.map.off('zoom', this.#updateRouteRepresentation);
     this.map.off('zoomend', this.#handleZoomEnd);
     this.map.off('resize', this.#handleInspectorResize);
+    window.removeEventListener('resize', this.#handleBuildingResize);
     this.map.getCanvas().removeEventListener('webglcontextlost', this.#prepareWebGLContextLoss, true);
     this.map.off('webglcontextlost', this.#handleWebGLContextLost);
     this.map.off('webglcontextrestored', this.#handleWebGLContextRestored);
@@ -1826,9 +1829,12 @@ export class LiveMap {
     else this.map.easeTo({ ...camera, duration: 520, essential: false, easeId: 'cartolite-node-selection' });
   }
 
+  #handleBuildingResize = (): void => {
+    this.#updateBuildingLayer();
+  };
+
   #handleInspectorResize = (): void => {
     if(!this.#layersReady)return;
-    this.#updateBuildingLayer();
     if (this.#selectedNodeID) this.#renderNodeInspector(true);
   };
 
