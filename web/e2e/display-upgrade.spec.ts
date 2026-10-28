@@ -161,7 +161,7 @@ test('preserves controllable desktop camera orientation', async ({ page }, info)
   await expect(page.locator('#map-notice')).toBeHidden();
 });
 
-for (const coalesced of [false, true]) test(`switches buildings between desktop extrusions and mobile footprints on resize${coalesced ? ' with coalesced canvas notifications' : ''}`, async ({ page }, info) => {
+for (const shortLandscape of [false, true]) for (const coalesced of [false, true]) test(`switches buildings between desktop extrusions and mobile footprints on resize${shortLandscape ? ' in short landscape' : ''}${coalesced ? ' with coalesced canvas notifications' : ''}`, async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'crosses the desktop breakpoint in both directions');
   await visualFixture(page, 15);
   if (coalesced) await page.addInitScript(() => {
@@ -182,15 +182,12 @@ for (const coalesced of [false, true]) test(`switches buildings between desktop 
   await expect(map).toHaveAttribute('data-buildings-loaded', 'true');
   await page.keyboard.press('Escape');
   const size = page.viewportSize()!;
-  // Exercise both width and short-landscape breakpoints without depending on
-  // debounced camera restoration or MapLibre canvas notifications.
-  for (const compact of [{ width: 800, height: 1000 }, { width: size.width, height: 500 }]) {
-    await page.setViewportSize(compact);
-    await expect(map).toHaveAttribute('data-building-extrusions', 'false');
-    await expect(map).toHaveAttribute('data-buildings-visible', 'true');
-    await page.setViewportSize(size);
-    await expect(map).toHaveAttribute('data-building-extrusions', 'true');
-  }
+  // Each breakpoint keeps its own original test deadline, including setup.
+  await page.setViewportSize(shortLandscape ? { width: size.width, height: 500 } : { width: 800, height: 1000 });
+  await expect(map).toHaveAttribute('data-building-extrusions', 'false');
+  await expect(map).toHaveAttribute('data-buildings-visible', 'true');
+  await page.setViewportSize(size);
+  await expect(map).toHaveAttribute('data-building-extrusions', 'true');
 });
 
 test('can disable lingering trails without disabling live packets', async ({ page }, info) => {
