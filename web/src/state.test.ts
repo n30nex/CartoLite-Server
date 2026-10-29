@@ -28,6 +28,27 @@ describe('sequenceAction', () => {
 });
 
 describe('LiveStore', () => {
+  it('does not partially change history or queue dangling routes for an unresolved packet', () => {
+    vi.useFakeTimers();
+    const original = existingRoute();
+    const store = new LiveStore({ ...initial, routes: [original] });
+    const updates = vi.fn(); store.subscribe(updates);
+    const packet = { seq: 8, id: 'incomplete', at: 200, payloadType: 'Text' as const, mode: 'route' as const,
+      segments: [{ routeId: 'r1', fromId: 'a', toId: 'b' }, { routeId: 'unknown', fromId: 'b', toId: 'missing' }] };
+    expect(store.applyPacket(packet)).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(ROUTE_BATCH_MS);
+    expect(store.snapshot.routes).toEqual([original]);
+    expect(updates).toHaveBeenCalledTimes(1);
+    store.upsertNode({ ...nodes[0]!, id: 'missing' }, 9);
+    expect(updates).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ routeGeometry: [] }));
+    store.applyPacket({ ...packet, seq: 10, segments: [packet.segments[0]!] });
+    vi.advanceTimersByTime(ROUTE_BATCH_MS);
+    expect(store.snapshot.routes).toHaveLength(1);
+    expect(store.snapshot.routes[0]?.packetCount).toBe(original.packetCount + 1);
+    store.destroy(); vi.useRealTimers();
+  });
+
   it('keeps route geometry stable for freshness and label updates, but invalidates a moved endpoint', () => {
     const store = new LiveStore({ ...initial, routes: [existingRoute()] });
     const updates = vi.fn();

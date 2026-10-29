@@ -23,10 +23,10 @@ export function mountGraphFollow(graph: Pick<NetgraphRenderer, 'holdView' | 'sel
     queue.clear();held=false;hold.textContent='Hold';clearActivity();graph.holdView();
     if(scope.value==='node'&&!selected)card.querySelector('[data-detail]')!.textContent='Select a node, then choose Selected node';
   });
-  hold.addEventListener('click',()=>{held=!held;if(held)graph.holdView();queue.setHeld(held,Date.now());hold.textContent=held?'Continue':'Hold';});
+  hold.addEventListener('click',()=>{held=!held;if(held)graph.holdView();queue.setHeld(held,performance.now());hold.textContent=held?'Continue':'Hold';});
   card.querySelector('[data-next]')!.addEventListener('click',()=>{held=false;delete app.dataset.followInspect;queue.next();hold.textContent='Hold';tick();});
-  inspect.addEventListener('click',()=>{const id=current&&followEndpoints(current)[0]?.id;if(id){held=true;app.dataset.followInspect='true';graph.holdView();queue.setHeld(true,Date.now());hold.textContent='Continue';select(id);}});
-  const pause=()=>{if(enabled&&!held){held=true;queue.setHeld(true,Date.now());graph.holdView();hold.textContent='Continue';}};
+  inspect.addEventListener('click',()=>{const id=current&&followEndpoints(current)[0]?.id;if(id){held=true;app.dataset.followInspect='true';graph.holdView();queue.setHeld(true,performance.now());hold.textContent='Continue';select(id);}});
+  const pause=()=>{if(enabled&&!held){held=true;queue.setHeld(true,performance.now());graph.holdView();hold.textContent='Continue';}};
   stage.addEventListener('pointerdown',pause);stage.addEventListener('wheel',pause,{passive:true});stage.addEventListener('keydown',pause);
   stage.addEventListener('graphnavigate',pause);
   const filterChanged=()=>{queue.clear();clearActivity();pause();};
@@ -34,9 +34,9 @@ export function mountGraphFollow(graph: Pick<NetgraphRenderer, 'holdView' | 'sel
   function tick():void {
     if(!enabled||document.hidden)return;
     if(held){card.querySelector('[data-state]')!.textContent='Held · explore freely';return;}
-    const packet=queue.take(Date.now());
+    const packet=queue.take(performance.now());
     if(packet){current=packet;inspect.disabled=false;const summary=followSummary(packet);card.querySelector('[data-title]')!.textContent=summary.title;card.querySelector('[data-detail]')!.textContent=summary.detail;graph.followPacket(packet);}
-    const remaining=queue.remaining(Date.now());if(!remaining&&current)clearActivity();card.querySelector('output')!.value=remaining?`${remaining}s`:'';card.querySelector('progress')!.value=remaining;
+    const remaining=queue.remaining(performance.now());if(!remaining&&current)clearActivity();card.querySelector('output')!.value=remaining?`${remaining}s`:'';card.querySelector('progress')!.value=remaining;
     card.querySelector('[data-state]')!.textContent=remaining?'Next activity in':'Waiting for activity';
   }
   const dismiss=(event:KeyboardEvent)=>{
@@ -45,5 +45,5 @@ export function mountGraphFollow(graph: Pick<NetgraphRenderer, 'holdView' | 'sel
   };
   document.addEventListener('keydown',dismiss);
   const timer=window.setInterval(tick,250);
-  return {offer(packet:PacketView){if(!enabled)return;const points=followEndpoints(packet);if(!points.every(p=>graph.nodeInRegions(p.id)))return;if(matches && (scope.value==='node'?!points.some(p=>matches!(p.id)):!points.every(p=>matches!(p.id))))return;const nearby=points.some(point=>{const p=graph.projectEndpoint(point);return p.x>=0&&p.x<=stage.clientWidth&&p.y>=0&&p.y<=stage.clientHeight;});queue.offer(packet,nearby?2:0,Date.now());tick();},destroy(){clearInterval(timer);document.removeEventListener('keydown',dismiss);stage.removeEventListener('pointerdown',pause);stage.removeEventListener('wheel',pause);stage.removeEventListener('keydown',pause);stage.removeEventListener('graphnavigate',pause);stage.removeEventListener('graphfilter',filterChanged);card.remove();button.remove();}};
+  return {offer(packet:PacketView){if(!enabled)return;const points=followEndpoints(packet);if(!points.every(p=>graph.nodeInRegions(p.id)))return;if(matches && (scope.value==='node'?!points.some(p=>matches!(p.id)):!points.every(p=>matches!(p.id))))return;const nearby=points.some(point=>{const p=graph.projectEndpoint(point);return p.x>=0&&p.x<=stage.clientWidth&&p.y>=0&&p.y<=stage.clientHeight;});queue.offer(packet,nearby?2:0,performance.now());tick();},destroy(){clearInterval(timer);document.removeEventListener('keydown',dismiss);stage.removeEventListener('pointerdown',pause);stage.removeEventListener('wheel',pause);stage.removeEventListener('keydown',pause);stage.removeEventListener('graphnavigate',pause);stage.removeEventListener('graphfilter',filterChanged);card.remove();button.remove();}};
 }

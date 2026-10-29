@@ -1,3 +1,4 @@
+import { trafficNow } from '../clock';
 import './styles.css';
 import '../networkControls.css';
 import { required } from '../dom';
@@ -114,7 +115,7 @@ function selectNode(id: string | null) {
 }
 function renderNodeDetails(id: string): boolean {
   if(!renderer||!store)return false;
-  const model=buildNodeInspectorModel(id,renderer.nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return false;}
+  const model=buildNodeInspectorModel(id,renderer.nodes,store.snapshot.routes,trafficNow(),15*60_000);if(!model){inspector.hidden=true;return false;}
   replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:next=>selectNode(next)}));
   const links=document.createElement('div');links.className='chrono-links';for(const [label,path]of [['Open Map','/'],['Open Netgraph','/netgraph/']]as const){const a=document.createElement('a');a.textContent=label;a.href=`${path}?node=${encodeURIComponent(id)}`;links.append(a);}inspector.append(links);
   inspector.setAttribute('aria-label','Selected node details');inspector.hidden=false;return true;

@@ -174,3 +174,24 @@ test('Netgraph Follow holds ten seconds, filters a selected node and waits hones
   await card.getByLabel('Follow scope').focus();await page.keyboard.press('Escape');
   await expect(card).toBeHidden();
 });
+
+
+for (const path of ['/', '/netgraph/']) test(`Follow dwell ignores wall-clock corrections ${path}`, async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Elapsed-time behaviour is shared; phone controls have their own journeys');
+  await visualFixture(page); await page.emulateMedia({ reducedMotion: 'reduce' });
+  const now = Date.now(); await page.clock.setFixedTime(new Date(now));
+  await page.goto(path);
+  await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
+  await page.locator('#follow-button').click();
+  await visualPacket(page, 1, 'Text');
+  const card = page.locator('#follow-card');
+  await expect(card).toContainText('Text');
+  await visualPacket(page, 2, 'Advert');
+  await page.clock.setFixedTime(new Date(now + 86_400_000));
+  await expect.poll(async () => Number.parseInt(await card.locator('output').innerText())).toBeLessThan(10);
+  await expect(card).toContainText('Text');
+  await expect.poll(async () => Number.parseInt(await card.locator('output').innerText())).toBeGreaterThan(5);
+  await page.clock.setFixedTime(new Date(now - 86_400_000));
+  await card.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(card).toContainText('Advert');
+});

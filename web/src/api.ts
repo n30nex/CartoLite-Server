@@ -1,4 +1,5 @@
-import { assertStateV2, sequenceAction } from './state';
+import { syncTrafficClock } from './clock';
+import { assertStateV2, sequenceAction, validNode, validPacket, validStatus } from './state';
 import type {
   HelloV2,
   NodeEventV2,
@@ -9,6 +10,7 @@ import type {
 } from './types';
 
 export async function fetchState(signal?: AbortSignal): Promise<StateV2> {
+  const requested = performance.now();
   const controller = new AbortController();
   const cancel = (): void => controller.abort(signal?.reason);
   if (signal?.aborted) cancel();
@@ -22,8 +24,11 @@ export async function fetchState(signal?: AbortSignal): Promise<StateV2> {
       signal: controller.signal
     });
     if (!response.ok) throw new Error(`state request failed (${response.status})`);
+    const received = performance.now();
     const body: unknown = await response.json();
     assertStateV2(body);
+    if (controller.signal.aborted) throw controller.signal.reason;
+    syncTrafficClock(response.headers.get('Date'), received, requested);
     return body;
   } finally {
     window.clearTimeout(timeout);
@@ -112,13 +117,13 @@ export class LiveFeed {
     };
     source.addEventListener('hello', (event) => { if (current()) this.#handleHello(event); });
     source.addEventListener('node', (event) => {
-      if (current()) this.handleSequenced<NodeEventV2>(event, this.#handlers.onNode);
+      if (current()) this.handleSequenced<NodeEventV2>(event, this.#handlers.onNode, event => validNode(event.node));
     });
     source.addEventListener('packet', (event) => {
-      if (current()) this.handleSequenced<PacketEventV2>(event, packet => this.#handlers.onPacket(packet, packet.seq <= this.#replayThrough));
+      if (current()) this.handleSequenced<PacketEventV2>(event, packet => this.#handlers.onPacket(packet, packet.seq <= this.#replayThrough), validPacket);
     });
     source.addEventListener('status', (event) => {
-      if (current()) this.handleSequenced<StatusEventV2>(event, this.#handlers.onStatus);
+      if (current()) this.handleSequenced<StatusEventV2>(event, this.#handlers.onStatus, event => validStatus(event.status));
     });
     source.addEventListener('reset', (event) => { if (current()) this.#handleReset(event); });
   }
@@ -133,7 +138,7 @@ export class LiveFeed {
   #handleHello(raw: Event): void {
     try {
       const hello = parseEvent<HelloV2>(raw);
-      if (!Number.isSafeInteger(hello.seq) || hello.seq < 0 || typeof hello.bootId !== 'string' || !hello.bootId) {
+      if (!hello || !Number.isSafeInteger(hello.seq) || hello.seq < 0 || typeof hello.bootId !== 'string' || !hello.bootId) {
         throw new Error('invalid stream hello');
       }
       if (hello.bootId !== this.#bootId) {
@@ -151,6 +156,8 @@ export class LiveFeed {
   #handleReset(raw: Event): void {
     try {
       const reset = parseEvent<ResetV2>(raw);
+      if (!reset || !Number.isSafeInteger(reset.seq) || reset.seq < 0
+        || typeof reset.bootId !== 'string' || !reset.bootId) throw new Error('invalid stream reset');
       if (reset.bootId !== this.#bootId || reset.seq >= this.#seq) void this.#requestRecovery();
     } catch (error) {
       this.#report(error);
@@ -158,9 +165,12 @@ export class LiveFeed {
     }
   }
 
-  private handleSequenced<T extends { seq: number }>(raw: Event, apply: (event: T) => void): void {
+  private handleSequenced<T extends { seq: number }>(raw: Event, apply: (event: T) => void, valid: (event: T) => boolean): void {
     try {
       const event = parseEvent<T>(raw);
+      if (!event || !Number.isSafeInteger(event.seq) || event.seq < 1 || !valid(event)) {
+        throw new Error('invalid live event');
+      }
       const action = sequenceAction(this.#seq, event.seq);
       if (action === 'duplicate') return;
       if (action === 'gap') {

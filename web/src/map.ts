@@ -1,3 +1,4 @@
+import { trafficNow } from './clock';
 import { followViewport } from './cinematicChrome';
 import { prefersReducedMotion as displayReducedMotion } from './displayPreferences';
 import { rememberNode, replaceInspector } from './selection';
@@ -368,7 +369,7 @@ export class LiveMap {
   }
 
   #resetSources(state: Readonly<StateV2>): void {
-    const now = Date.now();
+    const now = trafficNow();
     this.#nodesByID = new Map(state.nodes.map((node) => [node.id, node]));
     this.#routesByID = new Map(state.routes.map((route) => [route.id, route]));
     this.#rebuildRouteIndex();
@@ -393,7 +394,7 @@ export class LiveMap {
   }
 
   #updateNodeFeatures(ids: readonly string[]): boolean {
-    const now = Date.now();
+    const now = trafficNow();
     const features = new Map<string, Feature<Point> | undefined>();
     for (const id of new Set(ids)) {
       const node = this.#nodesByID.get(id);
@@ -404,7 +405,7 @@ export class LiveMap {
     return nodesChanged || clustersChanged;
   }
 
-  #hydrateRouteSource(now = Date.now()): void {
+  #hydrateRouteSource(now = trafficNow()): void {
     const detailSource = this.map.getSource(ROUTE_DETAIL_SOURCE_ID) as GeoJSONSource | undefined;
     if (!detailSource) return;
     if (this.#routeHydrationTimer !== undefined) {
@@ -521,7 +522,7 @@ export class LiveMap {
     }, delay);
   }
 
-  #rebuildHeatIndex(now = Date.now()): void {
+  #rebuildHeatIndex(now = trafficNow()): void {
     this.#heatEpoch = now;
     this.#heatScores.clear();
     this.#heatKindScores.clear();
@@ -623,7 +624,7 @@ export class LiveMap {
 
   home(nodes: readonly NodeV2[], animate = true): void {
     this.#lastFollowMoveAt = 0;
-    const now = Date.now();
+    const now = trafficNow();
     const active = nodes.filter((node) => validEndpoint(node) && Math.max(0, now - node.lastSeen) <= ACTIVE_NODE_WINDOW_MS);
     const visible = active.length > 0 ? active : nodes.filter(validEndpoint);
     if (visible.length === 0) {
@@ -648,7 +649,7 @@ export class LiveMap {
     return false;
   }
 
-  hasCurrentActivity(nodes: readonly NodeV2[], now = Date.now()): boolean {
+  hasCurrentActivity(nodes: readonly NodeV2[], now = trafficNow()): boolean {
     const bounds = this.map.getBounds();
     return nodes.some((node) => validEndpoint(node)
       && Math.max(0, now - node.lastSeen) <= ACTIVE_NODE_WINDOW_MS
@@ -671,7 +672,7 @@ export class LiveMap {
       return p.x>=visible.left&&p.x<=visible.right&&p.y>=visible.top&&p.y<=visible.bottom;
     });
     if (inside) return false;
-    const now = Date.now();
+    const now = trafficNow();
     if (!canMoveLiveFollow(this.#lastFollowMoveAt, now)) return false;
     this.#lastFollowMoveAt = now;
     this.container.dataset.cameraMode = 'director';
@@ -1047,7 +1048,7 @@ export class LiveMap {
 
   #refreshRouteClock(): void {
     if (document.hidden || !this.#layersReady) return;
-    const now = Date.now();
+    const now = trafficNow();
     this.#refreshRouteAgeBands(now);
     this.#applyRouteTimeState(now, true);
     if (this.#selectedNodeID) {
@@ -1075,7 +1076,7 @@ export class LiveMap {
     if (!this.#routeHydrating && this.map.getSource(ROUTE_DETAIL_SOURCE_ID)) this.#hydrateRouteSource(now);
   }
 
-  #applyRouteTimeState(now = Date.now(), refreshClock = false): void {
+  #applyRouteTimeState(now = trafficNow(), refreshClock = false): void {
     const maxAge = this.#effectiveRouteAgeMS();
     if (refreshClock || this.#routeClock === 0) this.#routeClock = now;
     this.#historicalRouteLayer.setMaximumBand(routeWindowBand(maxAge));
@@ -1117,7 +1118,7 @@ export class LiveMap {
     }));
     this.map.addSource(ROUTE_DETAIL_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
     this.map.addSource(ROUTE_FOCUS_SOURCE_ID, { type: 'geojson', data: EMPTY_LINES, maxzoom: 16 });
-    this.#applyRouteTimeState(Date.now(), true);
+    this.#applyRouteTimeState(trafficNow(), true);
     const exactVisibility = this.routesVisible && this.#selectedNodeID !== null ? 'visible' : 'none';
     this.#historicalRouteLayer.setVisible(this.routesVisible);
     this.#historicalRouteLayer.setMaximumBand(routeWindowBand(this.#effectiveRouteAgeMS()));
@@ -1536,7 +1537,7 @@ export class LiveMap {
   }
 
   #updateFocusData(): void {
-    const now = Date.now();
+    const now = trafficNow();
     const maxAge = this.#effectiveRouteAgeMS();
     const routes = this.#adjacentRoutes(this.#selectedNodeID).filter((route) => isRecentNeighborRoute(route, now, maxAge));
     this.#neighborNodeIDs = neighborNodeIDs(routes, this.#selectedNodeID);
@@ -1714,7 +1715,7 @@ export class LiveMap {
     const route = this.#routesByID.get(routeID);
     return Boolean(route
       && (route.fromId === this.#selectedNodeID || route.toId === this.#selectedNodeID)
-      && isRecentNeighborRoute(route, Date.now(), this.#effectiveRouteAgeMS()));
+      && isRecentNeighborRoute(route, trafficNow(), this.#effectiveRouteAgeMS()));
   }
 
   #renderNodeInspector(force = false): void {
@@ -1727,7 +1728,7 @@ export class LiveMap {
       this.#selectedNodeID,
       this.#nodesByID,
       this.#adjacentRoutes(this.#selectedNodeID),
-      Date.now(),
+      trafficNow(),
       this.#effectiveRouteAgeMS(),
     );
     if (!model) {
@@ -2104,7 +2105,7 @@ export function isRouteInspectable(
   routes: readonly RouteV2[],
   selectedNodeID: string | null,
   routeID: string | null,
-  now = Date.now(),
+  now = trafficNow(),
   maxAge = ROUTE_MAX_AGE_MS
 ): boolean {
   if (!routeID) return false;
@@ -2287,7 +2288,7 @@ export function mapGlyphLabel(label: string): string {
   return safe || 'MeshCore node';
 }
 
-function nodeCollection(nodes: readonly NodeV2[], now = Date.now()): FeatureCollection<Point> {
+function nodeCollection(nodes: readonly NodeV2[], now = trafficNow()): FeatureCollection<Point> {
   return {
     type: 'FeatureCollection',
     features: nodes.filter(validEndpoint).map((node) => nodeFeature(node, now))
@@ -2316,7 +2317,7 @@ function nodeFeature(node: NodeV2, now: number): Feature<Point> {
 export function activityHeatCollection(
   routes: readonly RouteV2[],
   nodes: ReadonlyMap<string, NodeV2>,
-  now = Date.now()
+  now = trafficNow()
 ): FeatureCollection<Point> {
   const scores = new Map<string, number>();
   const kindScores = new Map<string, Map<PacketKind, number>>();
@@ -2402,7 +2403,7 @@ export function dominantHeatKind(scores: ReadonlyMap<PacketKind, number> | undef
 
 export function routeRenderCandidates(
   routes: readonly RouteV2[],
-  now = Date.now(),
+  now = trafficNow(),
   maxAge = ROUTE_MAX_AGE_MS
 ): RouteV2[] {
   return routes
@@ -2413,7 +2414,7 @@ export function routeRenderCandidates(
 export function routeVisualCollection(
   routes: readonly RouteV2[],
   nodes: ReadonlyMap<string, NodeV2>,
-  now = Date.now(),
+  now = trafficNow(),
   maxAge = ROUTE_MAX_AGE_MS,
   trafficBaseline = routeTrafficBaseline(routes, now)
 ): FeatureCollection<LineString> {
@@ -2431,7 +2432,7 @@ export function routeVisualCollection(
 export function routeCollection(
   routes: readonly RouteV2[],
   nodes: ReadonlyMap<string, NodeV2>,
-  now = Date.now(),
+  now = trafficNow(),
   maxAge = ROUTE_MAX_AGE_MS,
   trafficBaseline = routeTrafficBaseline(routes, now)
 ): FeatureCollection<LineString> {
