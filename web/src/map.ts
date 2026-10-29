@@ -672,7 +672,7 @@ export class LiveMap {
       return p.x>=visible.left&&p.x<=visible.right&&p.y>=visible.top&&p.y<=visible.bottom;
     });
     if (inside) return false;
-    const now = trafficNow();
+    const now = performance.now();
     if (!canMoveLiveFollow(this.#lastFollowMoveAt, now)) return false;
     this.#lastFollowMoveAt = now;
     this.container.dataset.cameraMode = 'director';
