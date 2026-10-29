@@ -124,6 +124,31 @@ describe('LiveFeed recovery', () => {
     feed.stop();
   });
 
+  it.each([
+    ['node coordinates', 'node', { seq: 8, node: { id: 'bad', label: 'Bad', lat: null, lng: 0, role: 'repeater', observer: false, lastSeen: 1 } }],
+    ['node role', 'node', { seq: 8, node: { id: 'bad', label: 'Bad', lat: 43, lng: -80, role: 'invalid', observer: false, lastSeen: 1 } }],
+    ['packet kind', 'packet', { ...observerPacket(8), payloadType: 'decoded text' }],
+    ['observer position', 'packet', { ...observerPacket(8), observer: { id: 'bad', label: 'Bad', lat: 999, lng: 0 } }],
+    ['partial segment', 'packet', { seq: 8, id: 'bad', at: 1, payloadType: 'Text', mode: 'route', segments: [{ routeId: 'r', fromId: 'a' }] }],
+    ['status', 'status', { seq: 8, status: { ...initial.status, activity: 'unknown' } }],
+    ['sequence', 'packet', { ...observerPacket(8), seq: '8' }],
+    ['reset cursor', 'reset', { bootId: initial.bootId, seq: 'invalid' }],
+  ])('recovers malformed %s before applying it', async (_label, kind, event) => {
+    const callbacks = handlers({ recover: vi.fn(async () => ({ ...initial, seq: 50 })) });
+    const feed = new LiveFeed(initial, callbacks); feed.start();
+    const source = MockEventSource.instances[0]!;
+    source.send(kind as string, event);
+    expect(source.closed).toBe(true);
+    expect(callbacks.onNode).not.toHaveBeenCalled();
+    expect(callbacks.onPacket).not.toHaveBeenCalled();
+    expect(callbacks.onStatus).not.toHaveBeenCalled();
+    await settle();
+    expect(callbacks.onError).toHaveBeenCalledTimes(1);
+    expect(callbacks.recover).toHaveBeenCalledTimes(1);
+    expect(MockEventSource.instances[1]?.url).toBe('/api/events?bootId=boot-a&after=50');
+    feed.stop();
+  });
+
   it('closes the stream during recovery, ignores stale events, and reconnects from the snapshot cursor', async () => {
     let resolveRecovery!: (state: StateV2) => void;
     const snapshot = { ...initial, bootId: 'boot-b', seq: 20 };
@@ -304,7 +329,7 @@ describe('state request deadlines', () => {
 
   it('preserves caller cancellation and clears the deadline after success', async () => {
     vi.useFakeTimers();
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => initial });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), json: async () => initial });
     vi.stubGlobal('fetch', fetchMock);
     expect(await fetchState()).toEqual(initial);
     expect(vi.getTimerCount()).toBe(0);

@@ -21,8 +21,8 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/n30nex/cartolite-server
-  # Exact published 0.12.5, in addition to the legacy 0.4.1 source migration below.
-  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:a7363f512e858a19c966403b8000fad9ce7b685c6fe3c4049a2fd2e4e80edfb0
+  # Exact published 0.12.6, in addition to the legacy 0.4.1 source migration below.
+  UPGRADE_FROM_IMAGE: ghcr.io/n30nex/cartolite-server@sha256:2bbb2d25956a15297935ae524757ec2964f53bfc76b47085d942057f33888405
 
 jobs:
   refresh-lockfiles:
@@ -197,22 +197,21 @@ jobs:
           bash scripts/publish-fixture.sh cartolite-server-mqtt testdata/synthetic-live.ndjson
           bash scripts/integration-smoke.sh http://127.0.0.1:39476 artifacts/integration cartolite-server-mqtt
           bash scripts/performance-smoke.sh http://127.0.0.1:39476 cartolite-server-mqtt
-      - name: Focused bug-fix regressions before the full browser suites
+      - name: UI audit and recovery regressions
         if: matrix.arch == 'amd64'
         working-directory: web
         env:
-          CARTOLITE_BASE_URL: http://127.0.0.1:39476
-          PLAYWRIGHT_HTML_OUTPUT_DIR: bugfix-playwright-report
-        run: bash ../scripts/browser-ci.sh display-upgrade.spec.ts visual-polish.spec.ts --grep 'switches buildings|Visual polish chronoscope Home' --project desktop --project mobile --project mobile-webkit --retries 0 --trace retain-on-failure --output bugfix-test-results
-      - name: Preserve focused regression evidence
+          PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
+        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
+      - name: Preserve UI audit screenshots for early review
         if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cartolite-server-bugfix-review
-          path: |
-            web/bugfix-test-results/
-            web/bugfix-playwright-report/
+          name: cartolite-server-ui-audit
           retention-days: 30
+          path: |
+            web/ux-audit-test-results/
+            web/ux-audit-playwright-report/
       - name: Terrain controls and saved preferences before the full browser suite
         if: matrix.arch == 'amd64'
         working-directory: web
@@ -282,21 +281,6 @@ jobs:
           path: |
             web/chrono-test-results/
             web/chrono-playwright-report/
-      - name: UI audit and recovery regressions
-        if: matrix.arch == 'amd64'
-        working-directory: web
-        env:
-          PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
-        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
-      - name: Preserve UI audit screenshots for early review
-        if: always() && matrix.arch == 'amd64'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: cartolite-server-ui-audit
-          retention-days: 30
-          path: |
-            web/ux-audit-test-results/
-            web/ux-audit-playwright-report/
       - name: Pachinko physics, type buckets and responsive drawing
         if: matrix.arch == 'amd64'
         working-directory: web

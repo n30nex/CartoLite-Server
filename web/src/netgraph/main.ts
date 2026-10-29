@@ -1,3 +1,4 @@
+import { trafficNow } from '../clock';
 import { required } from '../dom';
 import { requestScreenAwake, releaseScreenAwake } from '../screenAwake';
 import { updateSoundChrome as updateSound } from '../soundControls';
@@ -160,7 +161,7 @@ async function start(): Promise<void> {
         selectedNodeID,
         graph.getNodes(),
         graph.adjacentRoutes(selectedNodeID),
-        Date.now(),
+        trafficNow(),
         graph.getRouteWindowMS(),
       );
       if (!model) {

@@ -8,7 +8,7 @@ import type {
   StateV2,
   StatusV2
 } from './types';
-import { normalizePacketKind, routeTrafficAfterPacket } from './trafficVisuals';
+import { PACKET_KINDS, normalizePacketKind, routeTrafficAfterPacket } from './trafficVisuals';
 
 export const ROUTE_BATCH_MS = 1_000;
 
@@ -107,7 +107,15 @@ export class LiveStore {
     this.advance(packet.seq);
     if (packet.mode === 'observer') return packet;
 
+    // Resolve every endpoint before touching route counts or scheduling a batch.
+    // An incomplete packet must not leave a partial or dangling connection.
     const resolved: RouteSegmentView[] = [];
+    for (const segment of packet.segments) {
+      const from = this.#nodeByID(segment.fromId);
+      const to = this.#nodeByID(segment.toId);
+      if (!from || !to) return null;
+      resolved.push({ routeId: segment.routeId, from: endpoint(from), to: endpoint(to) });
+    }
     for (const segment of packet.segments) {
       const existing = this.#pendingRoutes.get(segment.routeId) ?? this.#routeByID(segment.routeId);
       const packetCount = (existing?.packetCount ?? 0) + 1;
@@ -123,11 +131,7 @@ export class LiveStore {
         lastKind: isNewest ? normalizePacketKind(packet.payloadType) : existing?.lastKind ?? 'Other',
         traffic: routeTrafficAfterPacket(existing?.traffic ?? 0, previousLastHeard, packet.at)
       });
-      const from = this.#nodeByID(segment.fromId);
-      const to = this.#nodeByID(segment.toId);
-      if (from && to) resolved.push({ routeId: segment.routeId, from: endpoint(from), to: endpoint(to) });
     }
-    if (resolved.length !== packet.segments.length) return null;
     return { ...packet, segments: resolved };
   }
 
@@ -230,17 +234,28 @@ function routeIntensity(packetCount: number): RouteV2['intensity'] {
   return 0;
 }
 
-function validNode(node: NodeV2): boolean {
-  return typeof node?.id === 'string'
-    && node.id.length > 0
-    && typeof node.label === 'string'
+function validEndpoint(point: EndpointV2): boolean {
+  return typeof point?.id === 'string' && point.id.length > 0
+    && typeof point.label === 'string'
+    && Number.isFinite(point.lat) && Math.abs(point.lat) <= 90
+    && Number.isFinite(point.lng) && Math.abs(point.lng) <= 180;
+}
+
+export function validNode(node: NodeV2): boolean {
+  return validEndpoint(node)
     && ['repeater', 'companion', 'room_server', 'sensor', 'unknown'].includes(node.role)
     && typeof node.observer === 'boolean'
-    && Number.isFinite(node.lat)
-    && Number.isFinite(node.lng)
-    && Math.abs(node.lat) <= 90
-    && Math.abs(node.lng) <= 180
     && Number.isFinite(node.lastSeen);
+}
+
+export function validPacket(packet: PacketEventV2): boolean {
+  if (typeof packet?.id !== 'string' || !packet.id || !Number.isFinite(packet.at)
+    || !PACKET_KINDS.includes(packet.payloadType)) return false;
+  if (packet.mode === 'observer') return validEndpoint(packet.observer);
+  return packet.mode === 'route' && Array.isArray(packet.segments) && packet.segments.length > 0
+    && packet.segments.every(segment => typeof segment?.routeId === 'string' && !!segment.routeId
+      && typeof segment.fromId === 'string' && !!segment.fromId
+      && typeof segment.toId === 'string' && !!segment.toId);
 }
 
 function validRoute(route: RouteV2): boolean {
@@ -256,14 +271,14 @@ function validRoute(route: RouteV2): boolean {
     && Number.isSafeInteger(route.intensity)
     && route.intensity >= 0
     && route.intensity <= 4
-    && ['Advert', 'Trace', 'Text', 'ACK', 'Control', 'Other'].includes(route.lastKind)
+    && PACKET_KINDS.includes(route.lastKind)
     && Number.isFinite(route.traffic)
     && route.traffic >= 0
     && route.traffic <= 64;
 }
 
-function validStatus(status: StatusV2): boolean {
-  return (status.feed === 'connected' || status.feed === 'disconnected')
+export function validStatus(status: StatusV2): boolean {
+  return (status?.feed === 'connected' || status?.feed === 'disconnected')
     && (status.activity === 'active' || status.activity === 'quiet')
     && (status.lastPacketAt === undefined || Number.isFinite(status.lastPacketAt))
     && Number.isSafeInteger(status.dropped)

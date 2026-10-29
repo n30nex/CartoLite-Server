@@ -1,3 +1,4 @@
+import { trafficNow } from './clock';
 import { isRecentNeighborRoute } from './routeFocus';
 import type { NodeRole, NodeV2, RouteV2 } from './types';
 import type { PacketKind } from './trafficVisuals';
@@ -90,7 +91,7 @@ export function observationTotal(count: number): string {
   return `${total.toLocaleString()} total ${total === 1 ? 'observation' : 'observations'}`;
 }
 
-export function relativeTime(timestamp: number, now = Date.now()): string {
+export function relativeTime(timestamp: number, now = trafficNow()): string {
   const seconds = Math.max(0, Math.floor((now - timestamp) / 1_000));
   if (seconds < 60) return 'now';
   if (seconds < 3_600) return `${Math.floor(seconds / 60)}m ago`;
@@ -115,7 +116,7 @@ export function createNodeInspectorContent(
     onInspectConnection?: (nodeID: string) => void;
   },
 ): HTMLElement {
-  const now = options.now ?? Date.now();
+  const now = options.now ?? trafficNow();
   const root = ownerDocument.createElement('section');
   root.className = 'node-inspector';
   root.dataset.nodeId = model.node.id;

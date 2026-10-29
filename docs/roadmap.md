@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Browser reliability (0.12.7)
+
+[Bug-fix pass](bugfix-pass-2026-10-29.md): server-aligned data age, stable Follow timing, live-event validation and atomic route updates. Canada also decouples Netgraph from optional region downloads and preserves recent Labs metrics. Qualification and deployment are recorded in release evidence.
+
 ## System bug fixes (0.12.6)
 
 [End-to-end bug-fix audit](system-bugfix-audit-2026-10-27.md): retained/stale observation semantics, metadata freshness, bounded ingest memory, exact role validation, MQTT lifecycle and Canada region-worker recovery. Qualification and deployment are tracked in the release evidence.

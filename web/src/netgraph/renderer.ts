@@ -1,3 +1,4 @@
+import { trafficNow } from '../clock';
 import { arrangeRegions, loadRegionLayout, regionComponents, regionOffsetLimit, saveRegionLayout } from './regionLayout';
 import { followViewport } from '../cinematicChrome';
 import { surfaceArc, surfaceTrail, traceSurfacePath, type SurfacePoint } from '../terrainProjection';
@@ -284,7 +285,7 @@ export class NetgraphRenderer implements ViewportProjector {
         this.#nodesByID.set(node.id, node);
         this.#coordinateNodeIDs.set(coordinateKey(node.lng, node.lat), node.id);
       }
-      const now = Date.now();
+      const now = trafficNow();
       const cutoff = now - netgraphWindowMS(this.#routeWindow);
       for (const route of changes.routes ?? []) {
         const previous = this.#routesByID.get(route.id);
@@ -316,7 +317,7 @@ export class NetgraphRenderer implements ViewportProjector {
     }
 
     if (changes.reset || changes.routes?.length) {
-      this.#visibleRoutes = this.#routesInRegions(routesInWindow(state.routes, Date.now(), this.#routeWindow));
+      this.#visibleRoutes = this.#routesInRegions(routesInWindow(state.routes, trafficNow(), this.#routeWindow));
       this.#visibleRouteIDs = new Set(this.#visibleRoutes.map((route) => route.id));
     }
     this.#stage.dataset.totalNodes = String(state.nodes.length);
@@ -338,7 +339,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#stage.dataset.routeWindowApplyMs = (performance.now() - started).toFixed(1);
   }
 
-  refreshRouteWindow(now = Date.now()): boolean {
+  refreshRouteWindow(now = trafficNow()): boolean {
     const nextRoutes = this.#routesInRegions(routesInWindow([...this.#routesByID.values()], now, this.#routeWindow));
     const nextIDs = new Set(nextRoutes.map((route) => route.id));
     const changed = nextIDs.size !== this.#visibleRouteIDs.size
@@ -902,7 +903,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #drawRoutes(context: CanvasRenderingContext2D): void {
-    const now = Date.now();
+    const now = trafficNow();
     const detail = displayPreferences().detail === 'complete' || this.#visibleRoutes.length < 2000;
     const selected = this.#selectedNodeID;
     const selectedRoutes = new Set(selected ? this.#adjacentRouteIDs.get(selected) : []);

@@ -1,3 +1,4 @@
+import { trafficNow } from './clock';
 import type { RouteV2 } from './types';
 
 export const NEIGHBOR_ROUTE_RECENT_MS = 24 * 60 * 60_000;
@@ -5,7 +6,7 @@ export const NEIGHBOR_ROUTE_RECENT_MS = 24 * 60 * 60_000;
 export function recentNeighborRoutes(
   routes: readonly RouteV2[],
   selectedNodeID: string | null,
-  now = Date.now(),
+  now = trafficNow(),
   maxAge = NEIGHBOR_ROUTE_RECENT_MS
 ): RouteV2[] {
   if (!selectedNodeID) return [];

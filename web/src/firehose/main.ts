@@ -1,3 +1,4 @@
+import { trafficNow } from '../clock';
 import './styles.css';
 import '../networkControls.css';
 import { required } from '../dom';
@@ -61,7 +62,7 @@ function pause(){const value=scenePaused||document.hidden||!renderer?.graphicsRe
 function resumeMotion(){scenePaused=false;pause();}
 function selectNode(id:string|null){
  selectedNode=id;selectedPacket=null;rememberNode(id);renderer?.highlight([]);if(!id||!store){inspector.hidden=true;return;}
- const nodes=new Map(store.snapshot.nodes.map(n=>[n.id,n]));const model=buildNodeInspectorModel(id,nodes,store.snapshot.routes,Date.now(),15*60_000);if(!model){inspector.hidden=true;return;}
+ const nodes=new Map(store.snapshot.nodes.map(n=>[n.id,n]));const model=buildNodeInspectorModel(id,nodes,store.snapshot.routes,trafficNow(),15*60_000);if(!model){inspector.hidden=true;return;}
  replaceInspector(inspector,createNodeInspectorContent(document,model,{windowLabel:'15 min',onClose:()=>selectNode(null),onSelectNeighbor:selectNode}));
  const slots:number[]=[];for(const event of events.values()){if(pachinko){if(event.shape.nodes.includes(id))slots.push(event.slots[0]!);}else event.shape.nodes.forEach((node,i)=>{if(node===id)slots.push(event.slots[i]!);});}renderer?.highlight(slots);
  const p=document.createElement('p');p.className='firehose-selection-note';p.textContent=slots.length?`${slots.length} ${pachinko?'packets involving':'particles from'} this node are in this session's ${pachinko?'machine':'pile'}.`:'No dot from this node is in this session’s pile yet.';inspector.append(p);

@@ -3,6 +3,46 @@ import { visualFixture, visualPacket } from './visualFixtures';
 import { graphFilters, graphFocus, graphRoutes, openDisplay, viewTool } from './dockControls';
 import type { StateV2 } from '../src/types';
 
+
+for (const path of ['/', '/terminal/', '/netgraph/', '/chronoscope/', '/firehose/', '/pachinko/']) {
+  test(`server time keeps traffic and inspection readable after device clock changes ${path}`, async ({ page }) => {
+    const snapshot = await visualFixture(page);
+    const now = Math.floor(Date.now() / 1000) * 1000;
+    snapshot.serverTime = now;
+    snapshot.nodes = snapshot.nodes.map(node => ({ ...node, lastSeen: now - 120_000 }));
+    snapshot.routes = snapshot.routes.map(route => ({ ...route, lastHeard: now - 120_000 }));
+    await page.route('**/api/state', route => route.fulfill({ json: snapshot, headers: { Date: new Date(now).toUTCString() } }));
+    await page.clock.setFixedTime(new Date(now + 2 * 86_400_000));
+    const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+    await page.goto(path);
+    await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
+    if (path === '/' || path === '/terminal/') await expect(page.locator('#map')).toHaveAttribute('data-eligible-routes', '1');
+    if (path === '/netgraph/') await expect(page.locator('#netgraph-stage')).toHaveAttribute('data-visible-routes', '1');
+    for (const changed of [false, true]) {
+      if (changed) { await page.keyboard.press('Escape'); await page.clock.setFixedTime(new Date(now - 2 * 86_400_000)); }
+      await page.locator('#find-button').click();
+      await page.locator('#node-search').fill('Visual Alpha');
+      await page.locator('.node-search-result').first().click();
+      await expect(page.locator('.node-inspector:visible')).toContainText('2m ago');
+    }
+    expect(errors).toEqual([]);
+  });
+}
+
+test('invalid live kinds recover without playing or retaining malformed activity', async ({ page }) => {
+  await visualFixture(page); await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-fixture-stream', 'ready');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('visual-packet', { detail: {
+    seq: 1, id: 'malformed', at: Date.now(), payloadType: 'invalid kind', mode: 'route',
+    segments: [{ routeId: 'visual-hop', fromId: 'visual-a', toId: 'visual-b' }],
+  } })));
+  await expect(page.locator('html')).toHaveAttribute('data-fixture-streams-opened', '2');
+  await expect(page.locator('html')).toHaveAttribute('data-fixture-streams-active', '1');
+  await expect(page.locator('#fatal')).toBeHidden();
+  await visualPacket(page, 1, 'Text');
+  await expect(page.locator('#packet-canvas')).toHaveAttribute('data-last-packet-kind', 'Text');
+});
+
 test.describe('UI audit', () => {
   for (const path of ['/', '/terminal/']) test(`Find refreshes a query entered before map resources finish ${path}`, async ({ page }) => {
     await visualFixture(page);
