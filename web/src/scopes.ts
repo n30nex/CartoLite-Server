@@ -41,7 +41,7 @@ export function scopeColor(name: string, light = false): string {
   return `hsl(${(hash >>> 0) % 360}, ${light ? 74 : 83}%, ${light ? 31 : 70}%)`;
 }
 export const scopeNeutral = (light: boolean): string => light ? '#576775' : '#b0bdc9';
-export const scopeLabel = (name: string): string => name === '*' ? '* Â· Unscoped flood' : name === '?' ? '? Â· Unresolved scope' : name;
+export const scopeLabel = (name: string): string => name === '*' ? '* · Unscoped flood' : name === '?' ? '? · Unresolved scope' : name;
 
 export function scopeMembership(node: NodeScopes | undefined, hours: ScopeSettings['hours']): Map<string, number> {
   const names = new Map<string, number>();
@@ -99,7 +99,7 @@ export function scopeClusterColor(palette: readonly string[], light: boolean): E
   palette.forEach((name,i)=>cases.push(['==',values[i],['var','largest']],scopeColor(name,light)));
   if (!palette.length) return ['literal',scopeNeutral(light)];
   return ['let','largest',['max',...values],['case',['any',['==',['var','largest'],0],['!=',['+',...matches],1]],scopeNeutral(light),
-    ['case',...cases,scopeNeutral(light)]]] as ExpressionSpecification;
+    ['case',...cases,scopeNeutral(light)]]] as unknown as ExpressionSpecification;
 }
 
 export function inScopeBounds(lng: number, lat: number, bounds: readonly [number,number,number,number]): boolean {
@@ -118,7 +118,7 @@ export function parseScopeSnapshot(value: unknown): ScopeSnapshot {
     || v.limitedAt!==undefined && !time(v.limitedAt) || typeof v.connected!=='boolean' || !Array.isArray(v.nodes) || v.nodes.length>10000) throw new Error('Scope evidence is unavailable');
   let evidenceCount=0; const ids=new Set<string>();
   for (const node of v.nodes) {
-    if (!node || typeof node.id!=='string' || !/^[\w-]{1,96}$/.test(node.id) || ids.has(node.id) || !Array.isArray(node.scopes) || !Array.isArray(node.reports) || node.reports.length>256) throw new Error('Invalid scope node');
+    if (!node || typeof node.id!=='string' || !/^[\w-]{1,96}$/.test(node.id) || ids.has(node.id) || !Array.isArray(node.scopes) || !Array.isArray(node.reports) || node.reports.length>10000) throw new Error('Invalid scope node');
     ids.add(node.id); const names=new Set<string>();
     for (const e of node.scopes) {
       if (!e || !validScopeName(e.name) || names.has(e.name) || !Array.isArray(e.repeats) || !Array.isArray(e.heard)
@@ -130,6 +130,8 @@ export function parseScopeSnapshot(value: unknown): ScopeSnapshot {
       if (!r || !['mqtt-self','mqtt-neighbor','mqtt-status','meshmapper-reported','meshmapper-uploaded','meshmapper-default'].includes(r.source)
         || typeof r.list!=='boolean' || r.at!==undefined && !time(r.at) || !Array.isArray(r.entries) || r.entries.length>64
         || r.defaultState!==undefined && !['named','none','unknown'].includes(r.defaultState)
+        || r.defaultState==='named' && !validScopeName(r.default)
+        || r.defaultSource!==undefined && !['advert','reported'].includes(r.defaultSource)
         || r.default!==undefined && !validScopeName(r.default)
         || r.entries.some(e=>!e || !validScopeName(e.name) || e.at!==undefined && !time(e.at))) throw new Error('Invalid scope report');
       evidenceCount+=r.entries.length;

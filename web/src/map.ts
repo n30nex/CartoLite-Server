@@ -171,6 +171,7 @@ export class LiveMap {
   #scopeNodes = new Map<string, NodeScopes>();
   #scopePalette: string[] = [];
   #scopeEpoch = 0;
+  #scopeInspectorOpen = false;
   #routesByID = new Map<string, RouteV2>();
   #routeIDsByNode = new Map<string, Set<string>>();
   #nodeFeatureIDs = new Set<string>();
@@ -809,6 +810,7 @@ export class LiveMap {
   }
 
   #scopeNodeCollection(nodes: readonly NodeV2[], now: number): FeatureCollection<Point> {
+    if (!this.#scopeSettings.enabled) return nodeCollection(nodes, now);
     return { type: 'FeatureCollection', features: nodes.filter(validEndpoint).map(node => this.#scopeNodeFeature(node, now)).filter((feature): feature is Feature<Point> => feature !== undefined) };
   }
 
@@ -1662,7 +1664,7 @@ export class LiveMap {
     this.#presentTooltip(
       event,
       String(properties.label ?? 'MeshCore node'),
-      `${role}${properties.observer ? ' Â· observer' : ''}${Number.isFinite(seen) ? ` Â· ${relativeTime(seen)}` : ''}`,
+      `${role}${properties.observer ? ' · observer' : ''}${Number.isFinite(seen) ? ` · ${relativeTime(seen)}` : ''}`,
       'node'
     );
   }
@@ -1684,8 +1686,8 @@ export class LiveMap {
     this.#setHoveredRoute(route.id);
     this.#presentTooltip(
       event,
-      `${from.label} â†” ${to.label}`,
-      `${route.lastKind} Â· ${observationTotal(route.packetCount)} Â· heard ${relativeTime(route.lastHeard)}`,
+      `${from.label} ↔ ${to.label}`,
+      `${route.lastKind} · ${observationTotal(route.packetCount)} · heard ${relativeTime(route.lastHeard)}`,
       'route'
     );
     return true;
@@ -1831,7 +1833,12 @@ export class LiveMap {
       onClose: () => this.#clearNodeSelection(),
       onSelectNeighbor: (nodeID) => this.selectNodeByID(nodeID, true),
     });
-    if (this.#scopeSettings.enabled) content.insertBefore(scopeInspector(document, this.#scopeNodes.get(model.node.id), this.#scopeSnapshot, this.#scopeSettings), content.querySelector('h3'));
+    if (this.#scopeSettings.enabled) {
+      const evidence = scopeInspector(document, this.#scopeNodes.get(model.node.id), this.#scopeSnapshot, this.#scopeSettings);
+      evidence.open = this.#scopeInspectorOpen;
+      evidence.addEventListener('toggle', () => { this.#scopeInspectorOpen = evidence.open; });
+      content.insertBefore(evidence, content.querySelector('h3'));
+    }
     if (mobile) {
       this.#closePopup(false);
       replaceInspector(this.#inspectorSheet, content);
@@ -2864,7 +2871,7 @@ export function routeRepresentationForZoom(_zoom: number): RouteRepresentation {
 export function routeWindowLabel(window: RouteWindow, zoom: number): string {
   const age = effectiveRouteWindowMS(window, zoom);
   const label = age === 15 * 60_000 ? '15m' : age === 60 * 60_000 ? '1h' : age === 6 * 60 * 60_000 ? '6h' : '24h';
-  return window === 'auto' ? `Auto Â· ${label}` : label;
+  return window === 'auto' ? `Auto · ${label}` : label;
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

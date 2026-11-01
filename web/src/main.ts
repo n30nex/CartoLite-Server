@@ -457,7 +457,7 @@ async function start(): Promise<void> {
 
     const tickFollow = (): void => {
       if (!liveFollow || document.hidden) return;
-      if (held) { followCard.dataset.state = 'held'; followState.textContent = 'Held Â· continue when ready'; return; }
+      if (held) { followCard.dataset.state = 'held'; followState.textContent = 'Held · continue when ready'; return; }
       followCard.dataset.state = 'following';
       const now = performance.now();
       const packet = followQueue.take(now);
@@ -509,7 +509,7 @@ async function start(): Promise<void> {
       } else {
         liveMap.showFollowPacket();
         if (wasEnabled && !paused) liveMap.map.stop();
-        followState.textContent = 'Paused Â· explore the map freely';
+        followState.textContent = 'Paused · explore the map freely';
       }
     };
     setLiveFollow(false);
@@ -536,7 +536,7 @@ async function start(): Promise<void> {
       const display = activityLabel(liveStore.snapshot, streamConnected);
       statusElement.dataset.state = display.state;
       statusText.textContent = display.text;
-      statusElement.title = `${liveStore.snapshot.nodes.length} nodes Â· ${liveStore.snapshot.routes.length} routes`;
+      statusElement.title = `${liveStore.snapshot.nodes.length} nodes · ${liveStore.snapshot.routes.length} routes`;
     };
 
     liveStore.subscribe((state, changes) => {
@@ -670,7 +670,7 @@ function updateFocusChrome(focus: LiveMapFocus | null): void {
     return;
   }
   const neighbors = `${focus.neighborCount} ${focus.neighborCount === 1 ? 'neighbor' : 'neighbors'}`;
-  focusText.textContent = `${focus.label} Â· ${neighbors}`;
+  focusText.textContent = `${focus.label} · ${neighbors}`;
   legend.setAttribute('aria-label', `Selected node: ${focus.label}, ${neighbors}`);
 }
 
@@ -725,7 +725,7 @@ function closeFindPanel(): void {
 }
 
 function formatUpdate(timestamp: number): string {
-  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Waiting for live stateâ€¦';
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Waiting for live state…';
   return new Date(timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 }
 
@@ -738,8 +738,8 @@ function applyAppearanceChrome(): void {
   terrainRelief.value = String(Math.round(uiPreferences.relief * 100));
   cameraPitch.value = String(Math.round(uiPreferences.terrainPitch));
   terrainHeight.value = String(uiPreferences.terrainExaggeration);
-  required<HTMLOutputElement>('camera-pitch-output').value = `${cameraPitch.value}Â°`;
-  required<HTMLOutputElement>('terrain-height-output').value = `${terrainHeight.value}Ã—`;
+  required<HTMLOutputElement>('camera-pitch-output').value = `${cameraPitch.value}°`;
+  required<HTMLOutputElement>('terrain-height-output').value = `${terrainHeight.value}×`;
   updateCompass(uiPreferences.terrainBearing);
   required<HTMLOutputElement>('route-opacity-output').value = `${routeOpacity.value}%`;
   required<HTMLOutputElement>('terrain-relief-output').value = `${terrainRelief.value}%`;
@@ -753,12 +753,12 @@ function persistUiPreference(update: Partial<UiPreferences>): void {
 function updateLayerChrome(): void {
   const enabled = layersPanel.querySelectorAll('.layer-toggles button[aria-pressed="true"]').length;
   const layerSummary = required<HTMLElement>('layer-summary');
-  const summaryText = `${enabled} layers on Â· ${uiPreferences.routes ? 'Routes on' : 'Routes hidden'} Â· ${uiPreferences.livePackets ? 'Live packets on' : 'Live packets off'}`;
+  const summaryText = `${enabled} layers on · ${uiPreferences.routes ? 'Routes on' : 'Routes hidden'} · ${uiPreferences.livePackets ? 'Live packets on' : 'Live packets off'}`;
   if (layerSummary.textContent !== summaryText) layerSummary.textContent = summaryText;
   layersSummary.title = summaryText;
   const preset = displayPreferences().preset;
-  required<HTMLElement>('appearance-summary').textContent = `${document.documentElement.hasAttribute('data-terminal') ? 'Terminal' : { dark: 'Night', light: 'Daylight', streets: 'Streets' }[uiPreferences.basemap]} Â· ${preset[0]!.toUpperCase()}${preset.slice(1)}`;
-  required<HTMLElement>('terrain-summary').textContent = `${uiPreferences.terrain3D ? '3D' : '2D'}${uiPreferences.buildings ? ' Â· Buildings' : ''}`;
+  required<HTMLElement>('appearance-summary').textContent = `${document.documentElement.hasAttribute('data-terminal') ? 'Terminal' : { dark: 'Night', light: 'Daylight', streets: 'Streets' }[uiPreferences.basemap]} · ${preset[0]!.toUpperCase()}${preset.slice(1)}`;
+  required<HTMLElement>('terrain-summary').textContent = `${uiPreferences.terrain3D ? '3D' : '2D'}${uiPreferences.buildings ? ' · Buildings' : ''}`;
   const zoom = Number(mapElement.dataset.cameraZoom ?? 0);
   const buildingText = !uiPreferences.buildings
     ? 'Buildings appear at neighborhood zoom.'
@@ -777,8 +777,8 @@ function updateLayerChrome(): void {
 function updateCompass(bearing: number): void {
   const button = required<HTMLButtonElement>('north-button');
   button.style.setProperty('--bearing', `${-bearing}deg`);
-  button.title = `Reset north Â· bearing ${Math.round(bearing)}Â°`;
-  required<HTMLOutputElement>('camera-bearing').value = `${Math.round(bearing)}Â°`;
+  button.title = `Reset north · bearing ${Math.round(bearing)}°`;
+  required<HTMLOutputElement>('camera-bearing').value = `${Math.round(bearing)}°`;
 }
 
 function wireLayerToggle(

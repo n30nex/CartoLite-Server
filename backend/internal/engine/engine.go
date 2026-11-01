@@ -141,7 +141,7 @@ func New(options Options) (*Engine, error) {
 		e.indexNode(key, node)
 	}
 	prunedRoutes, prunedNodes := e.pruneDurableState(time.Now().UnixMilli())
-	e.checkpointDirty = prunedRoutes > 0 || prunedNodes > 0
+	e.checkpointDirty = prunedRoutes > 0 || prunedNodes > 0 || savedScopes != nil
 	e.prunedRoutes.Add(int64(prunedRoutes))
 	e.prunedNodes.Add(int64(prunedNodes))
 	e.updateSnapshot(time.Now())
@@ -221,6 +221,7 @@ func (e *Engine) Run(ctx context.Context) {
 			if desired := e.desiredFeed.Load(); e.feed != desired {
 				e.feed = desired
 				e.scopes.LastGap = time.Now().UnixMilli()
+				dirtyCheckpoint = true
 				dirtySnapshot = true
 			}
 		case now := <-snapshotTick.C:

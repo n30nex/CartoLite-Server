@@ -13,7 +13,8 @@ const scopePolicy = "mqtt-only"
 
 func (e *Engine) ScopesJSON() []byte {
 	value, _ := e.scopeSnapshot.Load().([]byte)
-	return append([]byte(nil), value...)
+	// Published buffers are immutable; HTTP readers do not need a private copy.
+	return value
 }
 
 func (e *Engine) scopeNodeIDs(locatedOnly bool) map[string]string {

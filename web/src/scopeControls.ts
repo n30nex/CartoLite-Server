@@ -24,7 +24,7 @@ export function mountScopeControls(view: LiveMap): void {
   let failure=false;
   let timer: number | undefined;
   const panel=element(document,'section'); panel.className='scope-controls';
-  panel.innerHTML='<button type="button" class="control-button scope-toggle" aria-pressed="false">â—‰ Repeater scopes</button><div class="scope-options" hidden><label>Evidence window<select aria-label="Scope evidence window"><option value="1">1h</option><option value="6">6h</option><option value="24">24h</option></select></label><label>Focus mode<select aria-label="Scope focus mode"><option value="highlight">Highlight</option><option value="isolate">Isolate repeaters</option></select></label><div class="scope-actions"><button type="button" class="scope-clear">Show all</button><button type="button" class="scope-share">Copy scope link</button></div><p class="layer-hint">Color shows the largest observed repeat-report count. Reported settings and heard traffic show membership, not forwarding. Connections and live packets keep their original meaning.</p><p class="scope-status" role="status"></p></div>';
+  panel.innerHTML='<button type="button" class="control-button scope-toggle" aria-pressed="false">◉ Repeater scopes</button><div class="scope-options" hidden><label>Evidence window<select aria-label="Scope evidence window"><option value="1">1h</option><option value="6">6h</option><option value="24">24h</option></select></label><label>Focus mode<select aria-label="Scope focus mode"><option value="highlight">Highlight</option><option value="isolate">Isolate repeaters</option></select></label><div class="scope-actions"><button type="button" class="scope-clear">Show all</button><button type="button" class="scope-share">Copy scope link</button></div><p class="layer-hint">Color shows the largest observed repeat-report count. Reported settings and heard traffic show membership, not forwarding. Connections and live packets keep their original meaning.</p><p class="scope-status" role="status"></p></div>';
   parent.append(panel);
   const toggle=panel.querySelector<HTMLButtonElement>('.scope-toggle')!;
   const options=panel.querySelector<HTMLElement>('.scope-options')!;
@@ -45,8 +45,8 @@ export function mountScopeControls(view: LiveMap): void {
     // Rebuild only on settled camera/evidence changes, preserving the focused row.
     const active=list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.scope : undefined;
     list.replaceChildren();
-    const note=element(document,'p',`${settings.hours}h Â· memberships / repeat reports`); note.className='scope-legend-note'; list.append(note);
-    if (!rows.length) list.append(element(document,'p',snapshot ? 'No scope evidence for nodes in this view.' : 'Collecting scope evidenceâ€¦'));
+    const note=element(document,'p',`${settings.hours}h · memberships / repeat reports`); note.className='scope-legend-note'; list.append(note);
+    if (!rows.length) list.append(element(document,'p',snapshot ? 'No scope evidence for nodes in this view.' : 'Collecting scope evidence…'));
     for (const row of rows) {
       const button=element(document,'button'); button.type='button'; button.dataset.scope=row.name;
       button.setAttribute('aria-pressed',String(settings.focus===row.name));
@@ -127,9 +127,9 @@ export function mountScopeControls(view: LiveMap): void {
   render(); void refresh();
 }
 
-export function scopeInspector(doc: Document, node: NodeScopes | undefined, snapshot: ScopeSnapshot | undefined, settings: ScopeSettings): HTMLElement {
-  const root=element(doc,'details'); root.className='scope-inspector'; root.open=true;
-  root.append(element(doc,'summary',`Repeater scopes Â· ${settings.hours}h`));
+export function scopeInspector(doc: Document, node: NodeScopes | undefined, snapshot: ScopeSnapshot | undefined, settings: ScopeSettings): HTMLDetailsElement {
+  const root=element(doc,'details'); root.className='scope-inspector';
+  root.append(element(doc,'summary',`Repeater scopes · ${settings.hours}h`));
   const index=scopeWindowIndex(settings.hours);
   const total=node?.scopes.reduce((sum,e)=>sum+e.repeats[index]!,0) ?? 0;
   const now=snapshot?.serverTime ?? Date.now();
@@ -140,7 +140,7 @@ export function scopeInspector(doc: Document, node: NodeScopes | undefined, snap
     const repeats=e.repeats[index]!; const heard=e.heard[index]!;
     if (!repeats && !heard) continue;
     const row=element(doc,'div'); row.className='scope-evidence-row';
-    row.append(element(doc,'strong',scopeLabel(e.name)),element(doc,'span',`${repeats.toLocaleString()} repeat reports${total ? ` Â· ${Math.round(repeats/total*100)}%` : ''}${heard ? ` Â· receiver heard ${heard}` : ''}`));
+    row.append(element(doc,'strong',scopeLabel(e.name)),element(doc,'span',`${repeats.toLocaleString()} repeat reports${total ? ` · ${Math.round(repeats/total*100)}%` : ''}${heard ? ` · receiver heard ${heard}` : ''}`));
     if (repeats) {
       const meter=element(doc,'meter'); meter.min=0; meter.max=Math.max(1,total); meter.value=repeats; meter.setAttribute('aria-label',`${scopeLabel(e.name)} share of repeat reports`); row.append(meter);
       row.append(element(doc,'small',`First ${age(e.first)}, latest ${age(e.last)} within retained 24h evidence.`));
@@ -149,9 +149,9 @@ export function scopeInspector(doc: Document, node: NodeScopes | undefined, snap
   }
   const sourceNames: Record<string,string>={'mqtt-self':'MQTT self report','mqtt-neighbor':'MQTT neighbour report','mqtt-status':'MQTT status report','meshmapper-reported':'MeshMapper observer report','meshmapper-uploaded':'MeshMapper uploaded report','meshmapper-default':'MeshMapper default'};
   for (const report of node?.reports ?? []) {
-    const row=element(doc,'div'); row.className='scope-evidence-row'; row.append(element(doc,'strong',`${sourceNames[report.source]} Â· ${age(report.at)}`));
+    const row=element(doc,'div'); row.className='scope-evidence-row'; row.append(element(doc,'strong',`${sourceNames[report.source]} · ${age(report.at)}`));
     if (report.list) row.append(element(doc,'span',report.entries.length ? report.entries.map(e=>`${scopeLabel(e.name)} (${age(e.at)})`).join(', ') : 'Explicitly reported empty list.'));
-    if (report.defaultState) row.append(element(doc,'span',`Default: ${report.defaultState==='named' ? scopeLabel(report.default!) : report.defaultState==='none' ? 'none' : 'name unresolved'}.`));
+    if (report.defaultState) row.append(element(doc,'span',`Default${report.defaultSource ? ` from ${report.defaultSource}` : ''}: ${report.defaultState==='named' ? scopeLabel(report.default!) : report.defaultState==='none' ? 'none' : 'name unresolved'}.`));
     list.append(row);
   }
   if (!node?.reports.length) list.append(element(doc,'small','No explicit scope configuration report available.'));

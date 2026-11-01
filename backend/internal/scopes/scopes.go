@@ -18,6 +18,7 @@ const (
 	MaxNames        = 64
 	maxBuckets      = 65_536
 	maxReports      = 10_000
+	maxReportBytes  = 2 * 1024 * 1024
 	maxCandidates   = 256
 	reportRetention = 30 * 24 * Hour
 )
@@ -50,11 +51,15 @@ func Name(value string) (string, bool) {
 }
 
 func FullKey(value string) bool {
-	if len(value) != 64 || value != strings.ToUpper(value) {
+	if len(value) != 64 {
 		return false
 	}
-	_, err := hex.DecodeString(value)
-	return err == nil
+	for _, c := range value {
+		if !(c >= '0' && c <= '9' || c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 type Entry struct {
@@ -65,14 +70,15 @@ type Entry struct {
 // A present, successful empty List is different from a missing report. At=0
 // means the report's age is unknown; delivery time is not substituted for it.
 type Report struct {
-	Key          string  `json:"key"`
-	Region       string  `json:"region"`
-	Source       string  `json:"source"`
-	At           int64   `json:"at,omitempty"`
-	List         bool    `json:"list"`
-	Entries      []Entry `json:"entries"`
-	Default      string  `json:"default,omitempty"`
-	DefaultState string  `json:"defaultState,omitempty"`
+	Key           string  `json:"key"`
+	Region        string  `json:"region"`
+	Source        string  `json:"source"`
+	At            int64   `json:"at,omitempty"`
+	List          bool    `json:"list"`
+	Entries       []Entry `json:"entries"`
+	Default       string  `json:"default,omitempty"`
+	DefaultState  string  `json:"defaultState,omitempty"`
+	DefaultSource string  `json:"defaultSource,omitempty"`
 }
 
 type Bucket struct {
@@ -121,6 +127,8 @@ type Store struct {
 	catalogues                              map[string]Catalogue
 	candidates                              map[string][]string
 	Provider                                []byte
+	batching                                bool
+	reportBytes                             int
 }
 
 func New(saved *Saved, policy string, now int64) *Store {
@@ -151,9 +159,7 @@ func New(saved *Saved, policy string, now int64) *Store {
 			s.buckets[k] = &copy
 		}
 	}
-	for _, r := range saved.Reports {
-		s.PutReport(r, now)
-	}
+	s.PutReports(saved.Reports, now)
 	if policy == "canada" {
 		for _, c := range saved.Catalogues {
 			s.PutCatalogue(c, now)
@@ -208,6 +214,9 @@ func (s *Store) PutReport(r Report, now int64) bool {
 	if r.DefaultState != "" && r.DefaultState != "named" && r.DefaultState != "none" && r.DefaultState != "unknown" {
 		return false
 	}
+	if r.DefaultSource != "" && r.DefaultSource != "advert" && r.DefaultSource != "reported" {
+		return false
+	}
 	if r.DefaultState == "named" {
 		var ok bool
 		r.Default, ok = Name(r.Default)
@@ -221,18 +230,72 @@ func (s *Store) PutReport(r Report, now int64) bool {
 		return false
 	}
 	k := reportKey{r.Key, r.Region, r.Source}
+	r.Entries = entries
+	oldBytes := 0
 	if old, exists := s.reports[k]; exists {
 		if old.At > r.At {
 			return false
 		}
+		oldBytes = reportCost(old)
 	} else if len(s.reports) >= maxReports {
 		s.LimitedAt = now
 		return false
 	}
-	r.Entries = entries
+	if s.reportBytes-oldBytes+reportCost(r) > maxReportBytes {
+		s.LimitedAt = now
+		return false
+	}
+	s.reportBytes += reportCost(r) - oldBytes
 	s.reports[k] = r
-	s.rebuildCandidates(r.Region, now)
+	if !s.batching {
+		s.rebuildCandidates(r.Region, now)
+	}
 	return true
+}
+
+func reportCost(r Report) int {
+	cost := 256 + len(r.Key) + len(r.Region) + len(r.Source) + len(r.Default)
+	for _, entry := range r.Entries {
+		cost += 48 + len(entry.Name)
+	}
+	return cost
+}
+
+func (s *Store) PutReports(reports []Report, now int64) bool {
+	s.batching = true
+	regions := make(map[string]bool)
+	for _, r := range reports {
+		if s.PutReport(r, now) {
+			regions[r.Region] = true
+		}
+	}
+	s.batching = false
+	for region := range regions {
+		s.rebuildCandidates(region, now)
+	}
+	return len(regions) > 0
+}
+
+// Revocation/key changes remove provider-derived configuration and names only;
+// native hearing counts remain observations from this installation's MQTT.
+func (s *Store) ClearProvider(region string, now int64) {
+	regions := make(map[string]bool)
+	for key, r := range s.reports {
+		if strings.HasPrefix(r.Source, "meshmapper-") && (region == "" || r.Region == region) {
+			s.reportBytes -= reportCost(r)
+			delete(s.reports, key)
+			regions[r.Region] = true
+		}
+	}
+	for name := range s.catalogues {
+		if region == "" || name == region {
+			delete(s.catalogues, name)
+			regions[name] = true
+		}
+	}
+	for name := range regions {
+		s.rebuildCandidates(name, now)
+	}
 }
 
 func (s *Store) PutCatalogue(c Catalogue, now int64) bool {
@@ -364,6 +427,7 @@ func (s *Store) Prune(now int64, keys map[string]string) bool {
 	regions := make(map[string]bool)
 	for k, r := range s.reports {
 		if keys[k.key] == "" || r.At > 0 && r.At < now-reportRetention {
+			s.reportBytes -= reportCost(r)
 			delete(s.reports, k)
 			regions[r.Region] = true
 			changed = true
@@ -405,12 +469,13 @@ type Evidence struct {
 }
 
 type PublicReport struct {
-	Source       string  `json:"source"`
-	At           int64   `json:"at,omitempty"`
-	List         bool    `json:"list"`
-	Entries      []Entry `json:"entries"`
-	Default      string  `json:"default,omitempty"`
-	DefaultState string  `json:"defaultState,omitempty"`
+	Source        string  `json:"source"`
+	At            int64   `json:"at,omitempty"`
+	List          bool    `json:"list"`
+	Entries       []Entry `json:"entries"`
+	Default       string  `json:"default,omitempty"`
+	DefaultState  string  `json:"defaultState,omitempty"`
+	DefaultSource string  `json:"defaultSource,omitempty"`
 }
 
 type Node struct {
@@ -477,7 +542,7 @@ func (s *Store) Snapshot(ids map[string]string, now int64, connected bool) Snaps
 			continue
 		}
 		if n := node(r.Key); n != nil {
-			n.Reports = append(n.Reports, PublicReport{Source: r.Source, At: r.At, List: r.List, Entries: r.Entries, Default: r.Default, DefaultState: r.DefaultState})
+			n.Reports = append(n.Reports, PublicReport{Source: r.Source, At: r.At, List: r.List, Entries: r.Entries, Default: r.Default, DefaultState: r.DefaultState, DefaultSource: r.DefaultSource})
 		}
 	}
 	for id, n := range nodes {
