@@ -71,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /readyz", s.ready)
 	mux.HandleFunc("GET /api/state", s.state)
+	mux.HandleFunc("GET /api/scopes", s.scopes)
 	mux.HandleFunc("GET /api/events", s.events)
 	mux.HandleFunc("GET /api/config", s.publicConfig)
 	mux.HandleFunc("/", s.frontend)
@@ -113,6 +114,12 @@ func (s *Server) state(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(s.engine.StateJSON())
+}
+
+func (s *Server) scopes(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = w.Write(s.engine.ScopesJSON())
 }
 
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +208,7 @@ func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Cache-Control", "no-store")
 			w.WriteHeader(http.StatusNotFound)
 			if r.Method != http.MethodHead {
-				_, _ = fmt.Fprint(w, `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page unavailable · CartoLite</title><h1>This page is not enabled on this server</h1><p>Choose <a href="/">Map</a> or <a href="/netgraph/">Netgraph</a> to see live activity.</p></html>`)
+				_, _ = fmt.Fprint(w, `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page unavailable Â· CartoLite</title><h1>This page is not enabled on this server</h1><p>Choose <a href="/">Map</a> or <a href="/netgraph/">Netgraph</a> to see live activity.</p></html>`)
 			}
 			return
 		}

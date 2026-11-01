@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/n30nex/cartolite-server/backend/internal/scopes"
 )
 
 // Bound bridge-envelope parsing and queued state; transport limits belong to the broker.
@@ -41,12 +43,21 @@ type Message struct {
 	ReceivedAt   int64
 	ReportedAt   int64
 	Retained     bool
+	Duplicate    bool
+	ScopeReports []scopes.Report
 }
 
 // QueueBytes budgets normalized strings plus conservative per-message overhead.
 // Normalize discards unused envelope fields before the message enters the queue.
 func (m Message) QueueBytes() int64 {
-	return 1024 + int64(len(m.RawHex)+len(m.ObserverName)+len(m.ObserverKey)+len(Name(m.Payload)))
+	bytes := 1024 + int64(len(m.RawHex)+len(m.ObserverName)+len(m.ObserverKey)+len(Name(m.Payload)))
+	for _, report := range m.ScopeReports {
+		bytes += 256 + int64(len(report.Key)+len(report.Region)+len(report.Source)+len(report.Default))
+		for _, entry := range report.Entries {
+			bytes += 48 + int64(len(entry.Name))
+		}
+	}
+	return bytes
 }
 
 func ParseTopic(value string) (Topic, error) {
@@ -63,7 +74,7 @@ func ParseTopic(value string) (Topic, error) {
 	if !validKey(key) {
 		return Topic{}, fmt.Errorf("invalid publisher key")
 	}
-	if kind != "packets" && kind != "status" {
+	if kind != "packets" && kind != "status" && kind != "neighbors" {
 		return Topic{}, fmt.Errorf("unsupported subtopic")
 	}
 	return Topic{Region: region, PublisherKey: key, Kind: kind}, nil
@@ -108,6 +119,7 @@ func Normalize(topic string, body []byte, receivedAt time.Time) (Message, error)
 	}
 	// Queuing the original arbitrary JSON tree can multiply a small envelope into
 	// many allocations. Only these metadata fields are used by the engine.
+	out.ScopeReports = scopeReports(info, payload, out.ReportedAt)
 	out.Payload = map[string]any{"name": boundedName(Name(payload)), "role": Role(payload)}
 	if lat, lng, ok := Coordinates(payload); ok {
 		out.Payload["lat"], out.Payload["lng"] = lat, lng
