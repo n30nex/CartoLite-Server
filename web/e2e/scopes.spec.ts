@@ -43,10 +43,20 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`s
   await page.getByRole('button',{name:'Show all',exact:true}).click();
   await page.locator('#basemap-style').selectOption('light');
   await expect.poll(featureCount).toBe(3);
+  if (await page.locator('#clusters-button').getAttribute('aria-pressed') !== 'true') await page.locator('#clusters-button').click();
   const bounds=await page.locator('#layers-panel').boundingBox();
   expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(viewport.width);
   expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(viewport.height);
   await page.locator('#layers-close').click();
+  await page.evaluate(()=>{
+    const view=(window as unknown as {scopeTestView:{map:{jumpTo:(camera:unknown)=>void}}}).scopeTestView;
+    view.map.jumpTo({zoom:6});
+  });
+  await expect.poll(()=>page.evaluate(()=>{
+    const view=(window as unknown as {scopeTestView:{map:{querySourceFeatures:(id:string)=>{properties:Record<string,unknown>}[]}}}).scopeTestView;
+    const cluster=view.map.querySourceFeatures('node-clusters').find(feature=>feature.properties.point_count===3);
+    return cluster ? [cluster.properties.scope0,cluster.properties.scopeOther] : null;
+  })).toEqual([2,3]);
   await page.screenshot({path:testInfo.outputPath(`scope-map-${viewport.width}.png`)});
   expect(errors).toEqual([]);
 });

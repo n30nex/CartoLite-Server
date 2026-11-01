@@ -125,3 +125,20 @@ func TestScopeBucketsHaveHardCap(t *testing.T) {
 		t.Fatal("bounded store or partial-coverage marker failed")
 	}
 }
+
+func TestScopeReportsHaveASeparateMemoryBudget(t *testing.T) {
+	now := 50000 * Hour
+	s := New(nil, "mqtt-only", now)
+	entries := make([]Entry, MaxNames)
+	for i := range entries {
+		entries[i] = Entry{Name: fmt.Sprintf("#scope-%02d-%s", i, strings.Repeat("x", 45))}
+	}
+	reports := make([]Report, 2000)
+	for i := range reports {
+		reports[i] = Report{Key: fmt.Sprintf("%064X", i), Region: "YKF", Source: "mqtt-self", List: true, Entries: entries}
+	}
+	s.PutReports(reports, now)
+	if s.reportBytes > maxReportBytes || s.LimitedAt != now || len(s.reports) >= len(reports) {
+		t.Fatal("report string budget was not enforced")
+	}
+}

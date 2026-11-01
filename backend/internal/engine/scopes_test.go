@@ -96,3 +96,18 @@ func TestScopeCountersExcludeNonLiveDirectAndTrace(t *testing.T) {
 		t.Fatal("scope restore failed", err)
 	}
 }
+
+func TestScopeReportsJoinKnownFullIdentityAcrossReceivingAreas(t *testing.T) {
+	e := newTestEngine(t)
+	now := time.Now().UnixMilli()
+	key := strings.Repeat("AB", 32)
+	e.upsertNode("YTZ", key, "Fixture", "repeater", false, 43, -80, true, now)
+	message := mqtt.Message{Topic: mqtt.Topic{Region: "YKF", Kind: "neighbors"}, ReceivedAt: now, ScopeReports: []scopes.Report{
+		{Key: key, Region: "YKF", Source: "mqtt-neighbor", List: true, Entries: []scopes.Entry{{Name: "#ykf"}}},
+		{Key: strings.Repeat("CD", 32), Region: "YKF", Source: "mqtt-neighbor", List: true, Entries: []scopes.Entry{{Name: "#unknown"}}},
+	}}
+	e.process(message)
+	if len(e.nodes) != 1 || len(e.routes) != 0 || len(e.scopes.Save().Reports) != 1 {
+		t.Fatal("report created topology or failed to join a known full identity")
+	}
+}

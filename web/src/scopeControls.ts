@@ -62,6 +62,7 @@ export function mountScopeControls(view: LiveMap): void {
   };
 
   const render=(): void=>{
+    legendParent.dataset.repeaterScopes=String(settings.enabled);
     toggle.setAttribute('aria-pressed',String(settings.enabled)); options.hidden=!settings.enabled; legend.hidden=!settings.enabled;
     hours.value=String(settings.hours); mode.value=settings.mode; clear.disabled=!settings.focus;
     view.setScopes(snapshot,settings);
@@ -97,13 +98,14 @@ export function mountScopeControls(view: LiveMap): void {
     }
   };
   const change=(patch: Partial<ScopeSettings>, external=false): void=>{
+    const wasEnabled=settings.enabled;
     settings=normalizeScopeSettings({...settings,...patch});
     if (!external) {
       try { browserStorage()?.setItem(SCOPE_STORAGE,JSON.stringify(settings)); } catch { /* Private browsing may reject writes. */ }
       const url=scopesToURL(new URL(location.href),settings); history.pushState(history.state,'',url);
     }
     if (!settings.enabled) { pending?.abort(); pending=undefined; }
-    render(); schedule(); if (settings.enabled && !snapshot) void refresh();
+    render(); schedule(); if (settings.enabled && (!wasEnabled || !snapshot)) void refresh();
   };
   toggle.addEventListener('click',()=>change({enabled:!settings.enabled}));
   hours.addEventListener('change',()=>change({hours:Number(hours.value) as ScopeSettings['hours']}));

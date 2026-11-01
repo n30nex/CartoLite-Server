@@ -221,6 +221,7 @@ func (e *Engine) Run(ctx context.Context) {
 			if desired := e.desiredFeed.Load(); e.feed != desired {
 				e.feed = desired
 				e.scopes.LastGap = time.Now().UnixMilli()
+				e.updateScopeSnapshot(time.Now())
 				dirtyCheckpoint = true
 				dirtySnapshot = true
 			}

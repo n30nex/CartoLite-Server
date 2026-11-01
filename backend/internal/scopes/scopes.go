@@ -139,7 +139,7 @@ func New(saved *Saved, policy string, now int64) *Store {
 		return s
 	}
 	s.Since = saved.Since
-	s.LimitedAt = min(saved.LimitedAt, now)
+	s.LimitedAt = max(0, min(saved.LimitedAt, now))
 	for _, b := range saved.Buckets {
 		if len(s.buckets) >= maxBuckets {
 			s.LimitedAt = now

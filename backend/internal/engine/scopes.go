@@ -46,7 +46,8 @@ func (e *Engine) processScopeReports(message mqtt.Message) bool {
 	changed := false
 	for _, report := range message.ScopeReports {
 		// Joining is private and exact. A report cannot create a radio or position.
-		if e.nodes[nodeMapKey(message.Topic.Region, report.Key)] == nil {
+		node := e.nodeIDs[opaqueID("n", report.Key)]
+		if node == nil || node.Key != report.Key || report.Region != message.Topic.Region {
 			continue
 		}
 		changed = e.scopes.PutReport(report, now) || changed

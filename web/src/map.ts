@@ -171,6 +171,7 @@ export class LiveMap {
   #scopeNodes = new Map<string, NodeScopes>();
   #scopePalette: string[] = [];
   #scopeEpoch = 0;
+  #destroyed = false;
   #scopeInspectorOpen = false;
   #routesByID = new Map<string, RouteV2>();
   #routeIDsByNode = new Map<string, Set<string>>();
@@ -1017,6 +1018,9 @@ export class LiveMap {
   }
 
   destroy(): void {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    this.#scopeEpoch += 1;
     this.#routeHydrationEpoch += 1;
     this.#routeHydrating = false;
     this.renderEpoch += 1;

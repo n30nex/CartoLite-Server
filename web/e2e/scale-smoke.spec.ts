@@ -7,12 +7,18 @@ import type { NodeV2, RouteV2, StateV2 } from '../src/types';
 // after every timing assertion has completed.
 test.use({ screenshot: 'off', trace: 'off' });
 
-for (const viewPath of ['/', '/terminal/']) test('keeps a 4k-node / 7k-route first view responsive ' + viewPath, async ({ page }, testInfo) => {
+for (const viewPath of ['/', '/terminal/', '/?repeater_scopes=on']) test('keeps a 4k-node / 7k-route first view responsive ' + viewPath, async ({ page }, testInfo) => {
   // Allow the complete interaction journey to finish; the explicit startup,
   // frame, long-task, and application-work budgets below still gate performance.
   test.slow();
   page.on('console', message => { if (message.type() === 'warn' || message.type() === 'error') console.log('[scale]', message.text().replace(/https?:\/\/\S+/g, '[resource]').slice(0, 300)); });
   const state = scaleState();
+  if (viewPath.includes('repeater_scopes')) await page.route('**/api/scopes', route => route.fulfill({ json: {
+    schemaVersion: 1, serverTime: state.serverTime, since: state.serverTime - 3_600_000,
+    sessionStart: state.serverTime - 3_600_000, lastGap: state.serverTime - 3_600_000, connected: true,
+    nodes: state.nodes.map((node, i) => ({ id: node.id, scopes: [{ name: `#scope-${i % 8}`,
+      repeats: [1, 4, 12], heard: [0, 0, 0] }], reports: [] })),
+  } }));
   const firstRoute = state.routes[0];
   if (!firstRoute) throw new Error('scale fixture has no routes');
   const packet = {
