@@ -3,6 +3,8 @@ import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import type { ScopeSnapshot } from '../src/types';
 
+test.describe.configure({ retries: 0 });
+
 for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@scopes scope layer keeps workers, focus, live traffic and compact controls at ${viewport.width}px`,async({page},testInfo)=>{
   await page.setViewportSize(viewport);
   const state=await visualFixture(page,10.2,true);
@@ -17,9 +19,12 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@
   await page.addInitScript(()=>window.addEventListener('cartolite-map-ready',event=>{
     (window as unknown as {scopeTestView:unknown}).scopeTestView=(event as CustomEvent).detail.view;
   }));
+  const started=Date.now();
   await page.goto('/?repeater_scopes=on&scope_hours=6');
   const map=page.locator('#map');
+  await expect(map).toHaveAttribute('data-render-state','idle',{timeout:10_000});
   await expect(map).toHaveAttribute('data-scope-render-state','ready');
+  expect(Date.now()-started,'map and scope startup retain the established first-view budget').toBeLessThan(10_000);
   await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   const featureCount=()=>page.evaluate(()=>{
     const view=(window as unknown as {scopeTestView:{map:{querySourceFeatures:(id:string)=>{properties:{id:string}}[]}}}).scopeTestView;
@@ -51,6 +56,19 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@
   expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(viewport.width);
   expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(viewport.height);
   await page.locator('#layers-close').click();
+  await page.locator('#scope-legend > summary').click();
+  await page.screenshot({path:testInfo.outputPath(`scope-legend-${viewport.width}.png`)});
+  await page.locator('#scope-legend > summary').press('Escape');
+  await expect(page.locator('#scope-legend')).not.toHaveAttribute('open','');
+  await page.evaluate(()=>{
+    const view=(window as unknown as {scopeTestView:{selectNodeByID:(id:string,recenter:boolean)=>void}}).scopeTestView;
+    view.selectNodeByID('visual-a',false);
+  });
+  await page.locator('.scope-inspector > summary').click();
+  await expect(page.locator('.scope-inspector')).toContainText('MQTT self report');
+  await expect(page.locator('.scope-inspector')).toContainText('repeat reports');
+  await page.screenshot({path:testInfo.outputPath(`scope-inspector-${viewport.width}.png`)});
+  await page.getByRole('button',{name:'Close node details',exact:true}).click();
   await page.evaluate(()=>{
     const view=(window as unknown as {scopeTestView:{map:{jumpTo:(camera:unknown)=>void}}}).scopeTestView;
     view.map.jumpTo({zoom:6});
