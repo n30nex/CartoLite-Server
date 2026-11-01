@@ -117,6 +117,9 @@ func (s *Server) state(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) scopes(w http.ResponseWriter, _ *http.Request) {
+	controller := http.NewResponseController(w)
+	_ = controller.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	defer controller.SetWriteDeadline(time.Time{})
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_, _ = w.Write(s.engine.ScopesJSON())

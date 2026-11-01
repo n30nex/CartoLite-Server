@@ -124,6 +124,9 @@ func TestScopeBucketsHaveHardCap(t *testing.T) {
 	if len(s.buckets) != maxBuckets || s.LimitedAt != now {
 		t.Fatal("bounded store or partial-coverage marker failed")
 	}
+	if !s.Observe(strings.Repeat("AE", 32), "*", now+Hour, true) || len(s.buckets) != 1 {
+		t.Fatal("full store froze current evidence instead of expiring an oldest hour")
+	}
 }
 
 func TestScopeReportsHaveASeparateMemoryBudget(t *testing.T) {

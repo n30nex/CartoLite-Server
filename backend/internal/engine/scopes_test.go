@@ -111,3 +111,15 @@ func TestScopeReportsJoinKnownFullIdentityAcrossReceivingAreas(t *testing.T) {
 		t.Fatal("report created topology or failed to join a known full identity")
 	}
 }
+
+func TestScopeRepeatsDoNotUseAnOldRegionalRepeaterRole(t *testing.T) {
+	e := newTestEngine(t)
+	now := time.Now().UnixMilli()
+	key := strings.Repeat("AA", 32)
+	e.upsertNode("YKF", key, "Old role", "repeater", false, 43, -80, true, now-1000)
+	e.upsertNode("YTZ", key, "Current role", "companion", false, 44, -79, true, now)
+	e.process(mqtt.Message{Topic: mqtt.Topic{Region: "YKF", PublisherKey: strings.Repeat("CC", 32), Kind: "packets"}, HeardAt: now, ReceivedAt: now, RawHex: "2d01aa"})
+	if len(e.scopes.Save().Buckets) != 0 {
+		t.Fatal("a stale regional role credited a current companion as a repeater")
+	}
+}

@@ -81,6 +81,10 @@ func (e *Engine) recordScopeRepeats(message mqtt.Message, packet meshcore.Packet
 			if node == nil || node.Role != "repeater" || seen[node.Key] {
 				continue
 			}
+			current := e.nodeIDs[nodePublicID(node)]
+			if current == nil || current.Role != "repeater" {
+				continue
+			}
 			seen[node.Key] = true
 			changed = e.scopes.Observe(node.Key, name, message.HeardAt, true) || changed
 		}

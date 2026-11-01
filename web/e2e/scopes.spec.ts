@@ -3,7 +3,7 @@ import { visualFixture, visualPacket } from './visualFixtures';
 import { openMapOptions } from './mapControls';
 import type { ScopeSnapshot } from '../src/types';
 
-for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`scope layer keeps workers, focus, live traffic and compact controls at ${viewport.width}px`,async({page},testInfo)=>{
+for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@scopes scope layer keeps workers, focus, live traffic and compact controls at ${viewport.width}px`,async({page},testInfo)=>{
   await page.setViewportSize(viewport);
   const state=await visualFixture(page,10.2,true);
   const errors: string[]=[]; page.on('pageerror',error=>errors.push(error.message));
@@ -22,8 +22,8 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`s
   await expect(map).toHaveAttribute('data-scope-render-state','ready');
   await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   const featureCount=()=>page.evaluate(()=>{
-    const view=(window as unknown as {scopeTestView:{map:{querySourceFeatures:(id:string)=>{id:string}[]}}}).scopeTestView;
-    return new Set(view.map.querySourceFeatures('nodes').map(f=>f.id)).size;
+    const view=(window as unknown as {scopeTestView:{map:{querySourceFeatures:(id:string)=>{properties:{id:string}}[]}}}).scopeTestView;
+    return new Set(view.map.querySourceFeatures('nodes').map(f=>f.properties.id)).size;
   });
   await expect.poll(featureCount).toBe(state.nodes.length);
   await page.locator('#scope-legend > summary').click();
@@ -36,12 +36,15 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`s
   await expect.poll(featureCount).toBe(1);
   await visualPacket(page,1,'Text');
   await expect(page.locator('#packet-canvas')).toBeVisible();
+  await expect(page.locator('#packet-canvas')).toHaveAttribute('data-last-packet-kind','Text');
+  await expect(page.locator('html')).toHaveAttribute('data-fixture-streams-opened','1');
   await page.reload();
   await expect(map).toHaveAttribute('data-scope-focus','$constructor');
   await expect.poll(featureCount).toBe(1);
   await openMapOptions(page);
   await page.getByRole('button',{name:'Show all',exact:true}).click();
   await page.locator('#basemap-style').selectOption('light');
+  await expect(map).toHaveAttribute('data-scope-render-state','ready');
   await expect.poll(featureCount).toBe(3);
   if (await page.locator('#clusters-button').getAttribute('aria-pressed') !== 'true') await page.locator('#clusters-button').click();
   const bounds=await page.locator('#layers-panel').boundingBox();

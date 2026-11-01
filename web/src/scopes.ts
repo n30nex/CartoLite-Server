@@ -42,6 +42,8 @@ export function scopeColor(name: string, light = false): string {
 }
 export const scopeNeutral = (light: boolean): string => light ? '#576775' : '#b0bdc9';
 export const scopeLabel = (name: string): string => name === '*' ? '* · Unscoped flood' : name === '?' ? '? · Unresolved scope' : name;
+export const scopeConfigLabel = (name: string): string => name === '*' ? '* · Wildcard configuration' : scopeLabel(name);
+export const scopeLegendLabel = (name: string): string => name === '*' ? '* · Unscoped / wildcard' : scopeLabel(name);
 
 export function scopeMembership(node: NodeScopes | undefined, hours: ScopeSettings['hours']): Map<string, number> {
   const names = new Map<string, number>();

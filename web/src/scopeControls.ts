@@ -1,7 +1,8 @@
 import { browserStorage } from './browserStorage';
 import { DISPLAY_EVENT } from './displayPreferences';
 import { relativeTime } from './nodeInspector';
-import { DEFAULT_SCOPES, SCOPE_STORAGE, normalizeScopeSettings, scopesFromURL, scopesToURL, parseScopeSnapshot, scopeLabel, scopeWindowIndex, type ScopeSettings } from './scopes';
+import { trafficNow } from './clock';
+import { DEFAULT_SCOPES, SCOPE_STORAGE, normalizeScopeSettings, scopesFromURL, scopesToURL, parseScopeSnapshot, scopeLabel, scopeConfigLabel, scopeLegendLabel, scopeWindowIndex, type ScopeSettings } from './scopes';
 import type { LiveMap } from './map';
 import type { NodeScopes, ScopeSnapshot } from './types';
 import './scopes.css';
@@ -41,9 +42,10 @@ export function mountScopeControls(view: LiveMap): void {
   const renderLegend=(): void=>{
     if (disposed || !settings.enabled) return;
     const rows=view.scopeLegend();
-    summary.textContent=settings.focus ? `Scope: ${scopeLabel(settings.focus)}` : `Scopes in view (${rows.length})`;
+    summary.textContent=settings.focus ? `Scope: ${scopeLegendLabel(settings.focus)}` : `Scopes in view (${rows.length})`;
     // Rebuild only on settled camera/evidence changes, preserving the focused row.
     const active=list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.scope : undefined;
+    let restoredFocus=false;
     list.replaceChildren();
     const note=element(document,'p',`${settings.hours}h · memberships / repeat reports`); note.className='scope-legend-note'; list.append(note);
     if (!rows.length) list.append(element(document,'p',snapshot ? 'No scope evidence for nodes in this view.' : 'Collecting scope evidence…'));
@@ -51,14 +53,15 @@ export function mountScopeControls(view: LiveMap): void {
       const button=element(document,'button'); button.type='button'; button.dataset.scope=row.name;
       button.setAttribute('aria-pressed',String(settings.focus===row.name));
       const swatch=element(document,'i'); swatch.style.backgroundColor=row.color; swatch.setAttribute('aria-hidden','true');
-      const name=element(document,'span',scopeLabel(row.name));
+      const name=element(document,'span',scopeLegendLabel(row.name));
       const counts=element(document,'small',`${row.members.toLocaleString()} / ${row.repeats.toLocaleString()}`);
       button.title=`${row.members} member nodes; ${row.repeats} observed repeat reports. Select to ${settings.mode}.`;
       button.append(swatch,name,counts);
       button.addEventListener('click',()=>change({focus:settings.focus===row.name ? null : row.name})); list.append(button);
-      if (active===row.name) button.focus({preventScroll:true});
+      if (active===row.name) { button.focus({preventScroll:true}); restoredFocus=true; }
     }
     list.append(element(document,'p','Neutral: no repeats, a tie, unresolved traffic or a name outside the 64-color palette. One node can belong to several rows.'));
+    if (active && !restoredFocus) summary.focus({preventScroll:true});
   };
 
   const render=(): void=>{
@@ -66,7 +69,7 @@ export function mountScopeControls(view: LiveMap): void {
     toggle.setAttribute('aria-pressed',String(settings.enabled)); options.hidden=!settings.enabled; legend.hidden=!settings.enabled;
     hours.value=String(settings.hours); mode.value=settings.mode; clear.disabled=!settings.focus;
     view.setScopes(snapshot,settings);
-    const coverage=snapshot ? `Collected since ${new Date(snapshot.since).toLocaleString()}. ${snapshot.connected ? 'Connected' : 'Feed offline'}.` : 'Waiting for the first scope summary.';
+    const coverage=snapshot ? `Summary as of ${new Date(snapshot.serverTime).toLocaleTimeString()}. Collected since ${new Date(snapshot.since).toLocaleString()}. ${snapshot.connected ? 'Connected' : 'Feed offline'}.` : 'Waiting for the first scope summary.';
     status.textContent=failure ? 'Scope evidence could not refresh. Showing the last available summary; the live feed continues.' : `${coverage} Windows include the current partial UTC hour. Restarts, feed gaps and limits can leave incomplete coverage.`;
     if (snapshot?.limitedAt) status.textContent+=' Some evidence exceeded the storage limit.';
     renderLegend();
@@ -111,6 +114,7 @@ export function mountScopeControls(view: LiveMap): void {
   hours.addEventListener('change',()=>change({hours:Number(hours.value) as ScopeSettings['hours']}));
   mode.addEventListener('change',()=>change({mode:mode.value as ScopeSettings['mode']}));
   clear.addEventListener('click',()=>change({focus:null}));
+  view.onScopeClear=()=>change({focus:null});
   share.addEventListener('click',async()=>{
     try { await navigator.clipboard.writeText(scopesToURL(new URL(location.href),settings).href); status.textContent='Scope link copied.'; }
     catch { status.textContent='Copy the current page address to share these scope settings.'; }
@@ -118,13 +122,18 @@ export function mountScopeControls(view: LiveMap): void {
   const popstate=(): void=>change(scopesFromURL(new URL(location.href)),true);
   const storage=(event: StorageEvent): void=>{ if (event.key===SCOPE_STORAGE) { try { change(normalizeScopeSettings(JSON.parse(event.newValue ?? 'null')),true); } catch { /* Keep current view on malformed input. */ } } };
   const visibility=(): void=>{ if (document.hidden) { pending?.abort(); pending=undefined; schedule(); } else void refresh(); };
-  const appearance=(): void=>{ renderLegend(); };
+  const appearance=(): void=>{ queueMicrotask(renderLegend); };
+  const outside=(event: PointerEvent): void=>{ if (event.target instanceof Node && !legend.contains(event.target)) legend.open=false; };
+  legend.addEventListener('keydown',event=>{ if (event.key==='Escape' && legend.open) { event.preventDefault(); event.stopPropagation(); legend.open=false; summary.focus(); } });
   const dispose=(): void=>{
+    view.onScopeClear=undefined;
     disposed=true; pending?.abort(); pending=undefined; if (timer!==undefined) window.clearTimeout(timer);
     document.removeEventListener('visibilitychange',visibility); window.removeEventListener('popstate',popstate); window.removeEventListener('storage',storage);
+    document.removeEventListener('pointerdown',outside);
     window.removeEventListener(DISPLAY_EVENT,appearance); view.map.off('moveend',renderLegend); panel.remove(); legend.remove();
   };
   document.addEventListener('visibilitychange',visibility); window.addEventListener('popstate',popstate); window.addEventListener('storage',storage);
+  document.addEventListener('pointerdown',outside);
   window.addEventListener(DISPLAY_EVENT,appearance); view.map.on('moveend',renderLegend); view.map.once('idle',renderLegend); view.map.once('remove',dispose);
   render(); void refresh();
 }
@@ -134,7 +143,7 @@ export function scopeInspector(doc: Document, node: NodeScopes | undefined, snap
   root.append(element(doc,'summary',`Repeater scopes · ${settings.hours}h`));
   const index=scopeWindowIndex(settings.hours);
   const total=node?.scopes.reduce((sum,e)=>sum+e.repeats[index]!,0) ?? 0;
-  const now=snapshot?.serverTime ?? Date.now();
+  const now=Math.max(snapshot?.serverTime ?? 0,trafficNow());
   const age=(at?: number): string=>at ? relativeTime(at,now) : 'age unknown';
   const list=element(doc,'div'); list.className='scope-evidence'; root.append(list);
   if (!total) list.append(element(doc,'p','No observed repeats in this window. Missing evidence does not mean disabled.'));
@@ -152,8 +161,8 @@ export function scopeInspector(doc: Document, node: NodeScopes | undefined, snap
   const sourceNames: Record<string,string>={'mqtt-self':'MQTT self report','mqtt-neighbor':'MQTT neighbour report','mqtt-status':'MQTT status report','meshmapper-reported':'MeshMapper observer report','meshmapper-uploaded':'MeshMapper uploaded report','meshmapper-default':'MeshMapper default'};
   for (const report of node?.reports ?? []) {
     const row=element(doc,'div'); row.className='scope-evidence-row'; row.append(element(doc,'strong',`${sourceNames[report.source]} · ${age(report.at)}`));
-    if (report.list) row.append(element(doc,'span',report.entries.length ? report.entries.map(e=>`${scopeLabel(e.name)} (${age(e.at)})`).join(', ') : 'Explicitly reported empty list.'));
-    if (report.defaultState) row.append(element(doc,'span',`Default${report.defaultSource ? ` from ${report.defaultSource}` : ''}: ${report.defaultState==='named' ? scopeLabel(report.default!) : report.defaultState==='none' ? 'none' : 'name unresolved'}.`));
+    if (report.list) row.append(element(doc,'span',report.entries.length ? report.entries.map(e=>`${scopeConfigLabel(e.name)} (${age(e.at)})`).join(', ') : 'Explicitly reported empty list.'));
+    if (report.defaultState) row.append(element(doc,'span',`Default${report.defaultSource ? ` from ${report.defaultSource}` : ''}: ${report.defaultState==='named' ? scopeConfigLabel(report.default!) : report.defaultState==='none' ? 'none' : 'name unresolved'}.`));
     list.append(row);
   }
   if (!node?.reports.length) list.append(element(doc,'small','No explicit scope configuration report available.'));

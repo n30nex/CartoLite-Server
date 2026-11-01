@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SCOPES, dominantScope, scopeColor, scopeMembership, scopePalette, scopeProperties, scopeClusterProperties, scopesFromURL, scopesToURL, inScopeBounds, parseScopeSnapshot } from './scopes';
+import { DEFAULT_SCOPES, dominantScope, scopeColor, scopeMembership, scopePalette, scopeProperties, scopeClusterProperties, scopeConfigLabel, scopeLabel, scopesFromURL, scopesToURL, inScopeBounds, parseScopeSnapshot } from './scopes';
 import type { NodeScopes, ScopeSnapshot } from './types';
 
 const node: NodeScopes = { id: 'n_test', scopes: [
@@ -10,6 +10,9 @@ const node: NodeScopes = { id: 'n_test', scopes: [
 
 describe('scope evidence, focus and worker transfer inputs',()=>{
   it('keeps reported and receiver-only membership without giving it repeat votes',()=>{
+    expect(scopeConfigLabel('*')).toContain('Wildcard configuration');
+    expect(scopeConfigLabel('*')).not.toContain('Unscoped');
+    expect(scopeLabel('*')).toContain('Unscoped flood');
     const members=scopeMembership(node,1);
     expect(members).toEqual(new Map([['#ykf',0],['$constructor',0],['#__proto__',0],['*',0]]));
     const values=scopeProperties(node,{...DEFAULT_SCOPES,enabled:true},['#YKF','#ykf'],false);

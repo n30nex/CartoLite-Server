@@ -9,7 +9,7 @@
 .scope-legend-list { position: absolute; bottom: calc(100% + 8px); left: 0; width: min(340px, calc(100vw - 24px)); max-height: min(320px, 45dvh); overflow: auto; overscroll-behavior: contain; padding: 10px; border-radius: 10px; }
 .scope-legend-list button { display: grid; grid-template-columns: 9px minmax(0,1fr) auto; align-items: center; gap: 8px; width: 100%; margin: 4px 0; text-align: left; }
 .scope-legend-list button span { overflow-wrap: anywhere; }
-.scope-legend-list button i { width: 8px; height: 8px; border-radius: 50%; }
+.scope-legend-list button i { width: 8px; height: 8px; border-radius: 50%; outline: 1px solid var(--text); outline-offset: 1px; }
 .scope-legend-list button[aria-pressed="true"] { outline: 2px solid var(--accent, #57d9c4); outline-offset: -2px; }
 .scope-legend-list small { font-variant-numeric: tabular-nums; }
 .scope-legend summary { max-width: min(220px, 55vw); overflow: hidden; text-overflow: ellipsis; }

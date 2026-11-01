@@ -129,6 +129,7 @@ type Store struct {
 	Provider                                []byte
 	batching                                bool
 	reportBytes                             int
+	noRoomHour                              int64
 }
 
 func New(saved *Saved, policy string, now int64) *Store {
@@ -319,6 +320,18 @@ func (s *Store) PutCatalogue(c Catalogue, now int64) bool {
 	return true
 }
 
+func (s *Store) HasCatalogue(region string) bool {
+	_, ok := s.catalogues[region]
+	return ok
+}
+
+func (s *Store) ConfirmCatalogue(region string, now int64) {
+	if c, ok := s.catalogues[region]; ok {
+		c.At = now
+		s.catalogues[region] = c
+	}
+}
+
 func (s *Store) rebuildCandidates(region string, now int64) {
 	set := make(map[string]bool)
 	add := func(name string) {
@@ -398,7 +411,24 @@ func (s *Store) Observe(key, name string, at int64, repeat bool) bool {
 	if b == nil {
 		if len(s.buckets) >= maxBuckets {
 			s.LimitedAt = at
-			return false
+			if s.noRoomHour >= k.hour {
+				return false
+			}
+			// Prefer current evidence over older hours when the cap is reached.
+			// Drop one oldest hour in a bounded sweep, not a scan for every packet.
+			oldest := k.hour
+			for key := range s.buckets {
+				oldest = min(oldest, key.hour)
+			}
+			if oldest >= k.hour {
+				s.noRoomHour = k.hour
+				return false
+			}
+			for key := range s.buckets {
+				if key.hour == oldest {
+					delete(s.buckets, key)
+				}
+			}
 		}
 		b = &Bucket{Key: key, Name: name, Hour: k.hour, First: at, Last: at}
 		s.buckets[k] = b
