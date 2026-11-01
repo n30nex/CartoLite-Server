@@ -7,6 +7,11 @@
 .scope-actions button, .scope-legend-list button { min-height: 40px; color: var(--ink-strong); background: var(--field-bg); border: 1px solid var(--panel-border); border-radius: 7px; padding: 6px 9px; font: inherit; cursor: pointer; }
 .scope-status, .scope-legend-list p { font-size: 11px; line-height: 1.5; white-space: normal; margin: 8px 0; }
 .scope-legend-list { position: absolute; bottom: calc(100% + 8px); left: 0; width: min(340px, calc(100vw - 24px)); max-height: min(320px, 45dvh); overflow: auto; overscroll-behavior: contain; padding: 10px; border-radius: 10px; }
+/* A closed disclosure must not reopen with its previous theme's surface. */
+html:root .scope-legend-list.glass { transition: none; }
+@media (min-width: 901px) and (pointer: fine) {
+  .scope-legend-list { position: fixed; left: max(12px, env(safe-area-inset-left)); bottom: calc(var(--dock-bottom, 12px) + var(--dock-height, 42px) + 12px); max-height: min(320px, 45dvh, calc(100dvh - var(--dock-bottom, 12px) - var(--dock-height, 42px) - 36px)); }
+}
 .scope-legend-list button { display: grid; grid-template-columns: 9px minmax(0,1fr) auto; align-items: center; gap: 8px; width: 100%; margin: 4px 0; text-align: left; }
 .scope-legend-list button span { overflow-wrap: anywhere; }
 .scope-legend-list button i { width: 8px; height: 8px; border-radius: 50%; outline: 1px solid var(--ink-strong); outline-offset: 1px; }

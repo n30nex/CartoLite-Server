@@ -66,6 +66,7 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@
   await page.locator('#layers-close').click();
   await page.locator('#scope-legend > summary').click();
   await expectScopeContrast(page);
+  await expectScopePlacement(page);
   await page.screenshot({path:testInfo.outputPath(`scope-legend-${viewport.width}.png`)});
   await page.locator('#scope-legend > summary').press('Escape');
   await expect(page.locator('#scope-legend')).not.toHaveAttribute('open','');
@@ -92,17 +93,33 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@
 });
 
 async function expectScopeContrast(page: Page): Promise<void> {
-  const ratios=await page.locator('#scope-legend button').evaluateAll(buttons=>buttons.map(button=>{
-    const style=getComputedStyle(button);
+  const ratios=await page.locator('#scope-legend button, .scope-legend-list p').evaluateAll(elements=>elements.map(element=>{
+    const style=getComputedStyle(element);
+    let surface: Element|null=element;
+    while (surface && getComputedStyle(surface).backgroundColor==='rgba(0, 0, 0, 0)') surface=surface.parentElement;
+    const background=surface ? getComputedStyle(surface).backgroundColor : 'rgb(0, 0, 0)';
     const luminance=(color:string):number=>{
       const channels=(color.match(/[\d.]+/g) ?? []).slice(0,3).map(Number).map(value=>{
         const c=value/255; return c<=.04045 ? c/12.92 : ((c+.055)/1.055)**2.4;
       });
       return channels.reduce((sum,c,i)=>sum+c*[.2126,.7152,.0722][i]!,0);
     };
-    const values=[luminance(style.color),luminance(style.backgroundColor)].sort((a,b)=>b-a);
+    const values=[luminance(style.color),luminance(background)].sort((a,b)=>b-a);
     return (values[0]!+.05)/(values[1]!+.05);
   }));
   expect(ratios.length).toBeGreaterThan(0);
   for (const ratio of ratios) expect(ratio,'scope legend text remains readable on its actual theme surface').toBeGreaterThanOrEqual(4.5);
+}
+
+async function expectScopePlacement(page: Page): Promise<void> {
+  const bounds=await page.locator('.scope-legend-list').boundingBox();
+  const dock=await page.locator('#app .controls').boundingBox();
+  const viewport=page.viewportSize()!;
+  expect(bounds).not.toBeNull(); expect(dock).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0); expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(viewport.height);
+  const overlaps=bounds!.x<dock!.x+dock!.width && bounds!.x+bounds!.width>dock!.x
+    && bounds!.y<dock!.y+dock!.height && bounds!.y+bounds!.height>dock!.y;
+  expect(overlaps,'expanded scope legend stays clear of the dock').toBe(false);
 }
