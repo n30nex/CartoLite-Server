@@ -1,8 +1,8 @@
 # CartoLite delivery roadmap
 
-## Repeater scopes (in progress)
+## Repeater scopes (0.13.0)
 
-[Implementation plan](repeater-scopes-plan.md): observed repeat reports, explicit source provenance, persisted scope controls and bounded map rendering. Qualification and deployment remain pending.
+[Implementation plan](repeater-scopes-plan.md): observed repeat reports, explicit source provenance, persisted scope controls and bounded map rendering. [Released 1 November 2026](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.13.0): exact-main validation, anonymous AMD64/ARM64 installation, checkpoint upgrade, image provenance and 42 release assets verified.
 
 ## Browser reliability (0.12.7)
 
