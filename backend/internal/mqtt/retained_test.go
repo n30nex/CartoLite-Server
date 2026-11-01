@@ -15,6 +15,7 @@ type retainedTestMessage struct {
 func (m retainedTestMessage) Topic() string   { return "meshcore/YKF/AA112233/packets" }
 func (m retainedTestMessage) Payload() []byte { return []byte(`{"raw":"1100","timestamp":1}`) }
 func (m retainedTestMessage) Retained() bool  { return m.retained }
+func (m retainedTestMessage) Duplicate() bool { return false }
 
 func TestTransportPreservesRetainedFlagAndReceiptTime(t *testing.T) {
 	for _, retained := range []bool{false, true} {
