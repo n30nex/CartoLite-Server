@@ -1,23 +1,27 @@
-.scope-controls { margin-top: 10px; border-top: 1px solid var(--border, #53717c); padding-top: 10px; }
+.scope-controls { margin-top: 10px; border-top: 1px solid var(--panel-border); padding-top: 10px; }
 .legend[data-repeater-scopes="true"] .node.repeater { background: conic-gradient(#83d6d0, #d4a6fa, #e6be7b, #83d6d0); color: #8fa9b0; }
 .scope-toggle { width: 100%; justify-content: space-between; }
 .scope-options label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; }
 .scope-options select { max-width: 58%; min-height: 40px; }
 .scope-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.scope-actions button, .scope-legend-list button { min-height: 40px; color: var(--text); background: var(--panel, #10222b); border: 1px solid var(--border, #53717c); border-radius: 7px; padding: 6px 9px; font: inherit; cursor: pointer; }
+.scope-actions button, .scope-legend-list button { min-height: 40px; color: var(--ink-strong); background: var(--field-bg); border: 1px solid var(--panel-border); border-radius: 7px; padding: 6px 9px; font: inherit; cursor: pointer; }
 .scope-status, .scope-legend-list p { font-size: 11px; line-height: 1.5; white-space: normal; margin: 8px 0; }
 .scope-legend-list { position: absolute; bottom: calc(100% + 8px); left: 0; width: min(340px, calc(100vw - 24px)); max-height: min(320px, 45dvh); overflow: auto; overscroll-behavior: contain; padding: 10px; border-radius: 10px; }
 .scope-legend-list button { display: grid; grid-template-columns: 9px minmax(0,1fr) auto; align-items: center; gap: 8px; width: 100%; margin: 4px 0; text-align: left; }
 .scope-legend-list button span { overflow-wrap: anywhere; }
-.scope-legend-list button i { width: 8px; height: 8px; border-radius: 50%; outline: 1px solid var(--text); outline-offset: 1px; }
-.scope-legend-list button[aria-pressed="true"] { outline: 2px solid var(--accent, #57d9c4); outline-offset: -2px; }
+.scope-legend-list button i { width: 8px; height: 8px; border-radius: 50%; outline: 1px solid var(--ink-strong); outline-offset: 1px; }
+.scope-legend-list button[aria-pressed="true"] { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .scope-legend-list small { font-variant-numeric: tabular-nums; }
 .scope-legend summary { max-width: min(220px, 55vw); overflow: hidden; text-overflow: ellipsis; }
-.scope-inspector { padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border, #53717c); font-size: 12px; }
+.scope-inspector { box-sizing: border-box; padding: 10px 14px; margin: 0; border-top: 1px solid var(--panel-border); font-size: 12px; }
 .scope-inspector summary { cursor: pointer; padding: 4px 0 8px; font-weight: 700; }
 .scope-evidence { max-height: 240px; overflow: auto; overscroll-behavior: contain; }
-.scope-evidence-row { display: grid; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--border, #53717c); overflow-wrap: anywhere; }
-.scope-evidence-row meter { width: 100%; height: 9px; }
+.scope-evidence-row { display: grid; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--panel-border); overflow-wrap: anywhere; }
+.scope-evidence-row meter { width: 100%; height: 7px; accent-color: var(--scope-meter-color, var(--focus-ring)); }
+.scope-evidence-row meter::-webkit-meter-bar { border: 0; border-radius: 4px; box-shadow: none; background: var(--field-bg); }
+.scope-evidence-row meter::-webkit-meter-optimum-value { background: var(--scope-meter-color, var(--focus-ring)); }
+.scope-evidence-row meter::-moz-meter-bar { background: var(--scope-meter-color, var(--focus-ring)); }
+.scope-outside { padding: 8px 14px; }
 .scope-evidence small { display: block; line-height: 1.5; }
-.scope-controls button:focus-visible, .scope-legend button:focus-visible, .scope-legend summary:focus-visible { outline: 2px solid var(--accent, #57d9c4); outline-offset: 2px; }
+.scope-controls button:focus-visible, .scope-legend button:focus-visible, .scope-legend summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (max-width: 620px), (pointer: coarse) { .scope-controls button, .scope-legend-list button, .scope-options select { min-height: 44px; } .scope-legend { max-width: 55vw; } }

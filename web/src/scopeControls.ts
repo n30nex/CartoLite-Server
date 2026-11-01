@@ -2,7 +2,7 @@ import { browserStorage } from './browserStorage';
 import { DISPLAY_EVENT } from './displayPreferences';
 import { relativeTime } from './nodeInspector';
 import { trafficNow } from './clock';
-import { DEFAULT_SCOPES, SCOPE_STORAGE, normalizeScopeSettings, scopesFromURL, scopesToURL, parseScopeSnapshot, scopeLabel, scopeConfigLabel, scopeLegendLabel, scopeWindowIndex, type ScopeSettings } from './scopes';
+import { DEFAULT_SCOPES, SCOPE_STORAGE, normalizeScopeSettings, scopesFromURL, scopesToURL, parseScopeSnapshot, scopeColor, scopeLabel, scopeConfigLabel, scopeLegendLabel, scopeWindowIndex, type ScopeSettings } from './scopes';
 import type { LiveMap } from './map';
 import type { NodeScopes, ScopeSnapshot } from './types';
 import './scopes.css';
@@ -153,7 +153,7 @@ export function scopeInspector(doc: Document, node: NodeScopes | undefined, snap
     const row=element(doc,'div'); row.className='scope-evidence-row';
     row.append(element(doc,'strong',scopeLabel(e.name)),element(doc,'span',`${repeats.toLocaleString()} repeat reports${total ? ` · ${Math.round(repeats/total*100)}%` : ''}${heard ? ` · receiver heard ${heard}` : ''}`));
     if (repeats) {
-      const meter=element(doc,'meter'); meter.min=0; meter.max=Math.max(1,total); meter.value=repeats; meter.setAttribute('aria-label',`${scopeLabel(e.name)} share of repeat reports`); row.append(meter);
+      const meter=element(doc,'meter'); meter.style.setProperty('--scope-meter-color',scopeColor(e.name,doc.documentElement.dataset.theme==='light')); meter.min=0; meter.max=Math.max(1,total); meter.value=repeats; meter.setAttribute('aria-label',`${scopeLabel(e.name)} share of repeat reports`); row.append(meter);
       row.append(element(doc,'small',`First ${age(e.first)}, latest ${age(e.last)} within retained 24h evidence.`));
     }
     list.append(row);
