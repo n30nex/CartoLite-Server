@@ -1,5 +1,25 @@
 # Repeater scopes implementation plan
 
+## Delivered 1 November 2026
+
+[Worldwide 0.13.0](https://github.com/n30nex/CartoLite-Server/releases/tag/v0.13.0)
+was published from `41d7824a75d8e4e0ec47736e54af8ac2e88cb8a3`.
+[Exact-main qualification](https://github.com/n30nex/CartoLite-Server/actions/runs/41278051302)
+passed 511 browser checks with no failed/flaky results, plus Go/vet/race,
+frontend, privacy/security, native platform installation and checkpoint upgrades.
+Anonymous pulls passed on AMD64 and ARM64. The existing performance limits and
+all 7,000 retained routes remained required; scope-enabled scale cases were added.
+
+[Promotion](https://github.com/n30nex/CartoLite-Server/actions/runs/41280913520)
+reused the tested image without rebuilding:
+`ghcr.io/n30nex/cartolite-server@sha256:6002785f5a4c757dd7da1d4d56ef318a944816a23087051cbc0f1b9d60bffd62`.
+All 42 release assets, canonical checksums, image aliases and source provenance
+were checked. Screenshots are unmodified synthetic Actions captures. No community
+server deployment or physical-device result is claimed.
+
+The plan below records the implemented boundaries. Native scope coverage starts
+with new MQTT evidence; no complete-history or unique-RF-transmission claim is made.
+
 ## Evidence contract
 
 Count accepted live MQTT FLOOD and TRANSPORT_FLOOD hearing reports only. Exclude
