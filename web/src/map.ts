@@ -7,6 +7,7 @@ import workerURL from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import {
   type ExpressionSpecification,
   type GeoJSONSource,
+  type GeoJSONSourceSpecification,
   type GeoJSONSourceDiff,
   type MapMouseEvent
 } from 'maplibre-gl';
@@ -173,6 +174,7 @@ export class LiveMap {
   #scopePalette: string[] = [];
   #scopeEpoch = 0;
   #scopeDataSignature = '';
+  #scopeClusterActive = false;
   #destroyed = false;
   #scopeInspectorOpen = false;
   #routesByID = new Map<string, RouteV2>();
@@ -823,6 +825,7 @@ export class LiveMap {
 
   #refreshScopeNodes(): void {
     if (!this.#layersReady) return;
+    this.#configureScopeClustering();
     this.container.dataset.scopeRenderState = 'updating';
     const epoch = ++this.#scopeEpoch;
     const nodes = this.#scopeNodeCollection([...this.#nodesByID.values()], trafficNow());
@@ -834,6 +837,33 @@ export class LiveMap {
     void Promise.all(work).then(() => { if (!this.#destroyed && epoch === this.#scopeEpoch) this.#applyScopePaint(); }).catch(() => {
       if (!this.#destroyed && epoch === this.#scopeEpoch) this.container.dataset.scopeRenderState = 'recovering';
     });
+  }
+
+  #configureScopeClustering(): void {
+    const enabled = this.#scopeSettings.enabled;
+    if (enabled === this.#scopeClusterActive) return;
+    const style = this.map.getStyle();
+    const ids = new Set<string>(CLUSTER_LAYER_IDS);
+    const layers = style.layers.filter(layer => ids.has(layer.id));
+    const last = style.layers.findIndex(layer => layer.id === layers.at(-1)?.id);
+    const before = style.layers[last + 1]?.id;
+    const source = style.sources[NODE_CLUSTER_SOURCE_ID] as GeoJSONSourceSpecification;
+    // MapLibre has no public setter for clusterProperties. Recreate only this
+    // source and its four layers on an explicit toggle, leaving every other
+    // source, the feed, selection and camera in place. Disabled startup keeps
+    // the original clustering path with no custom expression compilation.
+    for (const layer of layers) this.map.removeLayer(layer.id);
+    this.map.removeSource(NODE_CLUSTER_SOURCE_ID);
+    const options = { ...source };
+    delete options.clusterProperties;
+    this.map.addSource(NODE_CLUSTER_SOURCE_ID, { ...options, data: EMPTY_POINTS,
+      ...(enabled ? { clusterProperties: scopeClusterProperties() } : {}) });
+    for (const layer of layers) this.map.addLayer(layer, before);
+    this.#scopeClusterActive = enabled;
+    this.container.dataset.scopeClusterProperties = String(enabled);
+    this.#highlightedClusterID = null;
+    if (this.#clusterFlashTimer !== undefined) window.clearTimeout(this.#clusterFlashTimer);
+    this.map.setFilter(CLUSTER_HIGHLIGHT_LAYER_ID, clusterIDFilter(null));
   }
 
   #applyScopePaint(): void {
@@ -1279,13 +1309,15 @@ export class LiveMap {
     applyRouteSelectionFilter(this.map, this.#selectedNodeID);
     applyRouteHitLayerVisibility(this.map, this.routesVisible && this.#selectedNodeID !== null);
     applyRouteHoverFilter(this.map, null);
+    this.#scopeClusterActive = this.#scopeSettings.enabled;
+    this.container.dataset.scopeClusterProperties = String(this.#scopeClusterActive);
     this.map.addSource(NODE_CLUSTER_SOURCE_ID, {
       type: 'geojson',
       data: EMPTY_POINTS,
       cluster: true,
       clusterMaxZoom: 8,
       clusterRadius: 46,
-      clusterProperties: scopeClusterProperties(),
+      ...(this.#scopeClusterActive ? { clusterProperties: scopeClusterProperties() } : {}),
       maxzoom: 14
     });
     this.map.addSource(NODE_SOURCE_ID, { type: 'geojson', data: EMPTY_POINTS, maxzoom: 16 });
@@ -1576,7 +1608,9 @@ export class LiveMap {
     if (!Number.isFinite(clusterId)) return;
     this.#flashCluster(clusterId);
     const source = this.map.getSource(NODE_CLUSTER_SOURCE_ID) as GeoJSONSource;
-    const zoom = await source.getClusterExpansionZoom(clusterId);
+    let zoom: number;
+    try { zoom = await source.getClusterExpansionZoom(clusterId); } catch { return; }
+    if (this.#destroyed || this.map.getSource(NODE_CLUSTER_SOURCE_ID) !== source) return;
     const coordinates = feature?.geometry.type === 'Point' ? feature.geometry.coordinates : undefined;
     if (coordinates && typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
       const center: [number, number] = [coordinates[0], coordinates[1]];
