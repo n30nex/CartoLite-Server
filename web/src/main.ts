@@ -5,6 +5,7 @@ import { updateSoundChrome } from './soundControls';
 import './networkControls.css';
 import { mountSoundPreview } from './soundPreview';
 import { requestedNode } from './selection';
+import { mountScopeControls } from './scopeControls';
 import { mountCinematicDock, mountLayerCombinations } from './cinematicChrome';
 import { browserStorage } from './browserStorage';
 import { populateSoundScenes, syncSoundScene } from './soundScenes';
@@ -196,6 +197,7 @@ async function start(): Promise<void> {
       },
     );
     mapView = liveMap;
+    mountScopeControls(liveMap);
     const showMapNotice = attachMapNotice(liveMap.map, mapElement);
     if (configUnavailable) showMapNotice('Map settings could not load. Showing the default map.');
     const packetCanvas = required<HTMLCanvasElement>('packet-canvas');

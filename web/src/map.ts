@@ -7,6 +7,7 @@ import workerURL from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import {
   type ExpressionSpecification,
   type GeoJSONSource,
+  type GeoJSONSourceSpecification,
   type GeoJSONSourceDiff,
   type MapMouseEvent
 } from 'maplibre-gl';
@@ -30,6 +31,9 @@ import {
   type NodeSearchResult,
 } from './nodeInspector';
 import { HistoricalRouteLayer, ROUTE_WEBGL_LAYER_ID } from './routeLayer';
+import { DEFAULT_SCOPES, scopePalette, scopeProperties, scopeMembership, scopeClusterProperties, scopeClusterColor, scopeColor, scopeNeutral, inScopeBounds, type ScopeSettings } from './scopes';
+import { scopeInspector } from './scopeControls';
+import type { ScopeSnapshot, NodeScopes } from './types';
 import { applyOverlayPalette } from './overlayPalette';
 import { updateBuildings } from './buildings';
 import { displayPreferences } from './displayPreferences';
@@ -161,8 +165,18 @@ export interface TooltipSize {
 // Native private members keep renderer internals minifiable without renaming public/browser APIs.
 export class LiveMap {
   readonly map: maplibregl.Map;
+  onScopeClear?: () => void;
   #lastState?: Readonly<StateV2>;
   #nodesByID = new Map<string, NodeV2>();
+  #scopeSettings: ScopeSettings = { ...DEFAULT_SCOPES };
+  #scopeSnapshot?: ScopeSnapshot;
+  #scopeNodes = new Map<string, NodeScopes>();
+  #scopePalette: string[] = [];
+  #scopeEpoch = 0;
+  #scopeDataSignature = '';
+  #scopeClusterActive = false;
+  #destroyed = false;
+  #scopeInspectorOpen = false;
   #routesByID = new Map<string, RouteV2>();
   #routeIDsByNode = new Map<string, Set<string>>();
   #nodeFeatureIDs = new Set<string>();
@@ -373,7 +387,7 @@ export class LiveMap {
     this.#nodesByID = new Map(state.nodes.map((node) => [node.id, node]));
     this.#routesByID = new Map(state.routes.map((route) => [route.id, route]));
     this.#rebuildRouteIndex();
-    const nodes = nodeCollection(state.nodes, now);
+    const nodes = this.#scopeNodeCollection(state.nodes, now);
     (this.map.getSource(NODE_SOURCE_ID) as GeoJSONSource).setData(nodes);
     (this.map.getSource(NODE_CLUSTER_SOURCE_ID) as GeoJSONSource).setData(nodes);
     this.#nodeFeatureIDs = new Set(nodes.features.map((feature) => String(feature.id)));
@@ -398,7 +412,7 @@ export class LiveMap {
     const features = new Map<string, Feature<Point> | undefined>();
     for (const id of new Set(ids)) {
       const node = this.#nodesByID.get(id);
-      features.set(id, node && validEndpoint(node) ? nodeFeature(node, now) : undefined);
+      features.set(id, node && validEndpoint(node) ? this.#scopeNodeFeature(node, now) : undefined);
     }
     const nodesChanged = this.#applyFeatureDiff(NODE_SOURCE_ID, this.#nodeFeatureIDs, features);
     const clustersChanged = this.#applyFeatureDiff(NODE_CLUSTER_SOURCE_ID, this.#clusterFeatureIDs, features);
@@ -770,10 +784,117 @@ export class LiveMap {
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-shadow-color', light ? 'rgba(47, 64, 61, 0.55)' : 'rgba(2, 9, 18, 0.86)');
       this.map.setPaintProperty(HILLSHADE_LAYER_ID, 'hillshade-highlight-color', light ? 'rgba(255, 255, 244, 0.6)' : 'rgba(177, 211, 175, 0.64)');
     }
+    if (this.#scopeSettings.enabled && (force || previous.basemap !== preferences.basemap)) this.#refreshScopeNodes();
     this.markRendering();
   }
 
   #lightScene(): boolean { return this.#appearance.basemap !== 'dark' && !document.documentElement.hasAttribute('data-terminal'); }
+
+  setScopes(snapshot: ScopeSnapshot | undefined, settings: ScopeSettings): void {
+    if (snapshot === this.#scopeSnapshot && JSON.stringify(settings) === JSON.stringify(this.#scopeSettings)) return;
+    this.#scopeSnapshot = snapshot;
+    const signature = JSON.stringify([snapshot?.nodes, settings]);
+    const changed = signature !== this.#scopeDataSignature;
+    this.#scopeDataSignature = signature;
+    this.#scopeSettings = { ...settings };
+    this.#scopeNodes = new Map((snapshot?.nodes ?? []).map(node => [node.id, node]));
+    this.#scopePalette = scopePalette(snapshot?.nodes ?? [], settings.hours);
+    this.container.dataset.repeaterScopes = String(settings.enabled);
+    this.container.dataset.scopeMode = settings.mode;
+    this.container.dataset.scopeFocus = settings.focus ?? '';
+    if (changed) this.#refreshScopeNodes();
+    if (this.#selectedNodeID) this.#renderNodeInspector(true);
+  }
+
+  #scopeNodeFeature(node: NodeV2, now: number): Feature<Point> | undefined {
+    const feature = nodeFeature(node, now);
+    if (!this.#scopeSettings.enabled) return feature;
+    const props = scopeProperties(this.#scopeNodes.get(node.id), this.#scopeSettings, this.#scopePalette, this.#lightScene());
+    if (this.#scopeSettings.focus && this.#scopeSettings.mode === 'isolate' && props.scopeMatch === 0) return undefined;
+    feature.properties = { ...feature.properties, ...props,
+      color: node.role === 'repeater' ? props.scopeColor : feature.properties!.color,
+      opacity: Number(feature.properties!.opacity) * (props.scopeMatch === 0 ? .24 : 1) };
+    return feature;
+  }
+
+  #scopeNodeCollection(nodes: readonly NodeV2[], now: number): FeatureCollection<Point> {
+    if (!this.#scopeSettings.enabled) return nodeCollection(nodes, now);
+    if (!this.#scopeSettings.enabled) return nodeCollection(nodes, now);
+    return { type: 'FeatureCollection', features: nodes.filter(validEndpoint).map(node => this.#scopeNodeFeature(node, now)).filter((feature): feature is Feature<Point> => feature !== undefined) };
+  }
+
+  #refreshScopeNodes(): void {
+    if (!this.#layersReady) return;
+    this.#configureScopeClustering();
+    this.container.dataset.scopeRenderState = 'updating';
+    const epoch = ++this.#scopeEpoch;
+    const nodes = this.#scopeNodeCollection([...this.#nodesByID.values()], trafficNow());
+    this.#nodeFeatureIDs = new Set(nodes.features.map(feature => String(feature.id)));
+    this.#clusterFeatureIDs = new Set(this.#nodeFeatureIDs);
+    // Keep fixed cluster slots; apply the matching palette after the worker has
+    // received both sources, avoiding old counts rendered with new slot colors.
+    const work = [NODE_SOURCE_ID, NODE_CLUSTER_SOURCE_ID].map(id => (this.map.getSource(id) as GeoJSONSource).setData(nodes));
+    void Promise.all(work).then(() => { if (!this.#destroyed && epoch === this.#scopeEpoch) this.#applyScopePaint(); }).catch(() => {
+      if (!this.#destroyed && epoch === this.#scopeEpoch) this.container.dataset.scopeRenderState = 'recovering';
+    });
+  }
+
+  #configureScopeClustering(): void {
+    const enabled = this.#scopeSettings.enabled;
+    if (enabled === this.#scopeClusterActive) return;
+    const style = this.map.getStyle();
+    const ids = new Set<string>(CLUSTER_LAYER_IDS);
+    const layers = style.layers.filter(layer => ids.has(layer.id));
+    const last = style.layers.findIndex(layer => layer.id === layers.at(-1)?.id);
+    const before = style.layers[last + 1]?.id;
+    const source = style.sources[NODE_CLUSTER_SOURCE_ID] as GeoJSONSourceSpecification;
+    // MapLibre has no public setter for clusterProperties. Recreate only this
+    // source and its four layers on an explicit toggle, leaving every other
+    // source, the feed, selection and camera in place. Disabled startup keeps
+    // the original clustering path with no custom expression compilation.
+    for (const layer of layers) this.map.removeLayer(layer.id);
+    this.map.removeSource(NODE_CLUSTER_SOURCE_ID);
+    const options = { ...source };
+    delete options.clusterProperties;
+    this.map.addSource(NODE_CLUSTER_SOURCE_ID, { ...options, data: EMPTY_POINTS,
+      ...(enabled ? { clusterProperties: scopeClusterProperties() } : {}) });
+    for (const layer of layers) this.map.addLayer(layer, before);
+    this.#scopeClusterActive = enabled;
+    this.container.dataset.scopeClusterProperties = String(enabled);
+    this.#highlightedClusterID = null;
+    if (this.#clusterFlashTimer !== undefined) window.clearTimeout(this.#clusterFlashTimer);
+    this.map.setFilter(CLUSTER_HIGHLIGHT_LAYER_ID, clusterIDFilter(null));
+  }
+
+  #applyScopePaint(): void {
+    if (!this.#layersReady || !this.map.getLayer('clusters')) return;
+    const enabled = this.#scopeSettings.enabled;
+    const light = this.#lightScene();
+    const color = scopeClusterColor(this.#scopePalette, light);
+    this.map.setPaintProperty('clusters', 'circle-color', enabled ? color : light ? '#d5eeea' : '#08272c');
+    this.map.setPaintProperty('clusters', 'circle-stroke-color', enabled ? color : light ? '#176c66' : '#48d5c7');
+    this.map.setPaintProperty('clusters-glow', 'circle-color', enabled ? color : light ? '#176c66' : '#32c8bb');
+    this.map.setPaintProperty('clusters', 'circle-opacity', enabled && this.#scopeSettings.focus
+      ? ['case', ['>', ['coalesce', ['get','scopeMatch'], 0], 0], .94, .22]
+      : ['interpolate', ['linear'], ['zoom'], 3, .84, 6.2, .98, DETAIL_ZOOM, .5]);
+    this.map.setPaintProperty(NODE_LABEL_LAYER_ID, 'text-opacity', enabled && this.#scopeSettings.focus
+      ? ['case', ['==', ['coalesce', ['get','scopeMatch'], 1], 0], .28, .96] : .96);
+    if (!enabled) applyOverlayPalette(this.map, this.#originalOverlayColors, light);
+    this.container.dataset.scopeRenderState = 'ready';
+  }
+
+  scopeLegend(): { name: string; members: number; repeats: number; color: string }[] {
+    const rows = new Map<string, { name: string; members: number; repeats: number; color: string }>();
+    const bounds = this.map.getBounds();
+    for (const node of this.#nodesByID.values()) {
+      if (!inScopeBounds(node.lng, node.lat, [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()])) continue;
+      for (const [name, count] of scopeMembership(this.#scopeNodes.get(node.id), this.#scopeSettings.hours)) {
+        const row = rows.get(name) ?? { name, members: 0, repeats: 0, color: this.#scopePalette.includes(name) ? scopeColor(name, this.#lightScene()) : scopeNeutral(this.#lightScene()) };
+        row.members++; row.repeats += count; rows.set(name, row);
+      }
+    }
+    return [...rows.values()].sort((a,b) => b.repeats-a.repeats || a.name.localeCompare(b.name));
+  }
 
   getSelectedNodeID(): string | null { return this.#selectedNodeID; }
 
@@ -935,6 +1056,9 @@ export class LiveMap {
   }
 
   destroy(): void {
+    if (this.#destroyed) return;
+    this.#destroyed = true;
+    this.#scopeEpoch += 1;
     this.#routeHydrationEpoch += 1;
     this.#routeHydrating = false;
     this.renderEpoch += 1;
@@ -1185,12 +1309,15 @@ export class LiveMap {
     applyRouteSelectionFilter(this.map, this.#selectedNodeID);
     applyRouteHitLayerVisibility(this.map, this.routesVisible && this.#selectedNodeID !== null);
     applyRouteHoverFilter(this.map, null);
+    this.#scopeClusterActive = this.#scopeSettings.enabled;
+    this.container.dataset.scopeClusterProperties = String(this.#scopeClusterActive);
     this.map.addSource(NODE_CLUSTER_SOURCE_ID, {
       type: 'geojson',
       data: EMPTY_POINTS,
       cluster: true,
       clusterMaxZoom: 8,
       clusterRadius: 46,
+      ...(this.#scopeClusterActive ? { clusterProperties: scopeClusterProperties() } : {}),
       maxzoom: 14
     });
     this.map.addSource(NODE_SOURCE_ID, { type: 'geojson', data: EMPTY_POINTS, maxzoom: 16 });
@@ -1481,7 +1608,9 @@ export class LiveMap {
     if (!Number.isFinite(clusterId)) return;
     this.#flashCluster(clusterId);
     const source = this.map.getSource(NODE_CLUSTER_SOURCE_ID) as GeoJSONSource;
-    const zoom = await source.getClusterExpansionZoom(clusterId);
+    let zoom: number;
+    try { zoom = await source.getClusterExpansionZoom(clusterId); } catch { return; }
+    if (this.#destroyed || this.map.getSource(NODE_CLUSTER_SOURCE_ID) !== source) return;
     const coordinates = feature?.geometry.type === 'Point' ? feature.geometry.coordinates : undefined;
     if (coordinates && typeof coordinates[0] === 'number' && typeof coordinates[1] === 'number') {
       const center: [number, number] = [coordinates[0], coordinates[1]];
@@ -1750,6 +1879,19 @@ export class LiveMap {
       onClose: () => this.#clearNodeSelection(),
       onSelectNeighbor: (nodeID) => this.selectNodeByID(nodeID, true),
     });
+    if (this.#scopeSettings.enabled) {
+      const evidence = scopeInspector(document, this.#scopeNodes.get(model.node.id), this.#scopeSnapshot, this.#scopeSettings);
+      evidence.open = this.#scopeInspectorOpen;
+      evidence.addEventListener('toggle', () => { this.#scopeInspectorOpen = evidence.open; });
+      content.insertBefore(evidence, content.querySelector('h3'));
+      if (this.#scopeSettings.focus && this.#scopeSettings.mode === 'isolate' && !scopeMembership(this.#scopeNodes.get(model.node.id), this.#scopeSettings.hours).has(this.#scopeSettings.focus)) {
+        const note = document.createElement('p'); note.className = 'scope-outside';
+        note.textContent = 'This node is outside the current scope filter. ';
+        const reveal = document.createElement('button'); reveal.type = 'button'; reveal.className = 'control-button'; reveal.textContent = 'Reveal this node';
+        reveal.addEventListener('click', () => this.onScopeClear?.()); note.append(reveal);
+        content.insertBefore(note, evidence);
+      }
+    }
     if (mobile) {
       this.#closePopup(false);
       replaceInspector(this.#inspectorSheet, content);

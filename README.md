@@ -93,6 +93,24 @@ The default subscription is `meshcore/#`, using standard `meshcore/<region>/<pub
 
 The container runs as a non-root user with a read-only filesystem, dropped capabilities, a persistent checkpoint volume and bounded logs/resources. Do not remove those settings when adapting Compose. See [architecture](docs/architecture.md) for retention and sizing context.
 
+## Repeater scopes
+
+Map → Layers → Map details → **Repeater scopes** shows native repeat reports in
+1h, 6h or 24h windows. Select a visible-area legend row to highlight or isolate
+members, and inspect a node for proportions, timestamps and separately labelled
+reported configuration. Settings stay on this device; **Copy scope link** shares
+exact, case-sensitive focus and window settings.
+
+Color requires one largest observed repeat count. Ties, missing evidence,
+unresolved scoped traffic and palette overflow stay neutral. Reports can include
+several observers of one transmission; they are not RF airtime or unique packet
+counts. Windows include the current partial UTC hour, with coverage gaps stated.
+Filtering markers does not claim that a connection carried a particular scope.
+
+Worldwide uses only this installation's MQTT. It needs no scope provider,
+MeshMapper key, Canadian catalogue or Beacon service. Imported Canada scope
+checkpoint extensions are ignored while existing topology remains compatible.
+
 ## Privacy and scope
 
 Public data contains sanitized node labels, locations and confirmed topology. It does **not** expose keys, observer identities, raw paths, packet hashes, payloads, message text, credentials or resolver details. Route interpretation stays fail-closed; terrain and diagram heights are visual context, not radio coverage or antenna measurements. See [privacy](docs/privacy.md), [public API v2](docs/public-api.md) and [security reporting](SECURITY.md).

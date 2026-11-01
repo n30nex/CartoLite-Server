@@ -1,5 +1,9 @@
 # CartoLite delivery roadmap
 
+## Repeater scopes (in progress)
+
+[Implementation plan](repeater-scopes-plan.md): observed repeat reports, explicit source provenance, persisted scope controls and bounded map rendering. Qualification and deployment remain pending.
+
 ## Browser reliability (0.12.7)
 
 [Bug-fix pass](bugfix-pass-2026-10-29.md): server-aligned data age, stable Follow timing, live-event validation and atomic route updates. Canada also decouples Netgraph from optional region downloads and preserves recent Labs metrics. Qualification and deployment are recorded in release evidence.

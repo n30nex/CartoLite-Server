@@ -84,3 +84,20 @@ Observer packet events contain one sanitized `{ id, label, lat, lng }` point ins
 ## Compatibility
 
 Schema v2 intentionally replaces the embedded `route.from` and `route.to` objects from v1. Clients must reject unknown `schemaVersion` values. Additive fields may appear within v2; removing or changing an existing field requires another schema version.
+
+## Optional scope evidence (`GET /api/scopes`)
+
+This additive schemaVersion 1 summary leaves traffic API v2 unchanged. It is
+cached for 30 seconds, contains opaque node IDs and aggregate evidence only, and
+is requested by visible scope controls at minute cadence. Each scope's `repeats`
+and `heard` arrays correspond to 1h, 6h and 24h, including the current partial
+UTC hour. `since`, `sessionStart`, `lastGap`, `limitedAt` and `connected` make
+warm-up, gaps and storage limits explicit. These counts are hearing reports,
+not unique transmissions. No historical hourly series or private identity is
+returned.
+
+`reports` carry source, original timestamp (omitted when unknown), explicit list
+presence and entries, plus independent default state/source where supplied. A
+successful empty list differs from no report. Configuration and receiver-heard
+counts do not contribute repeat votes. Data begins with newly accepted live
+MQTT evidence; old topology checkpoints are not fabricated into scope history.

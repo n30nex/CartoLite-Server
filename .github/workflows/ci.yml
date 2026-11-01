@@ -202,7 +202,7 @@ jobs:
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
-        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts --output ux-audit-test-results
+        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts scopes.spec.ts --output ux-audit-test-results
       - name: Preserve UI audit screenshots for early review
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -363,7 +363,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|Theme cohesion|long session|Firehose|Pachinko|Chronoscope|UI audit|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|Theme cohesion|long session|Firehose|Pachinko|Chronoscope|UI audit|@scopes|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

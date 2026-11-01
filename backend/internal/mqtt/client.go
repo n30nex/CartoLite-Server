@@ -210,6 +210,7 @@ func (c *Client) onMessage(_ paho.Client, incoming paho.Message) {
 	}
 	if c.handle != nil {
 		message.Retained = incoming.Retained()
+		message.Duplicate = incoming.Duplicate()
 		c.handle(message)
 	}
 }

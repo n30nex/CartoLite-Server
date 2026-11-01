@@ -8,15 +8,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/n30nex/cartolite-server/backend/internal/scopes"
 )
 
 type checkpointV1 struct {
 	SchemaVersion int             `json:"schemaVersion"`
 	Nodes         []*privateNode  `json:"nodes"`
 	Routes        []*privateRoute `json:"routes"`
+	Scopes        *scopes.Saved   `json:"scopes,omitempty"`
 }
 
-func loadCheckpoint(path string) (map[string]*privateNode, map[string]*privateRoute, error) {
+func loadCheckpoint(path string, scopeState ...**scopes.Saved) (map[string]*privateNode, map[string]*privateRoute, error) {
 	nodes := make(map[string]*privateNode)
 	routes := make(map[string]*privateRoute)
 	body, err := os.ReadFile(path)
@@ -82,6 +85,9 @@ func loadCheckpoint(path string) (map[string]*privateNode, map[string]*privateRo
 		}
 		routes[route.ID] = route
 	}
+	if len(scopeState) > 0 {
+		*scopeState[0] = saved.Scopes
+	}
 	return nodes, routes, nil
 }
 
@@ -146,8 +152,11 @@ func validCheckpointRegion(value string) bool {
 	return true
 }
 
-func writeCheckpoint(path string, nodes map[string]*privateNode, routes map[string]*privateRoute) error {
+func writeCheckpoint(path string, nodes map[string]*privateNode, routes map[string]*privateRoute, scopeState ...*scopes.Saved) error {
 	saved := checkpointV1{SchemaVersion: 1, Nodes: make([]*privateNode, 0, len(nodes)), Routes: make([]*privateRoute, 0, len(routes))}
+	if len(scopeState) > 0 {
+		saved.Scopes = scopeState[0]
+	}
 	for _, node := range nodes {
 		copy := *node
 		saved.Nodes = append(saved.Nodes, &copy)

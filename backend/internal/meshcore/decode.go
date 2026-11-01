@@ -30,6 +30,7 @@ type Packet struct {
 	Path           []string
 	Payload        []byte
 	InvalidForMap  bool
+	TransportCodes [2]uint16
 }
 
 type Advert struct {
@@ -72,6 +73,7 @@ func Parse(raw []byte) (Packet, error) {
 		if len(raw) < 6 {
 			return Packet{}, fmt.Errorf("packet missing transport codes")
 		}
+		out.TransportCodes = [2]uint16{binary.LittleEndian.Uint16(raw[1:3]), binary.LittleEndian.Uint16(raw[3:5])}
 		offset += 4
 	}
 	if offset >= len(raw) {

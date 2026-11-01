@@ -93,3 +93,10 @@ export interface PublicMapConfig {
   basemap: { provider: 'openfreemap' | 'carto'; cartoBrowserKey?: string };
   pages: Array<'map' | 'netgraph' | 'terminal' | 'chronoscope' | 'firehose' | 'pachinko'>;
 }
+
+// Optional scope evidence has its own additive contract; traffic API v2 is unchanged.
+export interface ScopeEntry { name: string; at?: number }
+export interface ScopeEvidence { name: string; repeats: [number, number, number]; heard: [number, number, number]; first?: number; last?: number }
+export interface ScopeReport { source: 'mqtt-self' | 'mqtt-neighbor' | 'mqtt-status' | 'meshmapper-reported' | 'meshmapper-uploaded' | 'meshmapper-default'; at?: number; list: boolean; entries: ScopeEntry[]; default?: string; defaultState?: 'named' | 'unknown' | 'none'; defaultSource?: 'advert' | 'reported' }
+export interface NodeScopes { id: string; scopes: ScopeEvidence[]; reports: ScopeReport[] }
+export interface ScopeSnapshot { schemaVersion: 1; serverTime: number; since: number; sessionStart: number; lastGap: number; limitedAt?: number; connected: boolean; nodes: NodeScopes[] }
