@@ -20,11 +20,17 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@
     (window as unknown as {scopeTestView:unknown}).scopeTestView=(event as CustomEvent).detail.view;
   }));
   const started=Date.now();
-  await page.goto('/?repeater_scopes=on&scope_hours=6');
+  await page.goto('/');
   const map=page.locator('#map');
   await expect(map).toHaveAttribute('data-render-state','idle',{timeout:10_000});
+  expect(Date.now()-started,'map startup retains the established first-view budget').toBeLessThan(10_000);
+  await expect(map).toHaveAttribute('data-scope-cluster-properties','false');
+  await openMapOptions(page);
+  await page.getByRole('button',{name:'Repeater scopes'}).click();
+  await page.getByLabel('Scope evidence window',{exact:true}).selectOption('6');
   await expect(map).toHaveAttribute('data-scope-render-state','ready');
-  expect(Date.now()-started,'map and scope startup retain the established first-view budget').toBeLessThan(10_000);
+  await expect(map).toHaveAttribute('data-scope-cluster-properties','true');
+  await page.locator('#layers-close').click();
   await expect(page.locator('html')).toHaveAttribute('data-fixture-stream','ready');
   const featureCount=()=>page.evaluate(()=>{
     const view=(window as unknown as {scopeTestView:{map:{querySourceFeatures:(id:string)=>{properties:{id:string}}[]}}}).scopeTestView;
@@ -44,6 +50,7 @@ for (const viewport of [{width:1280,height:800},{width:390,height:844}]) test(`@
   await expect(page.locator('#packet-canvas')).toHaveAttribute('data-last-packet-kind','Text');
   await expect(page.locator('html')).toHaveAttribute('data-fixture-streams-opened','1');
   await page.reload();
+  await expect(map).toHaveAttribute('data-render-state','idle',{timeout:10_000});
   await expect(map).toHaveAttribute('data-scope-focus','$constructor');
   await expect.poll(featureCount).toBe(1);
   await openMapOptions(page);
