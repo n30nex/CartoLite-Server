@@ -295,7 +295,10 @@ export class ChronoscopeCanvasRenderer {
     Object.assign(this.stage.dataset, { mode:this.#mode, frozen:String(this.frozen), eventCount:String(this.timeline.records.length), segmentCount:String(this.timeline.segmentCount),
       visibleEvents:String(this.#records.length), activeCount:String(this.frozen?0:live.length), motionMode:reduced?'static':'animated', renderer:this.#gpu.batch.ready?'webgl2':'canvas2d', drawMs:this.#drawMS.toFixed(2), windowSeconds:String(this.#seconds) });
     if (now - this.#lastStats > 500) { this.#lastStats = now; this.callbacks.change?.(); }
-    if (this.#records.length && !this.frozen) this.#timer = window.setTimeout(() => { this.#timer = 0; this.request(); }, reduced ? 1_000 : prefs.quality === 'economy' || this.#drawMS > 12 ? 50 : 16);
+    if (this.#records.length && !this.frozen) {
+      if (!reduced && prefs.quality !== 'economy' && this.#drawMS <= 12) this.request();
+      else this.#timer = window.setTimeout(() => { this.#timer = 0; this.request(); }, reduced ? 1_000 : 50);
+    }
   };
   private local(event: PointerEvent): Point { const rect = this.stage.getBoundingClientRect(); return { x:event.clientX-rect.left,y:event.clientY-rect.top }; }
   private pointerDown = (event: PointerEvent): void => {

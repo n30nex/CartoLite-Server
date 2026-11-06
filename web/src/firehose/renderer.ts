@@ -248,11 +248,18 @@ export class FirehoseRenderer {
   accept(buffer:ArrayBuffer):ArrayBuffer|undefined{
     const data=new Float32Array(buffer),old=this.#previous&&this.#previous!==this.#current?this.#previous.buffer as ArrayBuffer:undefined;
     const now=performance.now(),gap=now-this.#received;if(this.#current&&gap>8&&gap<250)this.#frameSpan=this.#frameSpan*.65+gap*.35;
+    const positions=new Float32Array(buffer,HEADER*4,this.capacity*4);
+    if(this.#current){
+      // The current texture already holds the next previous snapshot. Rotate
+      // texture ownership before returning the retired CPU buffer to the worker.
+      const reusable=this.#textures[0];this.#textures[0]=this.#textures[1];this.#textures[1]=reusable;
+    }else{this.#textures[0].image.data=positions;this.#textures[0].needsUpdate=true;}
     this.#previous=this.#current??data;this.#current=data;this.#received=now;
-    this.#textures[0].image.data=new Float32Array(this.#previous.buffer,HEADER*4,this.capacity*4);
-    this.#textures[1].image.data=new Float32Array(data.buffer,HEADER*4,this.capacity*4);this.#textures.forEach(t=>t.needsUpdate=true);
+    this.#textures[1].image.data=positions;this.#textures[1].needsUpdate=true;
+    this.#uniforms.uPrevious!.value=this.#textures[0];this.#uniforms.uCurrent!.value=this.#textures[1];
     const ends=this.#links.geometry.getAttribute('aEnds') as THREE.InstancedBufferAttribute;
-    ends.array=new Float32Array(data.buffer,(HEADER+this.capacity*4)*4,this.capacity*4);ends.needsUpdate=true;this.#links.geometry.instanceCount=data[1]!;
+    ends.array=new Float32Array(data.buffer,(HEADER+this.capacity*4)*4,this.capacity*4);this.#links.geometry.instanceCount=data[1]!;
+    ends.clearUpdateRanges();if(data[1]!>0){ends.addUpdateRange(0,data[1]!*ends.itemSize);ends.needsUpdate=true;}
     this.stage.dataset.beads=String(data[0]);this.stage.dataset.links=String(data[1]);this.stage.dataset.events=String(data[2]);this.stage.dataset.sleeping=String(data[3]);
     this.stage.dataset.physicsMs=data[4]!.toFixed(2);this.stage.dataset.physicsMaxMs=data[15]!.toFixed(2);this.stage.dataset.steps=String(data[13]);
     if(Number(this.stage.dataset.drained??0)<data[6]!){this.#drainTime=now/1000;this.#effectUntil=now+1400;}
@@ -335,6 +342,7 @@ export class FirehoseRenderer {
       if(displayPreferences().quality==='auto'&&!this.paused&&(moved||effects||(this.#current&&this.#current[0]!>this.#current[3]!))
         &&this.#quality.sample(frameMs,this.#drawMs))this.#resized();}
     if(moved||(!this.paused&&blend<1)||effects)this.#request();
+    else{this.#lastDraw=0;this.#quality.resetSamples();}
   };
   get graphicsReady(){return this.#prepared&&!this.lost;}
   get metrics(){return{frames:this.#visualFrames,maxFrameGap:this.#maxFrameGap,drawCalls:this.gpu.info.render.calls,geometries:this.gpu.info.memory.geometries,textures:this.gpu.info.memory.textures,programs:this.gpu.info.programs?.length??0,capacity:this.capacity,impacts:this.#impactIndex};}
