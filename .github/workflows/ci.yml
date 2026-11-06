@@ -106,7 +106,7 @@ jobs:
       - name: Unit tests and synthetic packet-batch comparison
         working-directory: web
         env:
-          CARTOLITE_GPU_BASELINE: "1"
+          VITE_CARTOLITE_GPU_BASELINE: "1"
         run: |
           # Compare immutable release code on this runner; no baseline file ships.
           trap 'rm -f src/gpuEffects.baseline.ts' EXIT

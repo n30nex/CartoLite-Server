@@ -58,7 +58,7 @@ it('keeps date-line breaks and fades the trail without partially emitting an ove
   batch.clear(); expect(batch.hasInk).toBe(false); batch.dispose();
 });
 
-it.skipIf(!process.env.CARTOLITE_GPU_BASELINE)('reports baseline/candidate packet-batch construction on the same runner', async () => {
+it.skipIf(!import.meta.env.VITE_CARTOLITE_GPU_BASELINE)('reports baseline/candidate packet-batch construction on the same runner', async () => {
   // CI materializes the immutable release module and removes it before the build.
   // This measures CPU geometry preparation, not GPU throughput or whole-page FPS.
   const baselinePath = './gpuEffects.baseline.ts';

@@ -15,7 +15,7 @@ qualification are established by Actions evidence, not by inspection alone.
 | Both Chronoscope renderers wait 16 ms and then wait for another animation frame. | Extra latency and reduced cadence during otherwise inexpensive motion. | Request the next animation frame directly for full motion. Preserve the existing heavy-work/economy and reduced-motion timers, frozen clocks and stationary settled sculptures. |
 | Netgraph reads the automatic quality mode even when High or Economy is selected. | The displayed preference and actual effects resolution can disagree. | Apply the explicit setting consistently and sample automatic quality only in Automatic mode. Check both modes against the actual animation canvas size. |
 
-No new dependency, rendering framework, backend traffic field, lower packet cap,
+No new runtime dependency, rendering framework, backend traffic field, lower packet cap,
 synthetic live activity or altered audio/route timing is introduced. Canada's
 operator-selected MQTT-only configuration must be preserved during deployment.
 
@@ -45,6 +45,9 @@ in force; this package targets client-side work rather than changing topology.
 ## Evidence and limits
 
 All builds, dependency work, tests and browser artifacts run in GitHub Actions.
+Canada also pins Gradle 9.9.0 and its official distribution checksum after the
+existing strict Android lint gate rejected the older 9.8.2 toolchain. This does
+not change the Android app version or publish a new APK.
 The packet-batch comparison measures CPU geometry construction with synthetic
 inputs, not complete-page FPS or a user's physical GPU. Baseline source is
 materialized only in the test job and removed before building. New browser checks
