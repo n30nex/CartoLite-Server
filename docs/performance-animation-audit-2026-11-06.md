@@ -44,6 +44,12 @@ in force; this package targets client-side work rather than changing topology.
 
 ## Evidence and limits
 
+Release scanning also flagged the existing `golang.org/x/net` module against
+[GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860). Upgrade its pin from 0.61.0
+to 0.62.0 and resolve the checksum file in Actions. The advisory concerns HTML
+parsing; a module-level scanner finding alone does not establish a reachable
+CartoLite exploit. Keep the HIGH/CRITICAL gate unchanged and qualify fresh images.
+
 All builds, dependency work, tests and browser artifacts run in GitHub Actions.
 Canada also pins Gradle 9.9.0 and its official distribution checksum after the
 existing strict Android lint gate rejected the older 9.8.2 toolchain. This does
