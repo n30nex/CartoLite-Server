@@ -50,21 +50,30 @@ for (const machine of ['firehose', 'pachinko'] as const) {
     await page.locator('#pause-button').click();
     await expect(page.locator(`#${machine}-stage`)).toHaveAttribute('data-paused', 'true');
     await page.waitForTimeout(150);
-    const counts = await page.evaluate(async () => {
+    const result = await page.evaluate(async () => {
       const scene = (window as any).__perfScene, counts: number[] = [];
-      for (let sample = 0; sample < 4; sample++) {
-        (window as any).__positionUploads = 0;
+      const accept = (sample: number, generation: number) => {
         const data = new Float32Array(24 + scene.capacity * 8);
-        data[0] = data[3] = 1; data[11] = 1; data[24] = sample * .1; data[25] = 1; data[27] = (sample + 2) * 8 + 1;
+        data[0] = data[3] = 1; data[11] = 1; data[24] = sample * .1; data[25] = 1; data[27] = generation;
         const retired = scene.accept(data.buffer);
         if (retired) structuredClone(retired, { transfer: [retired] });
+      };
+      for (let sample = 0; sample < 4; sample++) {
+        (window as any).__positionUploads = 0;
+        accept(sample, (sample + 2) * 8 + 1);
         await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
         counts.push((window as any).__positionUploads);
       }
-      return counts;
+      // A stalled main thread may receive several frames before the next paint.
+      // Only the newest pair may retain CPU buffers or reach the GPU.
+      (window as any).__positionUploads = 0;
+      for (let sample = 4; sample < 7; sample++) accept(sample, 99);
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      return { counts, burstUploads: (window as any).__positionUploads, previousX: scene.position(0)?.x };
     });
-    expect(counts).toEqual([1, 1, 1, 1]);
-    await info.attach('position-uploads', { body: JSON.stringify({ machine, uploadsPerSnapshot: counts }), contentType: 'application/json' });
+    expect(result.counts).toEqual([1, 1, 1, 1]);
+    expect(result.burstUploads).toBe(2); expect(result.previousX).toBeCloseTo(.5);
+    await info.attach('position-uploads', { body: JSON.stringify({ machine, uploadsPerSnapshot: result.counts, burstUploads: result.burstUploads }), contentType: 'application/json' });
   });
 }
 
@@ -76,7 +85,8 @@ test('@animation-perf Netgraph applies explicit graphics quality to its animatio
   const stage = page.locator('#netgraph-stage');
   await expect(stage).toHaveAttribute('data-render-state', 'idle');
   await openDisplay(page);
-  for (const [preference, mode, ratio] of [['economy', 'low', 1], ['high', 'full', 2]] as const) {
+  // Preserve the renderer's existing 1.5 DPR ceiling on a 2x display.
+  for (const [preference, mode, ratio] of [['economy', 'low', 1], ['high', 'full', 1.5]] as const) {
     await page.getByLabel('Graphics quality', { exact: true }).selectOption(preference);
     await expect(stage).toHaveAttribute('data-quality-mode', mode);
     await expect.poll(() => page.locator('#packet-canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width / canvas.getBoundingClientRect().width)).toBe(ratio);
