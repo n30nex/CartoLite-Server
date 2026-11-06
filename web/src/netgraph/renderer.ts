@@ -221,7 +221,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#reducedMotionQuery = matchMedia('(prefers-reduced-motion: reduce)');
     this.#lowPowerQuery = matchMedia('(max-width: 700px), (pointer: coarse)');
     this.#stage.dataset.motionMode = prefersReducedMotion() ? 'static' : 'animated';
-    this.#stage.dataset.qualityMode = this.#quality.mode;
+    this.#stage.dataset.qualityMode = this.#qualityMode();
     this.#stage.addEventListener('pointerdown', this.#handlePointerDown);
     this.#stage.addEventListener('pointermove', this.#handlePointerMove);
     this.#stage.addEventListener('pointerup', this.#handlePointerUp);
@@ -241,7 +241,15 @@ export class NetgraphRenderer implements ViewportProjector {
     window.addEventListener(DISPLAY_EVENT, this.#refreshAppearance);
   }
 
+  #qualityMode() {
+    const quality = displayPreferences().quality;
+    return quality === 'high' ? 'full' : quality === 'economy' ? 'low' : this.#quality.mode;
+  }
+
   #refreshAppearance = (): void => {
+    this.#quality.resetSamples();
+    this.#lastMotionAt = 0;
+    this.#stage.dataset.qualityMode = this.#qualityMode();
     this.#glowSprites.clear();
     this.#regionLabelSprites.clear();
     this.#nodesDirty = true;
@@ -723,8 +731,8 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#dpr = Math.min(this.#lowPowerQuery.matches ? 1.25 : 1.5, Math.max(1, devicePixelRatio || 1));
     this.#regionLabelSprites.clear();
     this.#sizeCanvas(this.#graphCanvas, this.#graphContext);
-    this.#sizeCanvas(this.#packetCanvas, this.#packetContext, this.#quality.mode === 'low' ? 1 : this.#dpr);
-    this.#sizeCanvas(this.#residueCanvas, this.#residueContext, this.#quality.mode === 'low' ? 1 : this.#dpr);
+    this.#sizeCanvas(this.#packetCanvas, this.#packetContext, this.#qualityMode() === 'low' ? 1 : this.#dpr);
+    this.#sizeCanvas(this.#residueCanvas, this.#residueContext, this.#qualityMode() === 'low' ? 1 : this.#dpr);
     this.#residueProjectionDirty = true;
     this.#sizeCanvas(this.#nodesCanvas, this.#nodesContext);
     if (!this.#initializedView && this.#layout.positions.size > 0) this.home(false);
@@ -743,7 +751,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #requestStaticDraw(): void {
-    if (this.#tilt === 0 && !this.#regionDrag && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) {
+    if (this.#tilt === 0 && !this.#regionDrag && this.#qualityMode() === 'low' && this.#pointers.size && this.#paintedView) {
       this.#stage.dataset.renderState = 'composited';
       return;
     }
@@ -751,7 +759,7 @@ export class NetgraphRenderer implements ViewportProjector {
     this.#stage.dataset.renderState = 'scheduled';
     this.#staticFrame = requestAnimationFrame(() => {
       this.#staticFrame = 0;
-      if (this.#tilt === 0 && !this.#regionDrag && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) return;
+      if (this.#tilt === 0 && !this.#regionDrag && this.#qualityMode() === 'low' && this.#pointers.size && this.#paintedView) return;
       this.#drawStatic();
     });
   }
@@ -947,7 +955,7 @@ export class NetgraphRenderer implements ViewportProjector {
       context.stroke();
     }
 
-    for (const group of this.#quality.mode === 'low' ? [] : recentGroups.values()) {
+    for (const group of this.#qualityMode() === 'low' ? [] : recentGroups.values()) {
       context.setLineDash(lineDash());
       context.beginPath();
       for (const route of group.routes) this.#appendRoute(context, route);
@@ -1058,7 +1066,7 @@ export class NetgraphRenderer implements ViewportProjector {
         context.strokeStyle = colorWithAlpha('#eaffff', muted ? 0.08 : selected ? 0.92 : 0.36);
         context.lineWidth = selected ? 1.8 : 0.8;
         context.stroke();
-        if (this.#tilt > 0 && this.#quality.mode !== 'low') {
+        if (this.#tilt > 0 && this.#qualityMode() !== 'low') {
           context.beginPath();
           for (const { point, radius } of batch) {
             context.moveTo(point.x - radius * 0.1, point.y - radius * 0.35);
@@ -1142,7 +1150,7 @@ export class NetgraphRenderer implements ViewportProjector {
     const started = performance.now();
     this.#motionFrame = 0;
     const context = this.#packetContext;
-    const ratio = this.#quality.mode === 'low' ? 1 : this.#dpr;
+    const ratio = this.#qualityMode() === 'low' ? 1 : this.#dpr;
     if (this.#packetCanvas.width !== Math.round(this.#width * ratio)) {
       this.#sizeCanvas(this.#packetCanvas, context, ratio);
       this.#sizeCanvas(this.#residueCanvas, this.#residueContext, ratio);
@@ -1172,8 +1180,8 @@ export class NetgraphRenderer implements ViewportProjector {
       || this.#activeRoutes.some(({ packet }) => packet.segments.some((segment) => this.#pathVisible(this.#routePath(segment.from.id, segment.to.id), 28)))
       || this.#observerWakes.some((wake) => this.#pointVisible(this.#screenPoint(wake.endpoint.id), 48));
     if (!prefersReducedMotion() && visibleMotion) {
-      if (this.#lastMotionAt && this.#quality.sample(now - this.#lastMotionAt, performance.now() - started)) {
-        this.#stage.dataset.qualityMode = this.#quality.mode;
+      if (displayPreferences().quality === 'auto' && this.#lastMotionAt && this.#quality.sample(now - this.#lastMotionAt, performance.now() - started)) {
+        this.#stage.dataset.qualityMode = this.#qualityMode();
       }
       this.#lastMotionAt = now;
       this.#requestMotionFrame();
@@ -1225,7 +1233,7 @@ export class NetgraphRenderer implements ViewportProjector {
       const ringRadius = radius + 8 + frame.spread * (frame.longHaul ? 28 : 18);
       context.beginPath();
       surfaceArc(context, point, ringRadius);
-      if (this.#quality.mode !== 'low') {
+      if (this.#qualityMode() !== 'low') {
         context.strokeStyle = colorWithAlpha(color, intensity * 0.09);
         context.lineWidth = frame.longHaul ? 7 : 4;
         context.stroke();
@@ -1261,7 +1269,7 @@ export class NetgraphRenderer implements ViewportProjector {
   }
 
   #drawResidue(_context: CanvasRenderingContext2D, now: number): void {
-    const interval = this.#quality.mode === 'low' ? 500 : this.#quality.mode === 'balanced' ? 250 : 125;
+    const interval = this.#qualityMode() === 'low' ? 500 : this.#qualityMode() === 'balanced' ? 250 : 125;
     if (shouldRefreshResidueCache(this.#residueCacheAt, now, this.#residueProjectionDirty, prefersReducedMotion() && this.#residueDirty, interval)) {
       this.#residueContext.clearRect(0, 0, this.#width, this.#height);
       this.#drawResidueLines(this.#residueContext, now);
@@ -1334,7 +1342,7 @@ export class NetgraphRenderer implements ViewportProjector {
     if (emphasis > 1) this.#stage.dataset.focusedPacketEmphasis = String(emphasis);
     const trail = surfaceTrail(path, progress, 68 * displayPreferences().trailLength);
     if (this.#gpu.batch.packet(trail, head, active.color, active.signature, emphasis)) return;
-    if (this.#quality.mode === 'low' || displayPreferences().quality === 'economy' || effectStrength() === 0) {
+    if (this.#qualityMode() === 'low' || displayPreferences().quality === 'economy' || effectStrength() === 0) {
       traceSurfacePath(context, trail);
       context.strokeStyle = colorWithAlpha(active.color, 0.65);
       context.lineWidth = (active.longHaul ? 3.2 : 2.2) * emphasis;
@@ -1361,7 +1369,7 @@ export class NetgraphRenderer implements ViewportProjector {
       context.lineWidth = (1 + 2.7 * index / Math.max(1, trail.length - 1)) * emphasis;
       context.stroke();
     }
-    const sparkCount = this.#quality.mode === 'balanced' || this.#activeRoutes.length > 40 ? 1 : this.#lowPowerQuery.matches ? 2 : 3;
+    const sparkCount = this.#qualityMode() === 'balanced' || this.#activeRoutes.length > 40 ? 1 : this.#lowPowerQuery.matches ? 2 : 3;
     for (let index = 1; index <= sparkCount; index += 1) {
       const amount = Math.max(0, 1 - index * 0.2);
       const spark = graphPathPoint(path, Math.max(0, progress - (1 - amount) * 0.035));
@@ -1378,7 +1386,7 @@ export class NetgraphRenderer implements ViewportProjector {
     context.arc(head.x, head.y, 3.25 * emphasis * displayPreferences().packetSize, 0, Math.PI * 2);
     context.fillStyle = displayColor(active.color);
     context.fill();
-    if (this.#quality.mode === 'full') {
+    if (this.#qualityMode() === 'full') {
       const previous = trail.at(-2) ?? tail;
       drawPacketSignature(context, head, { x: head.x - previous.x, y: head.y - previous.y }, active.color, active.signature, age);
     }
@@ -1639,7 +1647,7 @@ export class NetgraphRenderer implements ViewportProjector {
       if (r) { const p = graphPathPoint(this.#routePath(r.fromId, r.toId), 0.5); this.#stage.dataset.selectedRouteScreen = `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }
     }
     this.#callbacks.onViewChange?.();
-    if (this.#tilt === 0 && !this.#regionDrag && this.#quality.mode === 'low' && this.#pointers.size && this.#paintedView) {
+    if (this.#tilt === 0 && !this.#regionDrag && this.#qualityMode() === 'low' && this.#pointers.size && this.#paintedView) {
       // Reuse the actual rendered topology while fingers move. Its affine
       // transform is the same projection used by live packets and hit testing.
       const scale = this.#scale / this.#paintedView.scale;
@@ -1655,7 +1663,7 @@ export class NetgraphRenderer implements ViewportProjector {
 
   #animateView(centerX: number, centerY: number, scale: number, yaw = this.#yaw, tilt = this.#tilt): void {
     this.#cancelViewAnimation();
-    if (prefersReducedMotion() || this.#quality.mode === 'low') {
+    if (prefersReducedMotion() || this.#qualityMode() === 'low') {
       this.#centerX = centerX;
       this.#centerY = centerY;
       this.#scale = scale;

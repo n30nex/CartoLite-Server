@@ -77,21 +77,31 @@ export class GPUEffects {
   begin(width: number, height: number): void { this.#used = 0; this.#width = Math.max(1,width); this.#height = Math.max(1,height); }
   clear(): void { this.#used = 0; }
 
-  #quad(points: readonly SurfacePoint[], color: string, opacity: number, shape: number, tail = 1): void {
+  #vertex(x: number, y: number, u: number, v: number, r: number, g: number, b: number, alpha: number, shape: number): void {
+    const vertices = this.#vertices;
+    let at = this.#used;
+    vertices[at++] = x; vertices[at++] = y; vertices[at++] = u; vertices[at++] = v;
+    vertices[at++] = r; vertices[at++] = g; vertices[at++] = b; vertices[at++] = alpha; vertices[at++] = shape;
+    this.#used = at;
+  }
+
+  #quad(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, x3: number, y3: number,
+    color: string, opacity: number, shape: number, tail = 1): void {
     const hex = Number.parseInt(displayColor(color).slice(1),16);
-    const rgb = [(hex>>16&255)/255,(hex>>8&255)/255,(hex&255)/255];
-    const coords = [[-1,-1],[1,-1],[1,1],[-1,1]];
-    for (const i of [0,1,2,0,2,3]) {
-      const point = points[i]!; const uv = coords[i]!;
-      this.#vertices.set([point.x,point.y,uv[0]!,uv[1]!,...rgb,Math.max(0,Math.min(1,opacity*(i===0||i===3?tail:1))),shape],this.#used);
-      this.#used += STRIDE;
-    }
+    const r = (hex>>16&255)/255, g = (hex>>8&255)/255, b = (hex&255)/255;
+    const start = Math.max(0,Math.min(1,opacity*tail)), end = Math.max(0,Math.min(1,opacity));
+    // Write into the retained buffer without allocating corner/vertex arrays per effect.
+    this.#vertex(x0,y0,-1,-1,r,g,b,start,shape); this.#vertex(x1,y1,1,-1,r,g,b,end,shape);
+    this.#vertex(x2,y2,1,1,r,g,b,end,shape); this.#vertex(x0,y0,-1,-1,r,g,b,start,shape);
+    this.#vertex(x2,y2,1,1,r,g,b,end,shape); this.#vertex(x3,y3,-1,1,r,g,b,start,shape);
   }
 
   disc(point: SurfacePoint, radius: number, color: string, opacity: number, shape = 0, grounded = false): boolean {
     if (!this.ready || this.#used+54>CAPACITY || !Number.isFinite(point.x+point.y+radius)) return false;
-    const g = grounded && point.ground ? point.ground : [1,0,0,1];
-    this.#quad([[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y]) => ({x:point.x+radius*(x!*g[0]!+y!*g[2]!),y:point.y+radius*(x!*g[1]!+y!*g[3]!)})),color,opacity,shape);
+    const ground = grounded ? point.ground : undefined;
+    const a = ground?.[0] ?? 1, b = ground?.[1] ?? 0, c = ground?.[2] ?? 0, d = ground?.[3] ?? 1;
+    this.#quad(point.x+radius*(-a-c),point.y+radius*(-b-d),point.x+radius*(a-c),point.y+radius*(b-d),
+      point.x+radius*(a+c),point.y+radius*(b+d),point.x+radius*(-a+c),point.y+radius*(-b+d),color,opacity,shape);
     return true;
   }
 
@@ -104,7 +114,7 @@ export class GPUEffects {
       const a=points[i-1]!, b=points[i]!; if(b.breakBefore) continue;
       const length=Math.hypot(b.x-a.x,b.y-a.y); if(length<.01) continue;
       const width=radius*.55, nx=-(b.y-a.y)/length*width, ny=(b.x-a.x)/length*width;
-      this.#quad([{x:a.x+nx,y:a.y+ny},{x:b.x+nx,y:b.y+ny},{x:b.x-nx,y:b.y-ny},{x:a.x-nx,y:a.y-ny}],color,.95,3,Math.max(.06,(i-1)/Math.max(1,points.length-1)));
+      this.#quad(a.x+nx,a.y+ny,b.x+nx,b.y+ny,b.x-nx,b.y-ny,a.x-nx,a.y-ny,color,.95,3,Math.max(.06,(i-1)/Math.max(1,points.length-1)));
     }
     if(glow) this.disc(head,radius*3.2,color,glow,1);
     const shape=signature==='orbit'?4:signature==='tick'?5:0;

@@ -103,8 +103,16 @@ jobs:
       - name: Audit frontend and build dependencies
         working-directory: web
         run: npm audit --audit-level=low
-      - working-directory: web
-        run: npm test
+      - name: Unit tests and synthetic packet-batch comparison
+        working-directory: web
+        env:
+          VITE_CARTOLITE_GPU_BASELINE: "1"
+        run: |
+          # Compare immutable release code on this runner; no baseline file ships.
+          trap 'rm -f src/gpuEffects.baseline.ts' EXIT
+          git fetch --no-tags --depth=1 origin 735c315a0ed12d30b151816168c118c7243fe027
+          git show 735c315a0ed12d30b151816168c118c7243fe027:web/src/gpuEffects.ts > src/gpuEffects.baseline.ts
+          npm test -- --run
       - working-directory: web
         run: npm run build
       - run: node scripts/report-frontend-size.mjs web/dist
@@ -202,7 +210,7 @@ jobs:
         working-directory: web
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: ux-audit-playwright-report
-        run: bash ../scripts/browser-ci.sh ui-audit.spec.ts scopes.spec.ts --output ux-audit-test-results
+        run: bash ../scripts/browser-ci.sh animation-performance.spec.ts ui-audit.spec.ts scopes.spec.ts --output ux-audit-test-results
       - name: Preserve UI audit screenshots for early review
         if: always() && matrix.arch == 'amd64'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -363,7 +371,7 @@ jobs:
           ) &
           publisher_pid=$!
           trap 'kill "$publisher_pid" >/dev/null 2>&1 || true' EXIT
-          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|Theme cohesion|long session|Firehose|Pachinko|Chronoscope|UI audit|@scopes|@terrain|@world|@regions|Terminal|unavailable character readback'
+          bash ../scripts/browser-ci.sh --grep-invert 'Visual polish|Theme cohesion|long session|Firehose|Pachinko|Chronoscope|UI audit|@animation-perf|@scopes|@terrain|@world|@regions|Terminal|unavailable character readback'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image

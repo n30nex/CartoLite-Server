@@ -173,7 +173,10 @@ export class Chronoscope3DRenderer {
     if(now-this.#lastStats>500||(!moving&&!active)){this.#lastStats=now;this.callbacks.change?.();}
     // Settled sculpture geometry does not age out. Redraw it on input/feed changes,
     // while Flat/Slice retain their time-window updates.
-    if(!this.#frame&&records.length&&!this.frozen&&(this.#mode!=='sculpture'||moving||active)){const delay=!reduced&&(moving||active)?prefs.quality==='economy'||this.#drawMS>12?33:16:1000;this.#timer=window.setTimeout(()=>{this.#timer=0;this.request();},delay);}
+    if(!this.#frame&&records.length&&!this.frozen&&(this.#mode!=='sculpture'||moving||active)){
+      if(!reduced&&(moving||active)&&prefs.quality!=='economy'&&this.#drawMS<=12)this.request();
+      else this.#timer=window.setTimeout(()=>{this.#timer=0;this.request();},!reduced&&(moving||active)?33:1000);
+    }
   };
   private labels(){const c=this.#overlay;c.setTransform(this.#dpr,0,0,this.#dpr,0,0);c.clearRect(0,0,this.#width,this.#height);for(const sign of this.#signatures)drawPacketSignature(c,{x:sign.x,y:sign.y},{x:sign.dx,y:sign.dy},payloadColor(sign.record.packet.payloadType),packetSignature(sign.record.packet.payloadType),sign.age);c.font=`${displayPreferences().textSize==='large'?14:11}px system-ui`;const used:{x:number;y:number;w:number}[]=[];
     const label=(text:string,point:Position3,strong=false)=>{
