@@ -9,7 +9,7 @@ COPY scripts/write-terminal-page.mjs /src/scripts/write-terminal-page.mjs
 # Published images contain no operator or CI browser credentials.
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.27.3-bookworm AS go-build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-bookworm AS go-build
 ARG APP_VERSION=dev
 ARG GIT_SHA=unknown
 ARG BUILD_TIME=unknown
